@@ -1,10 +1,41 @@
 import { Button, Card, Col, Empty, Progress, Row, Space, Statistic, Typography } from "antd";
 import type { CourseStats, RoomStatus } from "@/api";
+import { roomStatusLabel } from "@/components/labels";
 import { RoomStatusTag } from "@/components/StatusTag";
 
 const roomStatuses: RoomStatus[] = ["Open", "Locked", "Completed", "Cancelled"];
 
+function downloadStatistics(
+  courseCode: string,
+  stats: CourseStats,
+  unassigned: number,
+  visibleStatuses: RoomStatus[],
+) {
+  const rows = [
+    ["Chỉ số", "Giá trị"],
+    ["Tổng sinh viên", stats.totalStudents],
+    ["Chưa có phòng", unassigned],
+    ["Đã vào phòng", stats.studentsInRoom],
+    ["Đã có nhóm", stats.studentsInGroup],
+    ["Số nhóm chính thức", stats.groupCount],
+    ...visibleStatuses.map((status) => [
+      `Phòng ${roomStatusLabel[status].text.toLowerCase()}`,
+      stats.roomsByStatus[status] ?? 0,
+    ]),
+  ];
+  const csv = rows
+    .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+    .join("\r\n");
+  const link = document.createElement("a");
+  link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(`\uFEFF${csv}\r\n`)}`;
+  link.download = `thong-ke-${courseCode.replace(/[^a-zA-Z0-9_-]/g, "-")}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
 export function CourseStatistics({
+  courseCode,
   stats,
   canSeeCancelled,
   onRefresh,
@@ -12,6 +43,7 @@ export function CourseStatistics({
   onShowRooms,
   onShowGroups,
 }: {
+  courseCode: string;
   stats: CourseStats;
   canSeeCancelled: boolean;
   onRefresh: () => void;
@@ -33,7 +65,12 @@ export function CourseStatistics({
           </Typography.Title>
         </Col>
         <Col>
-          <Button onClick={onRefresh}>Làm mới thống kê</Button>
+          <Space wrap>
+            <Button onClick={() => downloadStatistics(courseCode, stats, unassigned, visibleStatuses)}>
+              Tải CSV
+            </Button>
+            <Button onClick={onRefresh}>Làm mới thống kê</Button>
+          </Space>
         </Col>
       </Row>
       <Row gutter={[12, 12]}>

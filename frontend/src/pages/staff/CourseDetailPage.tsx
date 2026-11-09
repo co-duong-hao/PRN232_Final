@@ -195,6 +195,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
               />
             ) : stats.data ? (
               <CourseStatistics
+                courseCode={course.code}
                 stats={stats.data}
                 canSeeCancelled={hasRole("Admin")}
                 onRefresh={stats.reload}
