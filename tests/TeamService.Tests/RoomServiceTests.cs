@@ -358,6 +358,50 @@ public sealed class RoomServiceTests : IAsyncLifetime
         Assert.True(await db.StudentInRooms.AnyAsync(x => x.RoomId == room.Id && x.StudentId == result.StudentId));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ApproveAndCancel_WhenBothReadPending_OnlyFirstWriteSucceeds(bool approveFirst)
+    {
+        var leaderUserId = userId;
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(2);
+        await rooms.JoinAsync(room.Id, default);
+        SelectStudent(6);
+        await rooms.JoinAsync(room.Id, default);
+        SelectStudent(8);
+        var applicantUserId = userId;
+        var application = await applies.CreateAsync(room.Id, "xin vào", default);
+        events.Clear();
+
+        db.ChangeTracker.Clear();
+        var pending = await db.RoomApplies.SingleAsync(x => x.Id == application.Id);
+        Assert.Equal(ApplyStatus.Pending, pending.Status);
+
+        // The losing request already holds the Pending snapshot when the other request commits.
+        await using var firstDb = new TeamDbContext(new DbContextOptionsBuilder<TeamDbContext>().UseSqlite(connection).Options);
+        var roomOptions = Options.Create(new RoomOptions());
+        var firstRooms = new RoomService(firstDb, user.Object, matching.Object, publisher.Object, roomOptions, cache,
+            new ReferenceService(firstDb, cache), new ConfigurationBuilder().Build(), metrics);
+        var firstApplies = new RoomApplyService(firstDb, firstRooms, publisher.Object, roomOptions, metrics);
+        userId = approveFirst ? leaderUserId : applicantUserId;
+        await (approveFirst
+            ? firstApplies.DecideAsync(application.Id, true, default)
+            : firstApplies.CancelAsync(application.Id, default));
+
+        userId = approveFirst ? applicantUserId : leaderUserId;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => approveFirst
+            ? applies.CancelAsync(application.Id, default)
+            : applies.DecideAsync(application.Id, true, default));
+
+        db.ChangeTracker.Clear();
+        var saved = await db.RoomApplies.SingleAsync(x => x.Id == application.Id);
+        Assert.Equal(approveFirst ? ApplyStatus.Approved : ApplyStatus.Cancelled, saved.Status);
+        Assert.Equal(approveFirst, await db.StudentInRooms.AnyAsync(x => x.RoomId == room.Id && x.StudentId == application.StudentId));
+        Assert.Equal(approveFirst ? 4 : 3, (await db.Rooms.SingleAsync(x => x.Id == room.Id)).MemberCount);
+        Assert.Equal(approveFirst ? 1 : 0, events.Count(x => x.Type == EventTypes.RoomApplyDecided));
+    }
+
     [Fact]
     public async Task Complete_WhenUnsatisfied_ThrowsBR16()
     {
