@@ -1,4 +1,4 @@
-import { Button, Modal, Spin, Typography } from "antd";
+import { Alert, Button, Descriptions, Modal, Space, Spin, Typography } from "antd";
 import { useCallback, useState, type ReactNode } from "react";
 import { roomsApi, type Room } from "@/api";
 import { StaffLoadError } from "./StaffLoadError";
@@ -48,18 +48,35 @@ export function StaffRoomDetails({
           />
         )}
         {composition.data && (
-          <>
-            <Typography.Paragraph>
-              {composition.data.satisfied ? "Cơ cấu đạt yêu cầu" : "Cơ cấu chưa đạt yêu cầu"}
-            </Typography.Paragraph>
+          <Space direction="vertical" size="middle" style={{ display: "flex" }}>
+            <Alert
+              showIcon
+              type={composition.data.satisfied ? "success" : "warning"}
+              message={composition.data.satisfied ? "Cơ cấu đạt yêu cầu" : "Cơ cấu chưa đạt yêu cầu"}
+            />
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Số thành viên hiện tại">
+                {composition.data.memberCount}
+                {composition.data.missingMemberCount > 0 &&
+                  ` (cần thêm ${composition.data.missingMemberCount})`}
+              </Descriptions.Item>
+              <Descriptions.Item label="Số ngành hiện tại">
+                {composition.data.distinctMajorCount}
+                {composition.data.missingMajorCount > 0 &&
+                  ` (cần thêm ${composition.data.missingMajorCount} ngành khác)`}
+              </Descriptions.Item>
+            </Descriptions>
             {composition.data.violations.length > 0 && (
-              <ul>
-                {composition.data.violations.map((violation, index) => (
-                  <li key={index}>{violation}</li>
-                ))}
-              </ul>
+              <div>
+                <Typography.Text strong>Quy định chưa đạt</Typography.Text>
+                <ul>
+                  {composition.data.violations.map((violation, index) => (
+                    <li key={index}>{violation}</li>
+                  ))}
+                </ul>
+              </div>
             )}
-          </>
+          </Space>
         )}
       </Modal>
     </>
