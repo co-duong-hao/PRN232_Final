@@ -14,11 +14,11 @@ public sealed class EventConsumerWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var settings = options.Value;
-        var db = connection.GetDatabase();
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                var db = connection.GetDatabase();
                 try
                 {
                     await db.StreamCreateConsumerGroupAsync(settings.Stream, settings.ConsumerGroup, "0", createStream: true);
@@ -48,9 +48,9 @@ public sealed class EventConsumerWorker(
             {
                 break;
             }
-            catch (RedisException ex)
+            catch (Exception ex)
             {
-                logger.LogWarning(ex, "Redis không khả dụng; thử lại sau 5 giây.");
+                logger.LogWarning(ex, "Xử lý sự kiện thất bại; thử lại sau 5 giây.");
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
         }
