@@ -6,17 +6,114 @@ using Exe.Shared.Web.Auth;
 using Exe.Shared.Web.Errors;
 using Exe.Shared.Web.Paging;
 using Microsoft.AspNetCore.Identity;
+
 namespace Exe.AuthService.Services;
-public interface IUserService { Task<PagedResult<UserResponse>> ListAsync(UserQuery q,CancellationToken ct); Task<UserResponse> GetAsync(Guid id,CancellationToken ct); Task<UserResponse> CreateAsync(CreateUserRequest r,CancellationToken ct); Task<UserResponse> UpdateAsync(Guid id,UpdateUserRequest r,CancellationToken ct); Task ResetAsync(Guid id,ResetPasswordRequest r,CancellationToken ct); Task DeleteAsync(Guid id,CancellationToken ct); Task<IReadOnlyList<RoleResponse>> RolesAsync(CancellationToken ct); }
-public sealed class UserService(IUserRepository repo,IPasswordHasher<User> hasher,ICurrentUser current) : IUserService {
- public static UserResponse Map(User u)=>new(u.Id,u.Email,u.FullName,u.Status,u.UserRoles.Select(x=>x.Role.Code).OrderBy(x=>x).ToArray(),u.CreatedAt);
- private async Task<User> Find(Guid id,CancellationToken ct)=>await repo.FindAsync(id,ct) ?? throw new NotFoundException("Không tìm thấy tài khoản.");
- private async Task<List<Role>> Resolve(string[] codes,CancellationToken ct) { var roles=await repo.RolesAsync(ct); var result=roles.Where(x=>codes.Contains(x.Code,StringComparer.Ordinal)).ToList(); if(result.Count!=codes.Distinct(StringComparer.Ordinal).Count()) throw new BadRequestException("Role không tồn tại."); return result; }
- public async Task<PagedResult<UserResponse>> ListAsync(UserQuery q,CancellationToken ct) { var query=repo.Query(); if(!string.IsNullOrWhiteSpace(q.Q)) { var s=q.Q.Trim().ToLowerInvariant(); query=query.Where(x=>x.Email.Contains(s)||x.FullName.ToLower().Contains(s)); } if(!string.IsNullOrWhiteSpace(q.Role)) query=query.Where(x=>x.UserRoles.Any(r=>r.Role.Code==q.Role)); if(q.Status.HasValue) query=query.Where(x=>x.Status==q.Status); query=(q.SortBy?.ToLowerInvariant(),q.Descending) switch { ("fullname",false)=>query.OrderBy(x=>x.FullName), ("fullname",true)=>query.OrderByDescending(x=>x.FullName), ("createdat",false)=>query.OrderBy(x=>x.CreatedAt), ("createdat",true)=>query.OrderByDescending(x=>x.CreatedAt), (_,true)=>query.OrderByDescending(x=>x.Email), _=>query.OrderBy(x=>x.Email) }; var page=await query.ToPagedResultAsync(q,ct); return new(page.Items.Select(Map).ToList(),page.Page,page.PageSize,page.TotalItems); }
- public async Task<UserResponse> GetAsync(Guid id,CancellationToken ct)=>Map(await Find(id,ct));
- public async Task<UserResponse> CreateAsync(CreateUserRequest r,CancellationToken ct) { var email=r.Email.Trim().ToLowerInvariant(); if(await repo.FindEmailAsync(email,ct) is not null) throw new BusinessRuleException("EMAIL_EXISTS","Email đã tồn tại."); if(r.Password.Length<8) throw new BadRequestException("Mật khẩu phải có ít nhất 8 ký tự."); var roles=await Resolve(r.Roles,ct); var u=new User { Email=email,FullName=r.FullName }; u.PasswordHash=hasher.HashPassword(u,r.Password); foreach(var role in roles) u.UserRoles.Add(new UserRole { User=u,Role=role }); repo.Add(u); await repo.SaveAsync(ct); return Map(u); }
- public async Task<UserResponse> UpdateAsync(Guid id,UpdateUserRequest r,CancellationToken ct) { var u=await Find(id,ct); var roles=await Resolve(r.Roles,ct); if(id==current.UserId && (r.Status!=UserStatus.Active || !roles.Any(x=>x.Code==Roles.Admin))) throw new BusinessRuleException("CANNOT_MODIFY_SELF","Không thể tự hạ quyền hoặc vô hiệu hóa tài khoản."); if(!Enum.IsDefined(r.Status)) throw new BadRequestException("Trạng thái không hợp lệ."); u.FullName=r.FullName; u.Status=r.Status; foreach(var old in u.UserRoles.Where(x=>!roles.Any(r=>r.Id==x.RoleId)).ToList()) u.UserRoles.Remove(old); foreach(var role in roles.Where(r=>!u.UserRoles.Any(x=>x.RoleId==r.Id))) u.UserRoles.Add(new UserRole { User=u,Role=role }); await repo.SaveAsync(ct); return Map(u); }
- public async Task ResetAsync(Guid id,ResetPasswordRequest r,CancellationToken ct) { if(r.Password.Length<8) throw new BadRequestException("Mật khẩu phải có ít nhất 8 ký tự."); var u=await Find(id,ct); u.PasswordHash=hasher.HashPassword(u,r.Password); await repo.SaveAsync(ct); }
- public async Task DeleteAsync(Guid id,CancellationToken ct) { var u=await Find(id,ct); if(id==current.UserId) throw new BusinessRuleException("CANNOT_MODIFY_SELF","Không thể tự vô hiệu hóa tài khoản."); u.Status=UserStatus.Inactive; await repo.SaveAsync(ct); }
- public async Task<IReadOnlyList<RoleResponse>> RolesAsync(CancellationToken ct)=>(await repo.RolesAsync(ct)).OrderBy(x=>x.Code).Select(x=>new RoleResponse(x.Id,x.Code,x.Name)).ToList();
+
+public sealed class UserService(IUserRepository repo, IPasswordHasher<User> hasher, ICurrentUser current) : IUserService
+{
+    public static UserResponse Map(User u) => new(u.Id, u.Email, u.FullName, u.Status, u.UserRoles.Select(x => x.Role.Code).OrderBy(x => x).ToArray(), u.CreatedAt);
+
+    private async Task<User> Find(Guid id, CancellationToken ct) => await repo.FindAsync(id, ct) ?? throw new NotFoundException("Không tìm thấy tài khoản.");
+
+    private async Task<List<Role>> Resolve(string[] codes, CancellationToken ct)
+    {
+        var roles = await repo.RolesAsync(ct);
+        var result = roles.Where(x => codes.Contains(x.Code, StringComparer.Ordinal)).ToList();
+        if (result.Count != codes.Distinct(StringComparer.Ordinal).Count())
+            throw new BadRequestException("Role không tồn tại.");
+        return result;
+    }
+
+
+    public async Task<PagedResult<UserResponse>> ListAsync(UserQuery q, CancellationToken ct)
+    {
+        var query = repo.Query();
+        if (!string.IsNullOrWhiteSpace(q.Q))
+        {
+            var s = q.Q.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Email.Contains(s) || x.FullName.ToLower().Contains(s));
+        }
+
+        if (!string.IsNullOrWhiteSpace(q.Role))
+            query = query.Where(x => x.UserRoles.Any(r => r.Role.Code == q.Role));
+        if (q.Status.HasValue)
+            query = query.Where(x => x.Status == q.Status);
+        query = (q.SortBy?.ToLowerInvariant(), q.Descending) switch
+        {
+            ("fullname", false) => query.OrderBy(x => x.FullName),
+            ("fullname", true) => query.OrderByDescending(x => x.FullName),
+            ("createdat", false) => query.OrderBy(x => x.CreatedAt),
+            ("createdat", true) => query.OrderByDescending(x => x.CreatedAt),
+            (_, true) => query.OrderByDescending(x => x.Email),
+            _ => query.OrderBy(x => x.Email)
+        };
+        var page = await query.ToPagedResultAsync(q, ct);
+        return new(page.Items.Select(Map).ToList(), page.Page, page.PageSize, page.TotalItems);
+    }
+
+
+    public async Task<UserResponse> GetAsync(Guid id, CancellationToken ct) => Map(await Find(id, ct));
+
+    public async Task<UserResponse> CreateAsync(CreateUserRequest r, CancellationToken ct)
+    {
+        var email = r.Email.Trim().ToLowerInvariant();
+        if (await repo.FindEmailAsync(email, ct) is not null)
+            throw new BusinessRuleException("EMAIL_EXISTS", "Email đã tồn tại.");
+        if (r.Password.Length < 8)
+            throw new BadRequestException("Mật khẩu phải có ít nhất 8 ký tự.");
+        var roles = await Resolve(r.Roles, ct);
+        var u = new User
+        {
+            Email = email,
+            FullName = r.FullName
+        };
+        u.PasswordHash = hasher.HashPassword(u, r.Password);
+        foreach (var role in roles)
+            u.UserRoles.Add(new UserRole { User = u, Role = role });
+        repo.Add(u);
+        await repo.SaveAsync(ct);
+        return Map(u);
+    }
+
+
+    public async Task<UserResponse> UpdateAsync(Guid id, UpdateUserRequest r, CancellationToken ct)
+    {
+        var u = await Find(id, ct);
+        var roles = await Resolve(r.Roles, ct);
+        if (id == current.UserId && (r.Status != UserStatus.Active || !roles.Any(x => x.Code == Roles.Admin)))
+            throw new BusinessRuleException("CANNOT_MODIFY_SELF", "Không thể tự hạ quyền hoặc vô hiệu hóa tài khoản.");
+        if (!Enum.IsDefined(r.Status))
+            throw new BadRequestException("Trạng thái không hợp lệ.");
+        u.FullName = r.FullName;
+        u.Status = r.Status;
+        foreach (var old in u.UserRoles.Where(x => !roles.Any(r => r.Id == x.RoleId)).ToList())
+            u.UserRoles.Remove(old);
+        foreach (var role in roles.Where(r => !u.UserRoles.Any(x => x.RoleId == r.Id)))
+            u.UserRoles.Add(new UserRole { User = u, Role = role });
+        await repo.SaveAsync(ct);
+        return Map(u);
+    }
+
+
+    public async Task ResetAsync(Guid id, ResetPasswordRequest r, CancellationToken ct)
+    {
+        if (r.Password.Length < 8)
+            throw new BadRequestException("Mật khẩu phải có ít nhất 8 ký tự.");
+        var u = await Find(id, ct);
+        u.PasswordHash = hasher.HashPassword(u, r.Password);
+        await repo.SaveAsync(ct);
+    }
+
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct)
+    {
+        var u = await Find(id, ct);
+        if (id == current.UserId)
+            throw new BusinessRuleException("CANNOT_MODIFY_SELF", "Không thể tự vô hiệu hóa tài khoản.");
+        u.Status = UserStatus.Inactive;
+        await repo.SaveAsync(ct);
+    }
+
+
+    public async Task<IReadOnlyList<RoleResponse>> RolesAsync(CancellationToken ct) => (await repo.RolesAsync(ct)).OrderBy(x => x.Code).Select(x => new RoleResponse(x.Id, x.Code, x.Name)).ToList();
 }
