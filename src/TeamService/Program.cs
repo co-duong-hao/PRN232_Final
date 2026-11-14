@@ -16,9 +16,7 @@ builder.Services.AddExeJwtAuth(builder.Configuration);
 builder.Services.AddExeCurrentUser();
 builder.Services.AddHealthChecks();
 
-// Integration points. T4 replaces these two registrations with the Redis and gRPC implementations.
-builder.Services.AddSingleton<IEventPublisher, NullEventPublisher>();
-builder.Services.AddSingleton<IMatchingClient, UnavailableMatchingClient>();
+builder.Services.AddTeamInfrastructure(builder.Configuration);
 
 builder.Services.AddDbContext<TeamDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default"), sql => sql.EnableRetryOnFailure()));
 
