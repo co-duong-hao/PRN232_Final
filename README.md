@@ -157,6 +157,16 @@ dotnet build ExeTeamMatching.sln
 dotnet test ExeTeamMatching.sln
 ```
 
+### Kiểm thử end-to-end
+
+Khi hệ thống đang chạy bằng Docker Compose với dữ liệu mẫu mới (`docker compose down -v` rồi
+`docker compose up -d`), kịch bản sau đi qua Gateway toàn bộ luồng QT01–QT06, các nhánh lỗi BR05, BR09,
+BR16, BR18, lời gọi gRPC và email trong Mailpit:
+
+```bash
+python tests/e2e/e2e_smoke.py .env
+```
+
 ### Database và migration
 
 Migration nằm trong `src/AuthService/Data/Migrations` và `src/TeamService/Data/Migrations`, được áp dụng

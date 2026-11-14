@@ -73,6 +73,8 @@ services:
       dockerfile: src/MatchingService/Dockerfile
     environment:
       <<: *dotnet-env
+      # Endpoints come from Kestrel config below; clear the image's default port binding.
+      ASPNETCORE_HTTP_PORTS: ""
       Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:8080"
       Kestrel__Endpoints__Health__Url: "http://0.0.0.0:8081"
     restart: on-failure
