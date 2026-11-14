@@ -1,3 +1,4 @@
+import "@/features/workspace.css";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Empty, Popconfirm, Select, Space, Table, Typography } from "antd";
 import { Link } from "react-router-dom";
@@ -33,11 +34,17 @@ export function MyAppliesPage() {
     void load();
   }, [load]);
   return (
-    <>
-      <Typography.Title level={2}>Đơn của tôi</Typography.Title>
-      <Space direction="vertical" style={{ width: "100%" }}>
+    <div className="workspace-page">
+      <header className="workspace-heading">
+        <div>
+          <Typography.Title level={1}>Đơn của tôi</Typography.Title>
+          <p>Theo dõi trạng thái các đơn xin vào phòng đã gửi.</p>
+        </div>
+      </header>
+      <Space wrap className="workspace-toolbar">
         <Select
           allowClear
+          aria-label="Lọc theo trạng thái đơn"
           placeholder="Tất cả trạng thái"
           style={{ width: 200 }}
           value={status}
@@ -47,46 +54,47 @@ export function MyAppliesPage() {
           }}
           options={Object.entries(applyStatusLabel).map(([value, label]) => ({ value, label: label.text }))}
         />
-        <Table
-          rowKey="id"
-          loading={loading}
-          dataSource={items}
-          locale={{ emptyText: <Empty description="Không có đơn" /> }}
-          pagination={{
-            current: page,
-            pageSize: size,
-            total,
-            showSizeChanger: true,
-            onChange: (p, s) => {
-              setPage(p);
-              setSize(s);
-            },
-          }}
-          columns={[
-            { title: "Phòng", render: (_, a) => <Link to={`/student/rooms/${a.roomId}`}>{a.roomCode}</Link> },
-            { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },
-            { title: "Lời nhắn", dataIndex: "message" },
-            { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
-            { title: "Ngày xử lý", render: (_, a) => formatDateTime(a.decidedAt) },
-            {
-              title: "Thao tác",
-              render: (_, a) =>
-                a.status === "Pending" && (
-                  <Popconfirm
-                    title="Hủy đơn này?"
-                    onConfirm={async () => {
-                      if (await cancel(a.id)) await load();
-                    }}
-                    okText="Hủy đơn"
-                    cancelText="Đóng"
-                  >
-                    <Button loading={cancelling}>Hủy đơn</Button>
-                  </Popconfirm>
-                ),
-            },
-          ]}
-        />
       </Space>
-    </>
+      <Table
+        scroll={{ x: 720 }}
+        rowKey="id"
+        loading={loading}
+        dataSource={items}
+        locale={{ emptyText: <Empty description="Không có đơn" /> }}
+        pagination={{
+          current: page,
+          pageSize: size,
+          total,
+          showSizeChanger: true,
+          onChange: (p, s) => {
+            setPage(p);
+            setSize(s);
+          },
+        }}
+        columns={[
+          { title: "Phòng", render: (_, a) => <Link to={`/student/rooms/${a.roomId}`}>{a.roomCode}</Link> },
+          { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },
+          { title: "Lời nhắn", dataIndex: "message" },
+          { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
+          { title: "Ngày xử lý", render: (_, a) => formatDateTime(a.decidedAt) },
+          {
+            title: "Thao tác",
+            render: (_, a) =>
+              a.status === "Pending" && (
+                <Popconfirm
+                  title="Hủy đơn này?"
+                  onConfirm={async () => {
+                    if (await cancel(a.id)) await load();
+                  }}
+                  okText="Hủy đơn"
+                  cancelText="Đóng"
+                >
+                  <Button loading={cancelling}>Hủy đơn</Button>
+                </Popconfirm>
+              ),
+          },
+        ]}
+      />
+    </div>
   );
 }

@@ -1,6 +1,13 @@
-import { BookOutlined, TeamOutlined, HomeOutlined, ClockCircleOutlined } from "@ant-design/icons";
+import "@/features/workspace.css";
+import {
+  ArrowRightOutlined,
+  BookOutlined,
+  TeamOutlined,
+  HomeOutlined,
+  ClockCircleOutlined,
+} from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Col, Empty, Pagination, Row, Space, Spin, Statistic, Typography } from "antd";
+import { Button, Card, Empty, Pagination, Space, Spin, Statistic, Typography } from "antd";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { Link } from "react-router-dom";
@@ -44,15 +51,18 @@ export function MyCoursesPage() {
     void load();
   }, [load]);
   return (
-    <>
-      <Space style={{ width: "100%", justifyContent: "space-between" }}>
-        <Typography.Title level={2}>Course của tôi</Typography.Title>
+    <div className="workspace-page">
+      <header className="workspace-heading">
+        <div>
+          <Typography.Title level={1}>Course của tôi</Typography.Title>
+          <p>Xem tiến độ ghép nhóm theo từng Course.</p>
+        </div>
         <Button type="primary" onClick={() => setCreateOpen(true)}>
           + Tạo nhóm
         </Button>
-      </Space>
+      </header>
       <CreateRoomModal open={createOpen} onClose={() => setCreateOpen(false)} />
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <div className="workspace-metrics">
         {[
           { title: "Số Course", value: allCourses.length, icon: <BookOutlined /> },
           { title: "Đã có nhóm", value: allCourses.filter((c) => c.myGroup).length, icon: <TeamOutlined /> },
@@ -63,29 +73,19 @@ export function MyCoursesPage() {
           },
           { title: "Đơn đang chờ", value: pending, icon: <ClockCircleOutlined /> },
         ].map((item) => (
-          <Col xs={12} md={6} key={item.title}>
-            <Card style={{ borderLeft: "4px solid #fa8c16", height: "100%" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <Statistic title={item.title} value={item.value} />
-                <span
-                  style={{
-                    background: "#fff7e6",
-                    color: "#fa8c16",
-                    borderRadius: 8,
-                    padding: 12,
-                    height: 44,
-                  }}
-                >
-                  {item.icon}
-                </span>
-              </div>
-            </Card>
-          </Col>
+          <Card key={item.title}>
+            <div className="workspace-metric">
+              <Statistic title={item.title} value={item.value} />
+              <span className="workspace-metric-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+            </div>
+          </Card>
         ))}
-      </Row>
-      <Typography.Title level={3}>Nhóm của tôi</Typography.Title>
+      </div>
+      <Typography.Title level={2}>Nhóm của tôi</Typography.Title>
       <Spin spinning={loading}>
-        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <div className="workspace-course-grid">
           {!loading && items.length === 0 && <Empty description="Chưa có Course" />}
           {items.map((c) => (
             <Card key={c.id} title={c.code} extra={<CourseStatusTag status={c.status} />}>
@@ -99,8 +99,8 @@ export function MyCoursesPage() {
                 {c.myGroup ? (
                   <>
                     <span>Đã có nhóm {c.myGroup.name || c.myGroup.code}</span>
-                    <Link to={`/student/groups/${c.myGroup.id}`}>
-                      <Button>Xem nhóm</Button>
+                    <Link className="workspace-action-link" to={`/student/groups/${c.myGroup.id}`}>
+                      Xem nhóm
                     </Link>
                   </>
                 ) : c.myRoom ? (
@@ -108,21 +108,27 @@ export function MyCoursesPage() {
                     <span>
                       Đang ở phòng {c.myRoom.name || c.myRoom.code} <RoomStatusTag status={c.myRoom.status} />
                     </span>
-                    <Link to={`/student/rooms/${c.myRoom.id}`}>
-                      <Button>Vào phòng của tôi</Button>
+                    <Link
+                      className="workspace-action-link workspace-action-link-primary"
+                      to={`/student/rooms/${c.myRoom.id}`}
+                    >
+                      Vào phòng của tôi
+                      <ArrowRightOutlined aria-hidden="true" />
                     </Link>
                   </>
                 ) : (
                   <>
                     <span>Chưa có phòng</span>
-                    <Link to={`/student/courses/${c.id}`}>
-                      <Button>Tìm phòng</Button>
+                    <Link className="workspace-action-link" to={`/student/courses/${c.id}`}>
+                      Tìm phòng
                     </Link>
                   </>
                 )}
               </Space>
             </Card>
           ))}
+        </div>
+        {total > 0 && (
           <Pagination
             current={page}
             pageSize={size}
@@ -133,8 +139,8 @@ export function MyCoursesPage() {
               setSize(s);
             }}
           />
-        </Space>
+        )}
       </Spin>
-    </>
+    </div>
   );
 }
