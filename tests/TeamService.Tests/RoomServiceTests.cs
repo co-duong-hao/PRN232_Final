@@ -1,0 +1,291 @@
+using Exe.Contracts.Events;
+using Exe.Shared.Web.Auth;
+using Exe.Shared.Web.Errors;
+using Exe.TeamService.Abstractions;
+using Exe.TeamService.Data;
+using Exe.TeamService.Domain;
+using Exe.TeamService.Services;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Moq;
+
+namespace Exe.TeamService.Tests;
+
+public sealed class RoomServiceTests : IAsyncLifetime
+{
+    private readonly SqliteConnection connection = new("DataSource=:memory:");
+    private readonly Mock<ICurrentUser> user = new();
+    private readonly Mock<IMatchingClient> matching = new();
+    private readonly Mock<IEventPublisher> publisher = new();
+    private readonly List<EventEnvelope> events = [];
+    private TeamDbContext db = null!;
+    private RoomService rooms = null!;
+    private RoomApplyService applies = null!;
+    private Guid courseId;
+    private Guid userId;
+
+    public async Task InitializeAsync()
+    {
+        await connection.OpenAsync();
+        db = new TeamDbContext(new DbContextOptionsBuilder<TeamDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        await TeamDbSeeder.SeedAsync(db);
+        courseId = await db.Courses.Where(x => x.Code == "FA26-EXE101").Select(x => x.Id).SingleAsync();
+        user.SetupGet(x => x.UserId).Returns(() => userId);
+        publisher.Setup(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()))
+            .Callback<EventEnvelope, CancellationToken>((e, _) => events.Add(e)).Returns(Task.CompletedTask);
+        rooms = new RoomService(db, user.Object, matching.Object, publisher.Object, Options.Create(new RoomOptions()));
+        applies = new RoomApplyService(db, rooms, publisher.Object, Options.Create(new RoomOptions()));
+        SelectStudent(1);
+    }
+
+    public async Task DisposeAsync()
+    {
+        await db.DisposeAsync();
+        await connection.DisposeAsync();
+    }
+
+    private void SelectStudent(int number)
+    {
+        userId = Guid.Parse($"10000000-0000-0000-0000-{number:000000000000}");
+    }
+
+    private static CompositionAnalysis Analysis(bool satisfied) => new(satisfied, 4, 0, 3, 0, [], [], satisfied ? [] : ["Thiếu ngành."]);
+
+    [Fact]
+    public async Task Create_WhenEnrolled_CreatesRoomAndLeader()
+    {
+        var result = await rooms.CreateAsync(courseId, default);
+        Assert.Equal("FA26-EXE101-R001", result.Code);
+        Assert.Equal(result.LeaderId, Assert.Single(result.Members).StudentId);
+        Assert.True(result.Members[0].IsLeader);
+    }
+
+    [Fact]
+    public async Task CreateJoinApply_WhenNotEnrolled_ThrowsBR02()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id);
+        var outsider = await db.Students.SingleAsync(x => x.UserId == Guid.Parse("10000000-0000-0000-0000-000000000012"));
+        db.StudentInCourses.Remove(await db.StudentInCourses.SingleAsync(x => x.CourseId == courseId && x.StudentId == outsider.Id));
+        await db.SaveChangesAsync();
+        SelectStudent(12);
+        Assert.Equal("BR02", (await Assert.ThrowsAsync<ForbiddenException>(() => rooms.CreateAsync(courseId, default))).Code);
+        Assert.Equal("BR02", (await Assert.ThrowsAsync<ForbiddenException>(() => rooms.JoinAsync(room.Id, default))).Code);
+        entity.Status = RoomStatus.Locked;
+        await db.SaveChangesAsync();
+        Assert.Equal("BR02", (await Assert.ThrowsAsync<ForbiddenException>(() => applies.CreateAsync(room.Id, "", default))).Code);
+    }
+
+    [Fact]
+    public async Task CreateAndJoin_WhenAlreadyInRoom_ThrowsBR05()
+    {
+        var first = await rooms.CreateAsync(courseId, default);
+        SelectStudent(2);
+        var second = await rooms.CreateAsync(courseId, default);
+        SelectStudent(1);
+        Assert.Equal("BR05", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.CreateAsync(courseId, default))).Code);
+        Assert.Equal("BR05", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.JoinAsync(second.Id, default))).Code);
+        Assert.NotEqual(first.Id, second.Id);
+    }
+
+    [Fact]
+    public async Task JoinAndLeave_WhenThresholdCrossed_LocksAndReopens()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6);
+        await rooms.JoinAsync(room.Id, default);
+        SelectStudent(8);
+        var locked = await rooms.JoinAsync(room.Id, default);
+        Assert.Equal("Locked", locked.Status);
+        await rooms.LeaveAsync(room.Id, default);
+        Assert.Equal(RoomStatus.Open, (await db.Rooms.SingleAsync(x => x.Id == room.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Join_WhenMajorAtLimit_ThrowsBR11()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(2);
+        await rooms.JoinAsync(room.Id, default);
+        SelectStudent(3);
+        await rooms.JoinAsync(room.Id, default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id);
+        entity.Status = RoomStatus.Open;
+        await db.SaveChangesAsync();
+        SelectStudent(4);
+        Assert.Equal("BR11", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.JoinAsync(room.Id, default))).Code);
+    }
+
+    [Fact]
+    public async Task Join_WhenRoomFull_ThrowsBR11()
+    {
+        var type = await db.GroupTypes.SingleAsync();
+        type.MaxMemberCount = 1;
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6);
+        Assert.Equal("BR11", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.JoinAsync(room.Id, default))).Code);
+    }
+
+    [Fact]
+    public async Task Join_WhenOtherApplicationsPending_CancelsThem()
+    {
+        var target = await rooms.CreateAsync(courseId, default);
+        SelectStudent(2);
+        var other = await rooms.CreateAsync(courseId, default);
+        var otherEntity = await db.Rooms.SingleAsync(x => x.Id == other.Id);
+        otherEntity.Status = RoomStatus.Locked;
+        await db.SaveChangesAsync();
+        SelectStudent(6);
+        var apply = await applies.CreateAsync(other.Id, "xin vào", default);
+        await rooms.JoinAsync(target.Id, default);
+        Assert.Equal(ApplyStatus.Cancelled, (await db.RoomApplies.SingleAsync(x => x.Id == apply.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Leave_WhenLeaderHasOthers_ThrowsBR13_AndLastMemberCancels()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6);
+        await rooms.JoinAsync(room.Id, default);
+        SelectStudent(1);
+        Assert.Equal("BR13", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.LeaveAsync(room.Id, default))).Code);
+        SelectStudent(6);
+        await rooms.LeaveAsync(room.Id, default);
+        SelectStudent(1);
+        await rooms.LeaveAsync(room.Id, default);
+        Assert.Equal(RoomStatus.Cancelled, (await db.Rooms.SingleAsync(x => x.Id == room.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Approve_WhenLeaderDecides_AddsApplicant_AndOthersForbidden()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id);
+        entity.Status = RoomStatus.Locked;
+        await db.SaveChangesAsync();
+        SelectStudent(6);
+        var apply = await applies.CreateAsync(room.Id, "xin vào", default);
+        SelectStudent(8);
+        Assert.Equal("NOT_ROOM_LEADER", (await Assert.ThrowsAsync<ForbiddenException>(() => applies.DecideAsync(apply.Id, true, default))).Code);
+        SelectStudent(1);
+        var result = await applies.DecideAsync(apply.Id, true, default);
+        Assert.Equal("Approved", result.Status);
+        Assert.True(await db.StudentInRooms.AnyAsync(x => x.RoomId == room.Id && x.StudentId == result.StudentId));
+    }
+
+    [Fact]
+    public async Task Complete_WhenUnsatisfied_ThrowsBR16()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        matching.Setup(x => x.AnalyzeCompositionAsync(It.IsAny<GroupTypeRule>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(Analysis(false));
+        Assert.Equal("BR16", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.CompleteAsync(room.Id, default))).Code);
+    }
+
+    [Fact]
+    public async Task Complete_WhenSatisfied_CreatesGroupAndPreventsLeaving()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6);
+        await rooms.JoinAsync(room.Id, default);
+        SelectStudent(1);
+        matching.Setup(x => x.AnalyzeCompositionAsync(It.IsAny<GroupTypeRule>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(Analysis(true));
+        var group = await rooms.CompleteAsync(room.Id, default);
+        Assert.Equal("FA26-EXE101-G001", group.Code);
+        Assert.Equal(2, await db.StudentInGroups.CountAsync(x => x.GroupId == group.Id));
+        Assert.Equal(RoomStatus.Completed, (await db.Rooms.SingleAsync(x => x.Id == room.Id)).Status);
+        Assert.Equal("BR18", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.LeaveAsync(room.Id, default))).Code);
+    }
+
+    [Fact]
+    public async Task Join_WhenRoomLocks_PublishesJoinedAndLockedRecipients()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6);
+        await rooms.JoinAsync(room.Id, default);
+        events.Clear();
+        SelectStudent(8);
+        await rooms.JoinAsync(room.Id, default);
+        var joined = Assert.Single(events, x => x.Type == EventTypes.RoomMemberJoined);
+        var locked = Assert.Single(events, x => x.Type == EventTypes.RoomLocked);
+        Assert.Equal(new[] { "student01@exe.local", "student06@exe.local" }, joined.Recipients.Select(x => x.Email).Order().ToArray());
+        Assert.Equal(new[] { "student01@exe.local", "student06@exe.local", "student08@exe.local" }, locked.Recipients.Select(x => x.Email).Order().ToArray());
+        Assert.Equal("Sinh viên 08", joined.Data[EventDataKeys.ActorName]);
+        Assert.Equal("3", joined.Data[EventDataKeys.MemberCount]);
+        Assert.Equal("3", locked.Data[EventDataKeys.MemberCount]);
+    }
+
+    [Fact]
+    public async Task Create_WhenCourseNotForming_ThrowsCourseNotForming()
+    {
+        var course = await db.Courses.SingleAsync(x => x.Id == courseId);
+        course.Status = CourseStatus.Closed;
+        await db.SaveChangesAsync();
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.CreateAsync(courseId, default))).Code);
+    }
+    [Fact]
+    public async Task Complete_WhenRoomChangesDuringAnalysis_ThrowsConcurrencyConflict()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        matching.Setup(x => x.AnalyzeCompositionAsync(It.IsAny<GroupTypeRule>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await using var other = new TeamDbContext(new DbContextOptionsBuilder<TeamDbContext>().UseSqlite(connection).Options);
+                var changed = await other.Rooms.SingleAsync(x => x.Id == room.Id);
+                changed.Version++;
+                await other.SaveChangesAsync();
+                return Analysis(true);
+            });
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => rooms.CompleteAsync(room.Id, default));
+        db.ChangeTracker.Clear();
+        Assert.False(await db.Groups.AnyAsync(x => x.RoomId == room.Id));
+        Assert.Equal(RoomStatus.Open, (await db.Rooms.SingleAsync(x => x.Id == room.Id)).Status);
+    }
+
+    [Fact]
+    public async Task RoomWrites_WhenCourseClosed_RejectAllActions()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id);
+        entity.Status = RoomStatus.Locked;
+        await db.SaveChangesAsync();
+        SelectStudent(6);
+        var apply = await applies.CreateAsync(room.Id, "xin vào", default);
+        var course = await db.Courses.SingleAsync(x => x.Id == courseId);
+        course.Status = CourseStatus.Closed;
+        await db.SaveChangesAsync();
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.JoinAsync(room.Id, default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.LeaveAsync(room.Id, default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.ChangeLeaderAsync(room.Id, Guid.NewGuid(), default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.CompleteAsync(room.Id, default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => applies.CreateAsync(room.Id, "", default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => applies.DecideAsync(apply.Id, true, default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => applies.DecideAsync(apply.Id, false, default))).Code);
+        Assert.Equal("COURSE_NOT_FORMING", (await Assert.ThrowsAsync<BusinessRuleException>(() => applies.CancelAsync(apply.Id, default))).Code);
+    }
+
+    [Fact]
+    public async Task Recommend_WhenStudentHasNoRoom_PassesRuleAndRoomSnapshots()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6);
+        matching.Setup(x => x.RecommendRoomsAsync(It.IsAny<GroupTypeRule>(), "AI", It.IsAny<IReadOnlyList<RoomSnapshot>>(), 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new RoomRecommendation(room.Id, room.Code, 10, true, [])]);
+        var results = await rooms.RecommendAsync(courseId, 5, default);
+        Assert.Equal(room.Id, Assert.Single(results).RoomId);
+        matching.Verify(x => x.RecommendRoomsAsync(It.Is<GroupTypeRule>(r => r.MaxMemberCount == 6 && r.MajorRules.Any(m => m.MajorCode == "SE" && m.MaxQuantity == 3)),
+            "AI", It.Is<IReadOnlyList<RoomSnapshot>>(s => s.Count == 1 && s[0].RoomId == room.Id && s[0].MemberMajorCodes.Contains("SE")),
+            5, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Recommend_WhenStudentAlreadyInRoom_ReturnsEmptyWithoutMatching()
+    {
+        await rooms.CreateAsync(courseId, default);
+        var result = await rooms.RecommendAsync(courseId, 5, default);
+        Assert.Empty(result);
+        matching.Verify(x => x.RecommendRoomsAsync(It.IsAny<GroupTypeRule>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<RoomSnapshot>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+}

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Exe.Gateway</RootNamespace>
+    <AssemblyName>Exe.Gateway</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Web\Exe.Shared.Web.csproj" />
+  </ItemGroup>
+</Project>
