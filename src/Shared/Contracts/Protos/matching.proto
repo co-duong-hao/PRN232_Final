@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+option csharp_namespace = "Exe.Contracts.Grpc";
+
+package exe.matching.v1;
+
+// Stateless service: every call carries all the data it needs.
+// Semantics are specified in docs/design/matching.md.
+service Matching {
+  // Checks a room's composition against BR14 and BR15.
+  rpc AnalyzeComposition (AnalyzeCompositionRequest) returns (AnalyzeCompositionReply);
+  // Ranks the rooms a student could join.
+  rpc RecommendRooms (RecommendRoomsRequest) returns (RecommendRoomsReply);
+}
+
+message MajorRule {
+  string major_code = 1;
+  int32 min_quantity = 2;
+  int32 max_quantity = 3;
+}
+
+message GroupTypeRule {
+  int32 min_member_count = 1;
+  int32 max_member_count = 2;
+  int32 min_major_count = 3;
+  repeated MajorRule major_rules = 4;
+}
+
+message AnalyzeCompositionRequest {
+  GroupTypeRule rule = 1;
+  // One entry per member: the member's major code.
+  repeated string member_major_codes = 2;
+}
+
+message MajorGap {
+  string major_code = 1;
+  int32 current = 2;
+  // For a missing major: the minimum. For an exceeding major: the maximum.
+  int32 required = 3;
+}
+
+message AnalyzeCompositionReply {
+  bool satisfied = 1;
+  int32 member_count = 2;
+  int32 missing_member_count = 3;
+  int32 distinct_major_count = 4;
+  int32 missing_major_count = 5;
+  repeated MajorGap missing_majors = 6;
+  repeated MajorGap exceeding_majors = 7;
+  // Human-readable reasons, each prefixed with the rule code, e.g. "BR14: ...".
+  repeated string violations = 8;
+}
+
+message RoomSnapshot {
+  string room_id = 1;
+  string room_code = 2;
+  // "Open" or "Locked".
+  string status = 3;
+  repeated string member_major_codes = 4;
+}
+
+message RecommendRoomsRequest {
+  GroupTypeRule rule = 1;
+  string student_major_code = 2;
+  repeated RoomSnapshot rooms = 3;
+  // Maximum number of results; values <= 0 mean 5.
+  int32 limit = 4;
+}
+
+message RoomRecommendation {
+  string room_id = 1;
+  string room_code = 2;
+  int32 score = 3;
+  bool can_join = 4;
+  repeated string reasons = 5;
+}
+
+message RecommendRoomsReply {
+  repeated RoomRecommendation recommendations = 1;
+}

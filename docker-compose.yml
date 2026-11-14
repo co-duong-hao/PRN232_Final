@@ -1,0 +1,137 @@
+# Whole system: `cp .env.example .env`, fill in MSSQL_ACCEPT_EULA, then `docker compose up --build`.
+#
+#   http://localhost:8080   API Gateway (the only API entry point)
+#   http://localhost:5101/swagger   Auth Service Swagger (exposed for the demo)
+#   http://localhost:5102/swagger   Team Service Swagger (exposed for the demo)
+#   http://localhost:8025   Mailpit: inbox for every email the system sends
+#
+# Infrastructure only: `docker compose up -d sqlserver redis mailpit`.
+
+name: exe-team-matching
+
+x-dotnet-env: &dotnet-env
+  ASPNETCORE_ENVIRONMENT: Production
+  DOTNET_ENVIRONMENT: Production
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: ${MSSQL_ACCEPT_EULA:?Set MSSQL_ACCEPT_EULA=Y in .env to accept the SQL Server licence}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: src/AuthService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=AuthDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Seed__DefaultPassword: ${SEED_DEFAULT_PASSWORD:?Set SEED_DEFAULT_PASSWORD in .env}
+    ports:
+      - "5101:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: on-failure
+
+  matching-service:
+    build:
+      context: .
+      dockerfile: src/MatchingService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:8080"
+      Kestrel__Endpoints__Health__Url: "http://0.0.0.0:8081"
+    restart: on-failure
+
+  team-service:
+    build:
+      context: .
+      dockerfile: src/TeamService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=TeamDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Jwt__Key: ${JWT_KEY}
+      Redis__ConnectionString: "redis:6379"
+      Matching__Address: "http://matching-service:8080"
+    ports:
+      - "5102:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      matching-service:
+        condition: service_started
+    restart: on-failure
+
+  noti-service:
+    build:
+      context: .
+      dockerfile: src/NotiService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      Redis__ConnectionString: "redis:6379"
+      Smtp__Host: "mailpit"
+      Smtp__Port: "1025"
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    restart: on-failure
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/Dockerfile
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Jwt__Key: ${JWT_KEY}
+      ReverseProxy__Clusters__auth__Destinations__d1__Address: "http://auth-service:8080/"
+      ReverseProxy__Clusters__team__Destinations__d1__Address: "http://team-service:8080/"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - team-service
+    restart: on-failure
+
+volumes:
+  sqlserver-data:
+  redis-data:
