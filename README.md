@@ -30,9 +30,10 @@ flowchart LR
     Auth --> AuthDb[("AuthDb")]
     Team --> TeamDb[("TeamDb")]
     Team -->|"gRPC"| Match["Matching Service"]
-    Team -->|"XADD"| Redis[["Redis Streams"]]
+    Team -->|"produce"| Kafka[["Apache Kafka<br/>topic exe.events"]]
+    Team -->|"cache"| Redis[("Redis")]
     Team -. "tác vụ nền" .-> Team
-    Redis -->|"consumer group"| Noti["Noti Service"]
+    Kafka -->|"consumer group"| Noti["Noti Service"]
     Noti -->|"SMTP"| Mail["Mailpit"]
 ```
 
@@ -41,9 +42,9 @@ flowchart LR
 | **Web app** | Giao diện React cho sinh viên, giảng viên, trưởng bộ môn, admin; Nginx chuyển `/api` sang Gateway | HTTP |
 | **API Gateway** | Cổng vào duy nhất; kiểm tra JWT rồi chuyển tiếp yêu cầu | REST |
 | **Auth Service** | Tài khoản, vai trò, đăng nhập, phát JWT | REST, AuthDb |
-| **Team & Member Service** | Dữ liệu nền, Course, phòng, đơn, nhóm; phát sự kiện; chạy tác vụ nền | REST, TeamDb, gRPC client, Redis producer |
+| **Team & Member Service** | Dữ liệu nền, Course, phòng, đơn, nhóm; phát sự kiện; chạy tác vụ nền | REST, TeamDb, gRPC client, Kafka producer, Redis cache |
 | **Matching Service** | Kiểm tra cơ cấu nhóm (BR14, BR15) và gợi ý phòng; không lưu trạng thái | gRPC server |
-| **Noti Service** | Đọc sự kiện và gửi email | Redis consumer, SMTP |
+| **Noti Service** | Đọc sự kiện và gửi email | Kafka consumer, SMTP |
 
 Mỗi service có database riêng (database-per-service); Auth và Team chỉ tham chiếu nhau ở mức logic qua
 `UserId`. Tài liệu thiết kế chi tiết nằm trong [docs/design](docs/design):
@@ -57,9 +58,10 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 |---|---|
 | REST API | Auth Service và Team Service: CRUD, kiến trúc phân lớp Controller – Service – Repository, JWT, tìm kiếm, lọc, sắp xếp, phân trang |
 | Background Job | `BackgroundService` trong Team Service tự đóng ghép nhóm khi Course quá hạn; Noti Service chạy consumer dưới dạng `BackgroundService` |
-| Message Broker | Redis Streams: Team Service là producer, Noti Service là consumer (consumer group, ACK, xử lý lại, dead-letter stream) |
+| Message Broker | **Apache Kafka**: Team Service là producer (key theo phòng để giữ thứ tự, `acks=all`, idempotent), Noti Service là consumer (consumer group, commit sau khi xử lý, thử lại, topic thư chết `exe.events.dlq`) |
+| Cache | **Redis**: cache loại nhóm và thống kê Course trong Team Service, tự xóa khi dữ liệu đổi; header `X-Cache: HIT/MISS` để quan sát |
 | gRPC | Matching Service, được Team Service gọi khi kiểm tra cơ cấu, hoàn tất phòng và gợi ý phòng |
-| Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 9 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
+| Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 10 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
 | Tài liệu API | Swagger/OpenAPI cho Auth Service và Team Service |
 | Database scripts / migrations | EF Core migrations trong `src/AuthService/Data/Migrations` và `src/TeamService/Data/Migrations`, tự áp dụng khi khởi động |
 | Làm thêm | Web app React cho 4 vai trò; Matching Service gợi ý phòng; dead-letter stream; kiểm thử end-to-end |
@@ -71,7 +73,8 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 - **JWT Bearer** (HS256), phân quyền theo vai trò
 - **YARP** làm API Gateway
 - **gRPC** (Grpc.AspNetCore) với hợp đồng [`matching.proto`](src/Shared/Contracts/Protos/matching.proto)
-- **Redis 7** Streams (StackExchange.Redis)
+- **Apache Kafka 3.9** (KRaft, Confluent.Kafka) làm message broker
+- **Redis 7** làm distributed cache (`IDistributedCache`)
 - **MailKit** gửi email, **Mailpit** làm hộp thư thử nghiệm
 - **Swagger** (Swashbuckle), lỗi trả về theo chuẩn **ProblemDetails** (RFC 7807)
 - **React 18**, TypeScript, Vite, **Ant Design 5**, React Router; Nginx phục vụ bản build
@@ -97,8 +100,8 @@ docker-compose.yml
 
 ## Cài đặt và triển khai
 
-Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 9 container
-(5 service .NET, web app, SQL Server, Redis, Mailpit) và chúng giao tiếp với nhau qua mạng nội bộ của Compose.
+Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 10 container
+(5 service .NET, web app, SQL Server, Kafka, Redis, Mailpit) và chúng giao tiếp với nhau qua mạng nội bộ của Compose.
 
 ### Yêu cầu
 
@@ -148,7 +151,7 @@ Chỉ chạy hạ tầng bằng Docker, còn các service chạy bằng `dotnet 
 `appsettings.Development.json` của từng service):
 
 ```bash
-docker compose up -d sqlserver redis mailpit
+docker compose up -d sqlserver redis kafka mailpit
 dotnet run --project src/MatchingService
 dotnet run --project src/AuthService
 dotnet run --project src/TeamService
@@ -229,7 +232,7 @@ một phòng khác trong Course.
 
 ## Hạn chế đã biết
 
-- Sự kiện được phát ngay sau khi lưu database, chưa dùng outbox pattern: nếu Redis lỗi đúng thời điểm đó,
+- Sự kiện được phát ngay sau khi lưu database, chưa dùng outbox pattern: nếu Kafka lỗi đúng thời điểm đó,
   thông báo của thao tác ấy bị mất (thao tác nghiệp vụ vẫn thành công).
 - Chưa có refresh token; access token hết hạn sau 60 phút.
 - Chưa có ứng dụng mobile.
