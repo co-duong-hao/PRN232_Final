@@ -56,9 +56,10 @@ public sealed class EventConsumerWorker(
                         }
                     }
                 }
-                catch (KafkaException ex)
+                catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
-                    logger.LogWarning(ex, "Kafka gặp lỗi; thử lại sau 5 giây.");
+                    // Any failure (Kafka or otherwise) must not stop the worker: log, wait, reconnect.
+                    logger.LogWarning(ex, "Consumer gặp lỗi; thử lại sau 5 giây.");
                     await Task.Delay(TimeSpan.FromSeconds(5), ct);
                 }
             }
