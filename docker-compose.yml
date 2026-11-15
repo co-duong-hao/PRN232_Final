@@ -1,5 +1,6 @@
 # Whole system: `cp .env.example .env`, fill in MSSQL_ACCEPT_EULA, then `docker compose up --build`.
 #
+#   http://localhost:3000   Web app (React), calls the API through the gateway
 #   http://localhost:8080   API Gateway (the only API entry point)
 #   http://localhost:5101/swagger   Auth Service Swagger (exposed for the demo)
 #   http://localhost:5102/swagger   Team Service Swagger (exposed for the demo)
@@ -132,6 +133,15 @@ services:
     depends_on:
       - auth-service
       - team-service
+    restart: on-failure
+
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
     restart: on-failure
 
 volumes:

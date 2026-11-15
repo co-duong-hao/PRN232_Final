@@ -1,3 +1,4 @@
+using Exe.Shared.Web.Json;
 using System.Text.Json.Serialization;
 using Exe.AuthService.Data;
 using Exe.AuthService.Domain;
@@ -13,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddExeSwagger("EXE Auth Service");
 builder.Services.AddExeErrorHandling();
+builder.Services.AddExeJson();
 builder.Services.AddExeJwtAuth(builder.Configuration);
 builder.Services.AddExeCurrentUser();
 builder.Services.AddHealthChecks();
