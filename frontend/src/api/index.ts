@@ -45,7 +45,8 @@ export const usersApi = {
   get: (id: string) => http.get<User>(`/users/${id}`),
   create: (body: CreateUserRequest) => http.post<User>("/users", body),
   update: (id: string, body: UpdateUserRequest) => http.put<User>(`/users/${id}`, body),
-  resetPassword: (id: string, password: string) => http.post<void>(`/users/${id}/reset-password`, { password }),
+  resetPassword: (id: string, password: string) =>
+    http.post<void>(`/users/${id}/reset-password`, { password }),
   deactivate: (id: string) => http.delete(`/users/${id}`),
   roles: () => http.get<RoleInfo[]>("/roles"),
 };
@@ -54,7 +55,8 @@ export const referenceApi = {
   semesters: (params?: PageParams) => http.get<Paged<Lookup>>("/semesters", q({ pageSize: 100, ...params })),
   subjects: (params?: PageParams) => http.get<Paged<Lookup>>("/subjects", q({ pageSize: 100, ...params })),
   majors: (params?: PageParams) => http.get<Paged<Lookup>>("/majors", q({ pageSize: 100, ...params })),
-  groupTypes: (params?: PageParams) => http.get<Paged<GroupType>>("/group-types", q({ pageSize: 100, ...params })),
+  groupTypes: (params?: PageParams) =>
+    http.get<Paged<GroupType>>("/group-types", q({ pageSize: 100, ...params })),
   students: (params?: PageParams & { majorId?: string }) => http.get<Paged<Student>>("/students", q(params)),
 };
 
@@ -68,10 +70,12 @@ export const coursesApi = {
   close: (id: string) => http.post<Course>(`/courses/${id}/close`),
   students: (id: string, params?: CourseStudentParams) =>
     http.get<Paged<CourseStudent>>(`/courses/${id}/students`, q(params)),
-  enroll: (id: string, studentIds: string[]) => http.post<EnrollmentResult>(`/courses/${id}/students`, { studentIds }),
+  enroll: (id: string, studentIds: string[]) =>
+    http.post<EnrollmentResult>(`/courses/${id}/students`, { studentIds }),
   removeStudent: (id: string, studentId: string) => http.delete(`/courses/${id}/students/${studentId}`),
   stats: (id: string) => http.get<CourseStats>(`/courses/${id}/stats`),
-  rooms: (id: string, params?: RoomListParams) => http.get<Paged<RoomSummary>>(`/courses/${id}/rooms`, q(params)),
+  rooms: (id: string, params?: RoomListParams) =>
+    http.get<Paged<RoomSummary>>(`/courses/${id}/rooms`, q(params)),
   groups: (id: string, params?: PageParams) => http.get<Paged<Group>>(`/courses/${id}/groups`, q(params)),
   createRoom: (id: string) => http.post<Room>(`/courses/${id}/rooms`),
   recommendations: (id: string, limit = 5) =>
@@ -93,7 +97,8 @@ export const roomsApi = {
   composition: (id: string) => http.get<CompositionAnalysis>(`/rooms/${id}/composition`),
   complete: (id: string) => http.post<Group>(`/rooms/${id}/complete`),
   apply: (id: string, message: string) => http.post<RoomApply>(`/rooms/${id}/applies`, { message }),
-  applies: (id: string, params?: ApplyListParams) => http.get<Paged<RoomApply>>(`/rooms/${id}/applies`, q(params)),
+  applies: (id: string, params?: ApplyListParams) =>
+    http.get<Paged<RoomApply>>(`/rooms/${id}/applies`, q(params)),
 };
 
 export const appliesApi = {

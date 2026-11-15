@@ -53,7 +53,11 @@ function buildUrl(path: string, query?: Query): string {
   return `/api${path}${qs ? `?${qs}` : ""}`;
 }
 
-async function request<T>(method: string, path: string, options: { query?: Query; body?: unknown } = {}): Promise<T> {
+async function request<T>(
+  method: string,
+  path: string,
+  options: { query?: Query; body?: unknown } = {},
+): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   const token = readStoredToken();
   if (token) headers.Authorization = `Bearer ${token}`;

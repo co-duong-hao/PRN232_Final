@@ -41,12 +41,23 @@ export function AppLayout() {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider breakpoint="lg" collapsedWidth={0} theme="light" width={230} style={{ borderRight: "1px solid #f0f0f0" }}>
+      <Sider
+        breakpoint="lg"
+        collapsedWidth={0}
+        theme="light"
+        width={230}
+        style={{ borderRight: "1px solid #f0f0f0" }}
+      >
         <div style={{ padding: "18px 20px", fontWeight: 700, fontSize: 16 }}>
           <TeamOutlined style={{ color: "#1677ff", marginRight: 8 }} />
           EXE Team Matching
         </div>
-        <Menu mode="inline" items={items} selectedKeys={selected ? [selected] : []} onClick={(e) => navigate(e.key)} />
+        <Menu
+          mode="inline"
+          items={items}
+          selectedKeys={selected ? [selected] : []}
+          onClick={(e) => navigate(e.key)}
+        />
       </Sider>
       <Layout>
         <Header
@@ -71,7 +82,11 @@ export function AppLayout() {
               <Space>
                 <Avatar size="small" icon={<UserOutlined />} />
                 <span>{user?.fullName}</span>
-                {student && <Typography.Text type="secondary">{student.studentCode} · {student.majorCode}</Typography.Text>}
+                {student && (
+                  <Typography.Text type="secondary">
+                    {student.studentCode} · {student.majorCode}
+                  </Typography.Text>
+                )}
                 {user?.roles.map((r) => (
                   <Tag key={r} color="blue">
                     {roleLabel[r]}

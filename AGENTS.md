@@ -16,7 +16,7 @@ Bạn là một worker: chỉ làm đúng task được giao.
    Không cài thêm package.
 5. Trước khi báo xong:
    - backend: `dotnet build ExeTeamMatching.sln` không lỗi, test của phần mình xanh;
-   - frontend: `npm run build` trong `frontend/` không lỗi.
+   - frontend: `npm run format` rồi `npm run build` trong `frontend/`, build không lỗi.
 6. Kết thúc bằng báo cáo: file đã tạo/sửa, dòng tổng kết của build và test, việc chưa làm được, giả định
    đã tự đặt.
 

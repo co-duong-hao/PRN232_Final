@@ -34,7 +34,15 @@ export function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f5f7fb", padding: 16 }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#f5f7fb",
+        padding: 16,
+      }}
+    >
       <Card style={{ width: 380, maxWidth: "100%" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <TeamOutlined style={{ fontSize: 40, color: "#1677ff" }} />
@@ -45,7 +53,11 @@ export function LoginPage() {
         </div>
         {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
         <Form<LoginForm> layout="vertical" onFinish={onFinish} requiredMark={false}>
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Nhập email hợp lệ" }]}>
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[{ required: true, type: "email", message: "Nhập email hợp lệ" }]}
+          >
             <Input prefix={<MailOutlined />} placeholder="student01@exe.local" autoComplete="username" />
           </Form.Item>
           <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Nhập mật khẩu" }]}>

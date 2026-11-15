@@ -28,22 +28,72 @@ export function App() {
         <Route index element={<HomeRedirect />} />
 
         {/* Task F1: student */}
-        <Route path="student/courses" element={<RequireAuth roles={["Student"]}><MyCoursesPage /></RequireAuth>} />
-        <Route path="student/courses/:courseId" element={<RequireAuth roles={["Student"]}><CourseRoomsPage /></RequireAuth>} />
-        <Route path="student/rooms/:roomId" element={<RequireAuth roles={["Student"]}><RoomDetailPage /></RequireAuth>} />
-        <Route path="student/applies" element={<RequireAuth roles={["Student"]}><MyAppliesPage /></RequireAuth>} />
-        <Route path="student/groups/:groupId" element={<RequireAuth roles={["Student"]}><GroupDetailPage /></RequireAuth>} />
+        <Route
+          path="student/courses"
+          element={
+            <RequireAuth roles={["Student"]}>
+              <MyCoursesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="student/courses/:courseId"
+          element={
+            <RequireAuth roles={["Student"]}>
+              <CourseRoomsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="student/rooms/:roomId"
+          element={
+            <RequireAuth roles={["Student"]}>
+              <RoomDetailPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="student/applies"
+          element={
+            <RequireAuth roles={["Student"]}>
+              <MyAppliesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="student/groups/:groupId"
+          element={
+            <RequireAuth roles={["Student"]}>
+              <GroupDetailPage />
+            </RequireAuth>
+          }
+        />
 
         {/* Task F2: lecturer, head of department, admin */}
         <Route
           path="staff/courses"
-          element={<RequireAuth roles={["Admin", "HeadOfDepartment", "Lecturer"]}><CoursesPage /></RequireAuth>}
+          element={
+            <RequireAuth roles={["Admin", "HeadOfDepartment", "Lecturer"]}>
+              <CoursesPage />
+            </RequireAuth>
+          }
         />
         <Route
           path="staff/courses/:courseId"
-          element={<RequireAuth roles={["Admin", "HeadOfDepartment", "Lecturer"]}><CourseDetailPage /></RequireAuth>}
+          element={
+            <RequireAuth roles={["Admin", "HeadOfDepartment", "Lecturer"]}>
+              <CourseDetailPage />
+            </RequireAuth>
+          }
         />
-        <Route path="admin/users" element={<RequireAuth roles={["Admin"]}><UsersPage /></RequireAuth>} />
+        <Route
+          path="admin/users"
+          element={
+            <RequireAuth roles={["Admin"]}>
+              <UsersPage />
+            </RequireAuth>
+          }
+        />
 
         <Route path="*" element={<NotFound />} />
       </Route>

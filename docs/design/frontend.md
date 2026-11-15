@@ -14,6 +14,7 @@ React 18, TypeScript (strict), Vite 5, Ant Design 5 (giao diện tiếng Việt)
 cd frontend
 npm install        # đã chạy sẵn trong mỗi worktree
 npm run dev        # http://localhost:5173, /api được proxy sang Gateway http://localhost:8080
+npm run format     # định dạng code bằng Prettier; chạy trước khi báo xong
 npm run build      # kiểm tra kiểu + build; phải không lỗi trước khi báo xong
 ```
 
@@ -58,6 +59,7 @@ component đó, **giữ nguyên tên export**. Thiếu hàm API hoặc kiểu d�
 - Ẩn nút người dùng không được dùng (theo vai trò, trạng thái phòng, trưởng phòng hay không). Backend vẫn là
   nơi kiểm tra cuối cùng; giao diện chỉ giúp người dùng không bấm nhầm.
 - Toàn bộ chữ trên giao diện là tiếng Việt.
+- Code phải được định dạng bằng Prettier (`npm run format`). Không viết nhiều câu lệnh trên một dòng.
 - TypeScript strict, không dùng `any`. Component là function component với hooks.
 - Định danh: `useAuth().user.id` là **userId**; `useAuth().student.id` là **studentId**. Phòng, đơn, nhóm
   dùng studentId (ví dụ so `room.leaderId === student.id` để biết có phải trưởng phòng).
@@ -67,6 +69,6 @@ component đó, **giữ nguyên tên export**. Thiếu hàm API hoặc kiểu d�
 Giống `conventions.md`, mục "Luật cho worker", với các điểm riêng:
 
 - Chỉ sửa file trong mục "Được sửa" của task.
-- Trước khi báo xong: `npm run build` trong `frontend/` không lỗi.
+- Trước khi báo xong: `npm run format` rồi `npm run build` trong `frontend/`, build không lỗi.
 - Nếu chạy được backend, tự thử các luồng trong mục "Xong khi" của task trên trình duyệt; nếu không chạy
   được, ghi rõ trong báo cáo.
