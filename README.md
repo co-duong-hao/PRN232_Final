@@ -59,8 +59,10 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 | Background Job | `BackgroundService` trong Team Service tự đóng ghép nhóm khi Course quá hạn; Noti Service chạy consumer dưới dạng `BackgroundService` |
 | Message Broker | Redis Streams: Team Service là producer, Noti Service là consumer (consumer group, ACK, xử lý lại, dead-letter stream) |
 | gRPC | Matching Service, được Team Service gọi khi kiểm tra cơ cấu, hoàn tất phòng và gợi ý phòng |
-| Docker | Mỗi service một Dockerfile; toàn hệ thống chạy bằng Docker Compose |
+| Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 9 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
 | Tài liệu API | Swagger/OpenAPI cho Auth Service và Team Service |
+| Database scripts / migrations | EF Core migrations trong `src/AuthService/Data/Migrations` và `src/TeamService/Data/Migrations`, tự áp dụng khi khởi động |
+| Làm thêm | Web app React cho 4 vai trò; Matching Service gợi ý phòng; dead-letter stream; kiểm thử end-to-end |
 
 ## Công nghệ
 
@@ -93,7 +95,10 @@ docs/                 Đề bài, mô tả đề tài, tài liệu thiết kế
 docker-compose.yml
 ```
 
-## Cài đặt và chạy
+## Cài đặt và triển khai
+
+Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 9 container
+(5 service .NET, web app, SQL Server, Redis, Mailpit) và chúng giao tiếp với nhau qua mạng nội bộ của Compose.
 
 ### Yêu cầu
 
