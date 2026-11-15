@@ -6,8 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Confluent.Kafka" />
-    <!-- Remove together with the Redis Streams consumer in task K1. -->
-    <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="MailKit" />
   </ItemGroup>
   <ItemGroup>
