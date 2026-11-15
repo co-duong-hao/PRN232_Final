@@ -1,4 +1,5 @@
 using Exe.TeamService.Abstractions;
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.TeamService.Domain;
 using Exe.TeamService.Services;
 
@@ -8,11 +9,13 @@ public sealed class CourseCloseProcessor
 {
     private readonly ICourseCloseRepository repository;
     private readonly IEventPublisher publisher;
+    private readonly ITeamCache cache;
 
-    internal CourseCloseProcessor(ICourseCloseRepository repository, IEventPublisher publisher)
+    internal CourseCloseProcessor(ICourseCloseRepository repository, IEventPublisher publisher, ITeamCache cache)
     {
         this.repository = repository;
         this.publisher = publisher;
+        this.cache = cache;
     }
 
     public async Task<int> RunOnceAsync(DateTime utcNow, CancellationToken cancellationToken = default)
@@ -30,6 +33,7 @@ public sealed class CourseCloseProcessor
         await repository.SaveChangesAsync(cancellationToken);
         foreach (var course in courses)
         {
+            await cache.RemoveAsync(TeamCacheKeys.CourseStats(course.Id), cancellationToken);
             recipients.TryGetValue(course.Id, out var courseRecipients);
             var envelope = RoomEventFactory.CourseClosed(course.Code, courseRecipients ?? []);
             await publisher.PublishAsync(envelope, cancellationToken);

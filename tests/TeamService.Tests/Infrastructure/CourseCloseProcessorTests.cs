@@ -27,7 +27,7 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
         publisher.Setup(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()))
             .Callback<EventEnvelope, CancellationToken>((item, _) => events.Add(item))
             .Returns(Task.CompletedTask);
-        processor = new CourseCloseProcessor(new CourseCloseRepository(db), publisher.Object);
+        processor = new CourseCloseProcessor(new CourseCloseRepository(db), publisher.Object, TestCache.Create());
     }
 
     public async Task DisposeAsync()
@@ -113,7 +113,7 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
     public async Task RunOnce_WhenSaveFails_DoesNotPublish()
     {
         var repository = new FailingSaveRepository();
-        var failingProcessor = new CourseCloseProcessor(repository, publisher.Object);
+        var failingProcessor = new CourseCloseProcessor(repository, publisher.Object, TestCache.Create());
         await Assert.ThrowsAsync<InvalidOperationException>(() => failingProcessor.RunOnceAsync(now));
         Assert.Empty(events);
         publisher.Verify(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()), Times.Never);

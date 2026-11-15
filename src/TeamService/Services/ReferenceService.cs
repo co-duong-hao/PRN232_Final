@@ -1,3 +1,4 @@
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.Shared.Web.Errors;
 using Exe.Shared.Web.Paging;
 using Exe.TeamService.Data;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Exe.TeamService.Services;
 
-public sealed class ReferenceService(TeamDbContext db) : IReferenceService
+public sealed class ReferenceService(TeamDbContext db, ITeamCache cache) : IReferenceService
 {
     private IQueryable<LookupDto> Lookups(string kind) => kind switch
     {
@@ -278,6 +279,7 @@ public sealed class ReferenceService(TeamDbContext db) : IReferenceService
             type.Majors.Add(new GroupTypeMajor { MajorId = item.MajorId, MinQuantity = item.MinQuantity, MaxQuantity = item.MaxQuantity });
         }
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(TeamCacheKeys.GroupType(type.Id), ct);
         db.ChangeTracker.Clear();
         return await GroupTypeAsync(type.Id, ct);
     }
@@ -293,5 +295,6 @@ public sealed class ReferenceService(TeamDbContext db) : IReferenceService
         db.GroupTypeMajors.RemoveRange(type.Majors);
         db.GroupTypes.Remove(type);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(TeamCacheKeys.GroupType(id), ct);
     }
 }

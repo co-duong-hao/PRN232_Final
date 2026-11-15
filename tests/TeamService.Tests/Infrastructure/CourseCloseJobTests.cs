@@ -24,7 +24,7 @@ public sealed class CourseCloseJobTests
             return repository;
         });
         services.AddSingleton(Mock.Of<IEventPublisher>());
-        services.AddScoped(sp => new CourseCloseProcessor(sp.GetRequiredService<ICourseCloseRepository>(), sp.GetRequiredService<IEventPublisher>()));
+        services.AddScoped(sp => new CourseCloseProcessor(sp.GetRequiredService<ICourseCloseRepository>(), sp.GetRequiredService<IEventPublisher>(), TestCache.Create()));
         await using var provider = services.BuildServiceProvider();
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
