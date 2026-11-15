@@ -5,7 +5,7 @@ Bạn là một worker: chỉ làm đúng task được giao.
 
 1. Đọc quy ước trước tiên:
    - task backend: `docs/design/conventions.md`;
-   - task frontend (F1, F2): `docs/design/frontend.md`, rồi phần "Luật cho worker" ở cuối
+   - task frontend (F1, F2, G2...): `docs/design/frontend.md`, rồi phần "Luật cho worker" ở cuối
      `docs/design/conventions.md`.
 2. Đọc task của bạn trong `docs/design/tasks/` và các tài liệu mà task liệt kê ở mục "Đọc trước".
 3. Chỉ sửa file trong mục "Được sửa" của task. Những phần sau là của Manager: `src/Shared/**`, `*.sln`,

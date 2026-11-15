@@ -25,6 +25,9 @@ import type {
   RoomRecommendation,
   RoomSummary,
   RoleInfo,
+  RoomProfileRequest,
+  StudentProfileRequest,
+  TeamRole,
   Student,
   UpdateCourseRequest,
   UpdateUserRequest,
@@ -32,7 +35,7 @@ import type {
   UserListParams,
 } from "./types";
 
-type Q = Record<string, string | number | boolean | undefined>;
+type Q = Record<string, string | number | boolean | undefined | string[]>;
 const q = (params?: object) => params as Q | undefined;
 
 export const authApi = {
@@ -55,6 +58,8 @@ export const referenceApi = {
   semesters: (params?: PageParams) => http.get<Paged<Lookup>>("/semesters", q({ pageSize: 100, ...params })),
   subjects: (params?: PageParams) => http.get<Paged<Lookup>>("/subjects", q({ pageSize: 100, ...params })),
   majors: (params?: PageParams) => http.get<Paged<Lookup>>("/majors", q({ pageSize: 100, ...params })),
+  teamRoles: (params?: PageParams) =>
+    http.get<Paged<TeamRole>>("/team-roles", q({ pageSize: 100, ...params })),
   groupTypes: (params?: PageParams) =>
     http.get<Paged<GroupType>>("/group-types", q({ pageSize: 100, ...params })),
   students: (params?: PageParams & { majorId?: string }) => http.get<Paged<Student>>("/students", q(params)),
@@ -77,7 +82,8 @@ export const coursesApi = {
   rooms: (id: string, params?: RoomListParams) =>
     http.get<Paged<RoomSummary>>(`/courses/${id}/rooms`, q(params)),
   groups: (id: string, params?: PageParams) => http.get<Paged<Group>>(`/courses/${id}/groups`, q(params)),
-  createRoom: (id: string) => http.post<Room>(`/courses/${id}/rooms`),
+  /** QT01. The recruitment profile is optional (BR22). */
+  createRoom: (id: string, body?: RoomProfileRequest) => http.post<Room>(`/courses/${id}/rooms`, body ?? {}),
   recommendations: (id: string, limit = 5) =>
     http.get<RoomRecommendation[]>(`/courses/${id}/rooms/recommendations`, { limit }),
 };
@@ -85,6 +91,8 @@ export const coursesApi = {
 export const meApi = {
   /** Student profile of the signed-in user (only for role Student). */
   student: () => http.get<Student>("/me/student"),
+  /** BR21: the student fills in GPA and 1–3 roles. */
+  updateProfile: (body: StudentProfileRequest) => http.put<Student>("/me/student/profile", body),
   courses: (params?: PageParams) => http.get<Paged<MyCourse>>("/me/courses", q(params)),
   applies: (params?: ApplyListParams) => http.get<Paged<RoomApply>>("/me/applies", q(params)),
 };
@@ -94,6 +102,8 @@ export const roomsApi = {
   join: (id: string) => http.post<Room>(`/rooms/${id}/join`),
   leave: (id: string) => http.post<void>(`/rooms/${id}/leave`),
   changeLeader: (id: string, studentId: string) => http.put<Room>(`/rooms/${id}/leader`, { studentId }),
+  /** Leader edits the recruitment profile (BR22). */
+  updateProfile: (id: string, body: RoomProfileRequest) => http.put<Room>(`/rooms/${id}/profile`, body),
   composition: (id: string) => http.get<CompositionAnalysis>(`/rooms/${id}/composition`),
   complete: (id: string) => http.post<Group>(`/rooms/${id}/complete`),
   apply: (id: string, message: string) => http.post<RoomApply>(`/rooms/${id}/applies`, { message }),

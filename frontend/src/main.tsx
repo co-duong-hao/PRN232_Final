@@ -13,7 +13,7 @@ dayjs.locale("vi");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ConfigProvider locale={viVN} theme={{ token: { colorPrimary: "#1677ff", borderRadius: 8 } }}>
+    <ConfigProvider locale={viVN} theme={{ token: { colorPrimary: "#EA580C", borderRadius: 8 } }}>
       <AntApp>
         <BrowserRouter>
           <AuthProvider>

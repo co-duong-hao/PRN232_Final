@@ -31,6 +31,7 @@ export function AppLayout() {
     items.push(
       { key: "/student/courses", icon: <BookOutlined />, label: "Course của tôi" },
       { key: "/student/applies", icon: <FileTextOutlined />, label: "Đơn xin vào phòng" },
+      { key: "/student/profile", icon: <UserOutlined />, label: "Hồ sơ của tôi" },
     );
   }
   if (hasRole("Admin", "HeadOfDepartment", "Lecturer")) {
@@ -58,7 +59,7 @@ export function AppLayout() {
         style={{ borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap" }}
       >
         <div style={{ padding: "18px 20px", fontWeight: 700, fontSize: 16, overflow: "hidden" }}>
-          <TeamOutlined style={{ color: "#1677ff", marginRight: 8 }} />
+          <TeamOutlined style={{ color: "#EA580C", marginRight: 8 }} />
           EXE Team Matching
         </div>
         <Menu

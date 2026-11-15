@@ -45,7 +45,7 @@ export function LoginPage() {
     >
       <Card style={{ width: 380, maxWidth: "100%" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <TeamOutlined style={{ fontSize: 40, color: "#1677ff" }} />
+          <TeamOutlined style={{ fontSize: 40, color: "#EA580C" }} />
           <Typography.Title level={3} style={{ margin: "8px 0 0" }}>
             EXE Team Matching
           </Typography.Title>

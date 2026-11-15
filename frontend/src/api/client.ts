@@ -42,12 +42,16 @@ export function storeToken(auth: StoredAuth | null): void {
 /** Fired when the server answers 401 so AuthProvider can sign out. */
 export const UNAUTHORIZED_EVENT = "exe:unauthorized";
 
-type Query = Record<string, string | number | boolean | undefined | null>;
+type Scalar = string | number | boolean | undefined | null;
+type Query = Record<string, Scalar | Scalar[]>;
 
 function buildUrl(path: string, query?: Query): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    // Arrays become repeated keys: roleIds=a&roleIds=b (what ASP.NET Core binds to a list).
+    for (const v of Array.isArray(value) ? value : [value]) {
+      if (v !== undefined && v !== null && v !== "") params.append(key, String(v));
+    }
   }
   const qs = params.toString();
   return `/api${path}${qs ? `?${qs}` : ""}`;
