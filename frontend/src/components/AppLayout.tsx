@@ -8,17 +8,23 @@ import {
 } from "@ant-design/icons";
 import { Avatar, Button, Dropdown, Layout, Menu, Space, Tag, Typography } from "antd";
 import type { MenuProps } from "antd";
+import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { roleLabel } from "./labels";
 
 const { Header, Sider, Content } = Layout;
 
+/** Below antd's "lg" breakpoint (992px). */
+const isNarrow = () => window.matchMedia("(max-width: 991.98px)").matches;
+
 /** Shell for every signed-in page: sidebar menu by role, header with the user, routed content. */
 export function AppLayout() {
   const { user, student, hasRole, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // Start collapsed on narrow screens; antd's breakpoint only fires on later resizes.
+  const [collapsed, setCollapsed] = useState(isNarrow);
 
   const items: MenuProps["items"] = [];
   if (hasRole("Student")) {
@@ -44,11 +50,14 @@ export function AppLayout() {
       <Sider
         breakpoint="lg"
         collapsedWidth={0}
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        onBreakpoint={setCollapsed}
         theme="light"
         width={230}
-        style={{ borderRight: "1px solid #f0f0f0" }}
+        style={{ borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap" }}
       >
-        <div style={{ padding: "18px 20px", fontWeight: 700, fontSize: 16 }}>
+        <div style={{ padding: "18px 20px", fontWeight: 700, fontSize: 16, overflow: "hidden" }}>
           <TeamOutlined style={{ color: "#1677ff", marginRight: 8 }} />
           EXE Team Matching
         </div>
@@ -56,7 +65,10 @@ export function AppLayout() {
           mode="inline"
           items={items}
           selectedKeys={selected ? [selected] : []}
-          onClick={(e) => navigate(e.key)}
+          onClick={(e) => {
+            navigate(e.key);
+            if (isNarrow()) setCollapsed(true);
+          }}
         />
       </Sider>
       <Layout>
