@@ -46,7 +46,7 @@ Data/            DbContext, cấu hình entity, Migrations/, seed
 | Phân trang | `PageQuery`, `PagedResult<T>`, `query.ToPagedResultAsync(page, ct)` | `src/Shared/Web/Paging/Paging.cs` |
 | Swagger có nút Authorize | `services.AddExeSwagger("...")` | `src/Shared/Web/Swagger/SwaggerExtensions.cs` |
 | Tên role, tên claim | `Roles.*`, `ExeClaims.*` | `src/Shared/Contracts/Roles.cs` |
-| Sự kiện | `EventEnvelope`, `EventTypes`, `EventDataKeys`, `EventStreams` | `src/Shared/Contracts/Events/Events.cs` |
+| Sự kiện | `EventEnvelope`, `EventTypes`, `EventDataKeys`, `KafkaTopics` | `src/Shared/Contracts/Events/Events.cs` |
 | gRPC | `Exe.Contracts.Grpc.Matching` (server base và client) | `src/Shared/Contracts/Protos/matching.proto` |
 
 `src/Shared/**` chỉ Manager sửa. Thiếu gì ở đó thì nêu trong báo cáo, đừng tự thêm.
@@ -105,8 +105,10 @@ Mọi endpoint danh sách nhận `page`, `pageSize` (mặc định 20, tối đa
 | `ConnectionStrings:Default` | Auth, Team | |
 | `Jwt:Issuer`, `Jwt:Audience`, `Jwt:Key`, `Jwt:AccessTokenMinutes` | Gateway, Auth, Team | `Key` tối thiểu 32 byte |
 | `Seed:Enabled`, `Seed:DefaultPassword` | Auth, Team | mật khẩu seed chỉ Auth dùng |
-| `Redis:ConnectionString`, `Redis:Stream` | Team, Noti | |
-| `Redis:ConsumerGroup`, `Redis:ConsumerName` | Noti | |
+| `Redis:ConnectionString`, `Redis:InstanceName` | Team | chỉ dùng làm cache (`caching.md`) |
+| `Cache:GroupTypeMinutes`, `Cache:CourseStatsSeconds` | Team | |
+| `Kafka:BootstrapServers`, `Kafka:Topic` | Team, Noti | |
+| `Kafka:DeadLetterTopic`, `Kafka:GroupId`, `Kafka:MaxAttempts` | Noti | |
 | `Matching:Address` | Team | địa chỉ gRPC |
 | `Room:LockThreshold` | Team | mặc định 3 (BR08) |
 | `Jobs:CourseCloseIntervalSeconds`, `Jobs:ReminderDaysBeforeDeadline` | Team | |

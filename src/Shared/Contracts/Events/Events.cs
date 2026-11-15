@@ -66,6 +66,15 @@ public sealed record EventEnvelope
     public IReadOnlyList<EventRecipient> Recipients { get; init; } = [];
     public IReadOnlyDictionary<string, string> Data { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>
+    /// Kafka partition key: events of the same room (or course, for course events) keep their order.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string EventKey =>
+        Data.TryGetValue(EventDataKeys.RoomCode, out var room) ? room
+        : Data.TryGetValue(EventDataKeys.CourseCode, out var course) ? course
+        : EventId.ToString();
+
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
 
     public static EventEnvelope? FromJson(string json) => JsonSerializer.Deserialize<EventEnvelope>(json, JsonOptions);

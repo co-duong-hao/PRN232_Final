@@ -8,6 +8,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="All" />
     <PackageReference Include="Grpc.Net.ClientFactory" />
     <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Confluent.Kafka" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Shared\Web\Exe.Shared.Web.csproj" />
