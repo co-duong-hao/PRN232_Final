@@ -10,3 +10,4 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 __pycache__/
+~$*
