@@ -1,94 +1,96 @@
-using Exe.Contracts.Events;
+using Confluent.Kafka;
 using Exe.NotiService.Options;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
 
 namespace Exe.NotiService.Workers;
 
 public sealed class EventConsumerWorker(
-    IConnectionMultiplexer connection,
-    IOptions<RedisOptions> options,
+    IOptions<KafkaOptions> options,
     EventProcessor processor,
+    IDeadLetterPublisher deadLetterPublisher,
     ILogger<EventConsumerWorker> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Task.Run(() => ConsumeAsync(stoppingToken), stoppingToken);
+
+    private async Task ConsumeAsync(CancellationToken ct)
     {
-        var settings = options.Value;
-        while (!stoppingToken.IsCancellationRequested)
+        IConsumer<string, string>? consumer = null;
+        try
         {
-            try
+            while (!ct.IsCancellationRequested)
             {
-                var db = connection.GetDatabase();
                 try
                 {
-                    await db.StreamCreateConsumerGroupAsync(settings.Stream, settings.ConsumerGroup, "0", createStream: true);
-                }
-                catch (RedisServerException ex) when (ex.Message.StartsWith("BUSYGROUP", StringComparison.Ordinal))
-                {
-                    // Another instance already created the group.
-                }
-
-                var nextClaim = DateTime.UtcNow;
-                while (!stoppingToken.IsCancellationRequested)
-                {
-                    if (DateTime.UtcNow >= nextClaim)
+                    consumer ??= new ConsumerBuilder<string, string>(new ConsumerConfig
                     {
-                        await ReclaimAsync(db, settings, stoppingToken);
-                        nextClaim = DateTime.UtcNow.AddSeconds(30);
+                        BootstrapServers = options.Value.BootstrapServers,
+                        GroupId = options.Value.GroupId,
+                        AutoOffsetReset = AutoOffsetReset.Earliest,
+                        EnableAutoCommit = false
+                    }).Build();
+                    consumer.Subscribe(options.Value.Topic);
+                    while (!ct.IsCancellationRequested)
+                    {
+                        var record = consumer.Consume(TimeSpan.FromSeconds(1));
+                        if (record is null) continue;
+                        // Keep the current record until both processing and commit succeed.
+                        var processed = false;
+                        while (!ct.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                if (!processed)
+                                {
+                                    await ProcessMessageAsync(record.Message, ct);
+                                    processed = true;
+                                }
+                                consumer.Commit(record);
+                                break;
+                            }
+                            catch (KafkaException ex)
+                            {
+                                logger.LogWarning(ex, "Kafka gặp lỗi; thử lại sau 5 giây.");
+                                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                            }
+                        }
                     }
-
-                    var entries = await db.StreamReadGroupAsync(settings.Stream, settings.ConsumerGroup, settings.ConsumerName, ">", count: 10);
-                    foreach (var entry in entries)
-                        await ProcessAsync(db, settings, entry, stoppingToken);
-                    if (entries.Length == 0)
-                        await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                }
+                catch (KafkaException ex)
+                {
+                    logger.LogWarning(ex, "Kafka gặp lỗi; thử lại sau 5 giây.");
+                    await Task.Delay(TimeSpan.FromSeconds(5), ct);
                 }
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Xử lý sự kiện thất bại; thử lại sau 5 giây.");
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-            }
         }
-    }
-
-    private async Task ReclaimAsync(IDatabase db, RedisOptions settings, CancellationToken ct)
-    {
-        RedisValue cursor = "0-0";
-        do
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        finally
         {
-            var claimed = await db.StreamAutoClaimAsync(settings.Stream, settings.ConsumerGroup, settings.ConsumerName, 60000, cursor, count: 10);
-            cursor = claimed.NextStartId;
-            foreach (var entry in claimed.ClaimedEntries)
+            if (consumer is not null)
             {
-                var pending = await db.StreamPendingMessagesAsync(settings.Stream, settings.ConsumerGroup, 1, settings.ConsumerName, entry.Id, entry.Id);
-                if (pending.Length > 0 && pending[0].DeliveryCount > 5)
-                {
-                    var payload = entry.Values.FirstOrDefault(x => x.Name == EventStreams.PayloadField).Value.ToString();
-                    string eventId;
-                    try { eventId = EventEnvelope.FromJson(payload)?.EventId.ToString() ?? "unknown"; }
-                    catch (System.Text.Json.JsonException) { eventId = "unknown"; }
-                    logger.LogError("Sự kiện {EventId}, entry {EntryId} đã vượt quá số lần giao; chuyển vào dead stream.", eventId, entry.Id);
-                    await db.StreamAddAsync(settings.Stream + ".dead", entry.Values);
-                    await db.StreamAcknowledgeAsync(settings.Stream, settings.ConsumerGroup, entry.Id);
-                }
-                else
-                {
-                    await ProcessAsync(db, settings, entry, ct);
-                }
+                try { consumer.Close(); }
+                catch (KafkaException ex) { logger.LogWarning(ex, "Không thể đóng Kafka consumer."); }
+                consumer.Dispose();
             }
         }
-        while (cursor != "0-0" && !ct.IsCancellationRequested);
     }
 
-    private async Task ProcessAsync(IDatabase db, RedisOptions settings, StreamEntry entry, CancellationToken ct)
+    internal async Task ProcessMessageAsync(Message<string, string> message, CancellationToken ct,
+        Func<TimeSpan, CancellationToken, Task>? delay = null)
     {
-        var payload = entry.Values.FirstOrDefault(x => x.Name == EventStreams.PayloadField).Value.ToString();
-        if (await processor.ProcessAsync(payload, ct))
-            await db.StreamAcknowledgeAsync(settings.Stream, settings.ConsumerGroup, entry.Id);
+        delay ??= Task.Delay;
+        var attempts = Math.Max(1, options.Value.MaxAttempts);
+        ProcessingResult result = new(ProcessingStatus.PermanentFailure, "Payload rỗng.");
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            result = message.Value is null
+                ? new(ProcessingStatus.PermanentFailure, "Payload rỗng.")
+                : await processor.ProcessAsync(message.Value, ct);
+            if (result.Status == ProcessingStatus.Success) return;
+            if (result.Status == ProcessingStatus.PermanentFailure || attempt == attempts) break;
+            await delay(TimeSpan.FromSeconds(Math.Pow(2, Math.Min(attempt - 1, 2))), ct);
+        }
+        logger.LogError("Không xử lý được sự kiện {EventId}: {Error}", result.EventId, result.Error);
+        await deadLetterPublisher.PublishAsync(message, result.Error ?? "Lỗi xử lý sự kiện.", ct);
     }
 }

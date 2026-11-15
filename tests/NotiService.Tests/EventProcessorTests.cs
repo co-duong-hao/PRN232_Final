@@ -17,7 +17,7 @@ public sealed class EventProcessorTests
         {
             Recipients = [new("one@example.com", "Một"), new("two@example.com", "Hai")]
         };
-        Assert.True(await processor.ProcessAsync(envelope.ToJson(), default));
+        Assert.Equal(ProcessingStatus.Success, (await processor.ProcessAsync(envelope.ToJson(), default)).Status);
         sender.Verify(x => x.SendAsync(It.Is<EventRecipient>(r => r.Email == "one@example.com"), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()), Times.Once);
         sender.Verify(x => x.SendAsync(It.Is<EventRecipient>(r => r.Email == "two@example.com"), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -29,7 +29,7 @@ public sealed class EventProcessorTests
         sender.Setup(x => x.SendAsync(It.IsAny<EventRecipient>(), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>())).ThrowsAsync(new IOException());
         var processor = new EventProcessor(sender.Object, new(), NullLogger<EventProcessor>.Instance);
         var envelope = EmailTemplateRendererTests.CreateEvent(EventTypes.RoomCreated) with { Recipients = [new("one@example.com", "Một")] };
-        Assert.False(await processor.ProcessAsync(envelope.ToJson(), default));
+        Assert.Equal(ProcessingStatus.TemporaryFailure, (await processor.ProcessAsync(envelope.ToJson(), default)).Status);
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public sealed class EventProcessorTests
     {
         var sender = new Mock<IEmailSender>(MockBehavior.Strict);
         var processor = new EventProcessor(sender.Object, new(), NullLogger<EventProcessor>.Instance);
-        Assert.False(await processor.ProcessAsync("{invalid", default));
-        Assert.True(await processor.ProcessAsync(EmailTemplateRendererTests.CreateEvent("Unknown").ToJson(), default));
+        Assert.Equal(ProcessingStatus.PermanentFailure, (await processor.ProcessAsync("{invalid", default)).Status);
+        Assert.Equal(ProcessingStatus.Success, (await processor.ProcessAsync(EmailTemplateRendererTests.CreateEvent("Unknown").ToJson(), default)).Status);
         sender.VerifyNoOtherCalls();
     }
 }
