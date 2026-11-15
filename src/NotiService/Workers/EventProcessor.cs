@@ -2,9 +2,13 @@ using System.Text.Json;
 using Exe.Contracts.Events;
 using Exe.NotiService.Email;
 namespace Exe.NotiService.Workers;
+public enum ProcessingStatus { Success, TemporaryFailure, PermanentFailure }
+
+public sealed record ProcessingResult(ProcessingStatus Status, string? Error = null, Guid? EventId = null);
+
 public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer renderer, ILogger<EventProcessor> logger)
 {
-    public async Task<bool> ProcessAsync(string payload, CancellationToken cancellationToken)
+    public async Task<ProcessingResult> ProcessAsync(string payload, CancellationToken cancellationToken)
     {
         EventEnvelope? envelope;
         try
@@ -16,12 +20,12 @@ public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer re
         catch (JsonException ex)
         {
             logger.LogWarning(ex, "Không đọc được payload sự kiện.");
-            return false;
+            return new(ProcessingStatus.PermanentFailure, ex.Message);
         }
         if (!EventTypes.All.Contains(envelope.Type, StringComparer.Ordinal))
         {
             logger.LogWarning("Bỏ qua loại sự kiện không xác định {EventType}.", envelope.Type);
-            return true;
+            return new(ProcessingStatus.Success, EventId: envelope.EventId);
         }
         try
         {
@@ -30,7 +34,7 @@ public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer re
                 var email = renderer.Render(envelope, recipient)!;
                 await sender.SendAsync(recipient, email, cancellationToken);
             }
-            return true;
+            return new(ProcessingStatus.Success, EventId: envelope.EventId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -39,7 +43,7 @@ public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer re
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Không gửi được email cho sự kiện {EventId}.", envelope.EventId);
-            return false;
+            return new(ProcessingStatus.TemporaryFailure, ex.Message, envelope.EventId);
         }
     }
 }

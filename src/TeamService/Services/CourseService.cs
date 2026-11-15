@@ -1,4 +1,5 @@
 using Exe.Contracts.Events;
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.Shared.Web.Errors;
 using Exe.Shared.Web.Paging;
 using Exe.TeamService.Abstractions;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Exe.TeamService.Services;
 
-public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPublisher publisher) : ICourseService
+public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPublisher publisher, ITeamCache cache) : ICourseService
 {
     private IQueryable<CourseDto> Courses() => db.Courses.Select(x => new CourseDto { Id = x.Id, Code = x.Code, SemesterId = x.SemesterId, SubjectId = x.SubjectId, GroupTypeId = x.GroupTypeId, GroupTypeName = x.GroupType.Name, Status = x.Status.ToString(), StartTime = x.StartTime, Deadline = x.Deadline, StudentCount = db.StudentInCourses.Count(s => s.CourseId == x.Id) });
 
@@ -109,6 +110,7 @@ public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPub
         db.StudentInCourses.RemoveRange(enrollments);
         db.Courses.Remove(course);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(TeamCacheKeys.CourseStats(id), ct);
     }
 
     public async Task<CourseDto> TransitionAsync(Guid id, bool open, CancellationToken ct)
@@ -122,6 +124,7 @@ public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPub
         var recipients = open ? [] : await db.StudentInRooms.Where(x => x.CourseId == id && (x.Room.Status == RoomStatus.Open || x.Room.Status == RoomStatus.Locked))
             .Select(x => new EventRecipient(x.Student.Email, x.Student.FullName)).Distinct().ToArrayAsync(ct);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(TeamCacheKeys.CourseStats(id), ct);
         if (!open)
         {
             await publisher.PublishAsync(RoomEventFactory.CourseClosed(course.Code, recipients), ct);
@@ -164,6 +167,7 @@ public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPub
         var added = ids.Except(existing).ToArray();
         db.StudentInCourses.AddRange(added.Select(x => new StudentInCourse { CourseId = id, StudentId = x, EnrolledAt = DateTime.UtcNow }));
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(TeamCacheKeys.CourseStats(id), ct);
         return new EnrollmentResult(added.Length, studentIds.Count - added.Length);
     }
 
@@ -177,6 +181,7 @@ public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPub
         }
         db.StudentInCourses.Remove(enrollment);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(TeamCacheKeys.CourseStats(id), ct);
     }
 
     public async Task<CourseStatsDto> StatsAsync(Guid id, CancellationToken ct)

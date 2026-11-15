@@ -1,14 +1,19 @@
 # Sự kiện và thông báo
 
-Team Service là producer, Noti Service là consumer. Kiểu dữ liệu và hằng số nằm ở
+Team Service là producer, Noti Service là consumer, qua **Apache Kafka**. (Redis không còn làm broker; Redis chỉ làm cache, xem `caching.md`.) Kiểu dữ liệu và hằng số nằm ở
 `src/Shared/Contracts/Events/Events.cs`.
 
-## Định dạng trên Redis Streams
+## Định dạng trên Kafka
 
-- Stream: `Redis:Stream` (mặc định `exe.events`, hằng số `EventStreams.Default`).
-- Mỗi entry có hai field:
-  - `type`: loại sự kiện (`EventTypes.*`);
-  - `payload`: `EventEnvelope.ToJson()`.
+- Broker: Kafka 3.9 một node, chế độ KRaft (`docker-compose.yml`, service `kafka`). Trong Docker dùng
+  `kafka:9092`; từ máy cá nhân dùng `localhost:9094`. Cấu hình: `Kafka:BootstrapServers`.
+- Topic sự kiện: `exe.events` (`KafkaTopics.Events`), 3 partition (broker tự tạo topic khi có message đầu tiên).
+- Topic thư chết: `exe.events.dlq` (`KafkaTopics.EventsDeadLetter`).
+- Mỗi message:
+  - **key**: `EventEnvelope.EventKey` — mã phòng, hoặc mã Course với sự kiện của Course. Các sự kiện của cùng một
+    phòng vào cùng partition nên giữ đúng thứ tự;
+  - **value**: `EventEnvelope.ToJson()` (UTF-8);
+  - **header** `event-type` (`KafkaTopics.TypeHeader`): loại sự kiện.
 
 ```json
 {
@@ -40,21 +45,26 @@ Sự kiện không có người nhận (`recipients` rỗng) vẫn được phá
 ## Producer (Team Service)
 
 - Gọi `IEventPublisher.PublishAsync` **sau khi** `SaveChanges` thành công, không gọi bên trong transaction.
-- Publisher không được ném exception ra ngoài: lỗi Redis chỉ ghi log mức Error. Thao tác nghiệp vụ vẫn
-  thành công (hạn chế đã biết: sự kiện có thể mất nếu Redis hỏng đúng lúc đó).
+- Một `IProducer<string, string>` dùng chung (singleton) với `Acks = All`, `EnableIdempotence = true`,
+  `MessageTimeoutMs = 5000`. Chờ broker xác nhận (`ProduceAsync`) rồi mới trả về.
+- Publisher không được ném exception ra ngoài: lỗi Kafka (broker tắt, quá thời gian) chỉ ghi log mức Error kèm
+  `EventId`, `Type`. Thao tác nghiệp vụ vẫn thành công (hạn chế đã biết: sự kiện có thể mất nếu Kafka hỏng đúng
+  lúc đó).
+- Khi tắt ứng dụng: `Flush` producer tối đa 5 giây.
 
 ## Consumer (Noti Service)
 
-- Khi khởi động: tạo consumer group `Redis:ConsumerGroup` (mặc định `noti-service`) trên stream với
-  `MKSTREAM`, bắt đầu từ `0`; bỏ qua lỗi `BUSYGROUP`.
-- Vòng lặp: `XREADGROUP` với id `>` lấy tối đa 10 entry; không có entry thì chờ 1 giây.
-  (StackExchange.Redis không hỗ trợ đọc chặn, nên dùng polling.)
-- Với mỗi entry: đọc `payload` → `EventEnvelope.FromJson` → gửi một email cho mỗi người nhận → `XACK`.
-  Chỉ `XACK` khi mọi email của entry đã gửi xong.
-- Entry lỗi (SMTP hỏng, JSON sai) không được ACK và nằm lại trong danh sách pending. Mỗi 30 giây,
-  consumer nhận lại các entry pending đã chờ quá 60 giây (`XAUTOCLAIM`) và xử lý lại.
-- Entry đã được giao quá 5 lần: ghi log Error kèm `eventId`, chép sang stream `{stream}.dead`, rồi `XACK`.
-- Redis mất kết nối: log Warning, chờ 5 giây rồi thử lại; không để process thoát.
+- Consumer group `noti-service` (`Kafka:GroupId`), `AutoOffsetReset = Earliest`, `EnableAutoCommit = false`.
+- Vòng lặp: `Consume` với timeout 1 giây → xử lý → **commit offset sau khi xử lý xong**. Nhờ vậy service khởi
+  động lại sẽ đọc tiếp từ message chưa xử lý (at-least-once).
+- Xử lý một message: đọc value → `EventEnvelope.FromJson` → gửi một email cho mỗi người nhận.
+  - Thành công → commit.
+  - Lỗi tạm thời (SMTP hỏng): thử lại tối đa `Kafka:MaxAttempts` lần (mặc định 3), chờ 1 s, 2 s, 4 s giữa các lần.
+  - Vẫn lỗi, hoặc JSON sai: gửi nguyên message (key, value, header) sang `exe.events.dlq`, thêm header
+    `error` (mô tả ngắn) và `failed-at` (ISO 8601), log Error kèm `eventId` nếu đọc được, rồi commit.
+- Loại sự kiện không có trong bảng email: log Warning và commit.
+- Kafka không kết nối được: log Warning, chờ 5 giây rồi thử lại; không để process thoát.
+- Khi tắt ứng dụng: `Close()` consumer để rời group gọn gàng.
 
 ## Email
 

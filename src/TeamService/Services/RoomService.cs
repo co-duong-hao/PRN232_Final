@@ -1,3 +1,4 @@
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.Contracts;
 using Exe.Contracts.Events;
 using Exe.Shared.Web.Auth;
@@ -11,7 +12,7 @@ using Microsoft.Extensions.Options;
 
 namespace Exe.TeamService.Services;
 
-public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingClient matching, IEventPublisher publisher, IOptions<RoomOptions> options) : IRoomService
+public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingClient matching, IEventPublisher publisher, IOptions<RoomOptions> options, ITeamCache cache, IReferenceService references, IConfiguration configuration) : IRoomService
 {
     private int Threshold => options.Value.LockThreshold;
 
@@ -59,6 +60,15 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         return new GroupTypeRule(type.MinMemberCount, type.MaxMemberCount, type.MinMajorCount,
             type.Majors.Select(x => new MajorRule(x.Major.Code, x.MinQuantity, x.MaxQuantity)).ToArray());
     }
+
+    private async Task<GroupTypeRule> CachedRuleAsync(Guid id, CancellationToken ct)
+    {
+        var (type, _) = await cache.GetOrCreateAsync(TeamCacheKeys.GroupType(id), TimeSpan.FromMinutes(configuration.GetValue("Cache:GroupTypeMinutes", 10)), token => references.GroupTypeAsync(id, token), ct);
+        return new GroupTypeRule(type.MinMemberCount, type.MaxMemberCount, type.MinMajorCount,
+            type.Majors.Select(x => new MajorRule(x.MajorCode, x.MinQuantity, x.MaxQuantity)).ToArray());
+    }
+
+    internal Task InvalidateStatsAsync(Guid courseId, CancellationToken ct) => cache.RemoveAsync(TeamCacheKeys.CourseStats(courseId), ct);
 
     internal static RoomDto Map(Room room)
     {
@@ -141,6 +151,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
                 student = await CurrentStudentAsync(ct);
                 continue;
             }
+            await InvalidateStatsAsync(courseId, ct);
             await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomCreated, room, [student]), ct);
             return Map(room);
         }
@@ -170,6 +181,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         }
         await CancelPendingAsync(room.CourseId, student.Id, null, ct);
         await SaveMembershipAsync(ct);
+        await InvalidateStatsAsync(room.CourseId, ct);
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomMemberJoined, room, previous,
             (EventDataKeys.ActorName, student.FullName), (EventDataKeys.MemberCount, room.MemberCount.ToString())), ct);
         if (locked)
@@ -213,6 +225,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
             room.Status = RoomStatus.Open;
         }
         await db.SaveChangesAsync(ct);
+        await InvalidateStatsAsync(room.CourseId, ct);
     }
 
     public async Task<RoomDto> ChangeLeaderAsync(Guid roomId, Guid studentId, CancellationToken ct)
@@ -270,7 +283,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
     {
         var room = await LoadRoomAsync(roomId, ct);
         await CheckViewAsync(room, ct);
-        return await matching.AnalyzeCompositionAsync(Rule(room.Course.GroupType), room.Members.Select(x => x.Student.Major.Code).ToArray(), ct);
+        return await matching.AnalyzeCompositionAsync(await CachedRuleAsync(room.Course.GroupTypeId, ct), room.Members.Select(x => x.Student.Major.Code).ToArray(), ct);
     }
 
     public async Task<GroupDto> CompleteAsync(Guid roomId, CancellationToken ct)
@@ -281,7 +294,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         await CheckEnrollmentAsync(room.CourseId, student.Id, ct);
         CheckLeader(room, student);
         CheckActive(room);
-        var analysis = await matching.AnalyzeCompositionAsync(Rule(room.Course.GroupType), room.Members.Select(x => x.Student.Major.Code).ToArray(), ct);
+        var analysis = await matching.AnalyzeCompositionAsync(await CachedRuleAsync(room.Course.GroupTypeId, ct), room.Members.Select(x => x.Student.Major.Code).ToArray(), ct);
         if (!analysis.Satisfied)
         {
             throw new BusinessRuleException("BR16", "Phòng chưa thỏa cơ cấu nhóm: " + string.Join(" ", analysis.Violations));
@@ -301,6 +314,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
             apply.Status = ApplyStatus.Cancelled;
         }
         await db.SaveChangesAsync(ct);
+        await InvalidateStatsAsync(room.CourseId, ct);
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomCompleted, room, room.Members.Select(x => x.Student),
             (EventDataKeys.GroupCode, groupCode)), ct);
         return new GroupDto(group.Id, group.Code, group.Name, room.CourseId, room.Course.Code, room.Id, group.GroupTypeId,
@@ -321,6 +335,6 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         var rooms = await db.Rooms.Where(x => x.CourseId == courseId && (x.Status == RoomStatus.Open || x.Status == RoomStatus.Locked))
             .Include(x => x.Members).ThenInclude(x => x.Student).ThenInclude(x => x.Major).ToListAsync(ct);
         var snapshots = rooms.Select(x => new RoomSnapshot(x.Id, x.Code, x.Status.ToString(), x.Members.Select(m => m.Student.Major.Code).ToArray())).ToArray();
-        return await matching.RecommendRoomsAsync(Rule(course.GroupType), student.Major.Code, snapshots, limit, ct);
+        return await matching.RecommendRoomsAsync(await CachedRuleAsync(course.GroupTypeId, ct), student.Major.Code, snapshots, limit, ct);
     }
 }

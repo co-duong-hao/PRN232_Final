@@ -1,4 +1,5 @@
 using Exe.Contracts;
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.Shared.Web.Paging;
 using Exe.TeamService.Dtos;
 using Exe.TeamService.Services;
@@ -74,13 +75,18 @@ public sealed class StudentsController(IReferenceService service) : ControllerBa
 [ApiController]
 [Authorize]
 [Route("api/group-types")]
-public sealed class GroupTypesController(IReferenceService service) : ControllerBase
+public sealed class GroupTypesController(IReferenceService service, ITeamCache cache, IConfiguration configuration) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] PageQuery query, CancellationToken ct) => Ok(await service.GroupTypesAsync(query, ct));
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> Get(Guid id, CancellationToken ct) => Ok(await service.GroupTypeAsync(id, ct));
+    public async Task<IActionResult> Get(Guid id, CancellationToken ct)
+    {
+        var (value, hit) = await cache.GetOrCreateAsync(TeamCacheKeys.GroupType(id), TimeSpan.FromMinutes(configuration.GetValue("Cache:GroupTypeMinutes", 10)), token => service.GroupTypeAsync(id, token), ct);
+        Response.Headers["X-Cache"] = hit ? "HIT" : "MISS";
+        return Ok(value);
+    }
 
     [HttpPost]
     [Authorize(Roles = Roles.AdminOrHead)]

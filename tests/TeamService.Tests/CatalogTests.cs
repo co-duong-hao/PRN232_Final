@@ -1,4 +1,6 @@
 using Exe.Contracts.Events;
+using Microsoft.Extensions.Configuration;
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.Shared.Web.Auth;
 using Exe.Shared.Web.Errors;
 using Exe.Shared.Web.Paging;
@@ -20,6 +22,7 @@ public sealed class CatalogTests : IAsyncLifetime
     private readonly Mock<IEventPublisher> publisher = new();
     private readonly Mock<ICurrentUser> user = new();
     private TeamDbContext db = null!;
+    private ITeamCache cache = null!;
     private CourseService courses = null!;
     private ReferenceService references = null!;
 
@@ -30,9 +33,10 @@ public sealed class CatalogTests : IAsyncLifetime
         await db.Database.EnsureCreatedAsync();
         await TeamDbSeeder.SeedAsync(db);
         user.SetupGet(x => x.UserId).Returns(Guid.Parse("10000000-0000-0000-0000-000000000001"));
-        var rooms = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()));
-        courses = new CourseService(db, rooms, publisher.Object);
-        references = new ReferenceService(db);
+        cache = TestCache.Create();
+        references = new ReferenceService(db, cache);
+        var rooms = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()), cache, references, new ConfigurationBuilder().Build());
+        courses = new CourseService(db, rooms, publisher.Object, cache);
     }
 
     public async Task DisposeAsync()
@@ -105,7 +109,7 @@ public sealed class CatalogTests : IAsyncLifetime
     public async Task Students_WhenFilteredByRoom_ReturnsMatchingEnrollment()
     {
         var course = await db.Courses.SingleAsync(x => x.Code == "FA26-EXE101");
-        var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()));
+        var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()), cache, references, new ConfigurationBuilder().Build());
         var room = await service.CreateAsync(course.Id, default);
         var page = await courses.StudentsAsync(course.Id, new CourseStudentQuery { HasRoom = true }, default);
         Assert.Equal(room.LeaderId, Assert.Single(page.Items).Id);
@@ -116,7 +120,7 @@ public sealed class CatalogTests : IAsyncLifetime
     public async Task MyCourses_WhenEnrolled_ReturnsRoomWithCourse()
     {
         var course = await db.Courses.SingleAsync(x => x.Code == "FA26-EXE101");
-        var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()));
+        var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()), cache, references, new ConfigurationBuilder().Build());
         var room = await service.CreateAsync(course.Id, default);
         var page = await courses.MyCoursesAsync(new PageQuery(), default);
         var item = Assert.Single(page.Items);
@@ -129,7 +133,7 @@ public sealed class CatalogTests : IAsyncLifetime
     public async Task Close_WhenRoomOpen_PublishesOnlyItsMembers()
     {
         var course = await db.Courses.SingleAsync(x => x.Code == "FA26-EXE101");
-        var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()));
+        var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()), cache, references, new ConfigurationBuilder().Build());
         await service.CreateAsync(course.Id, default);
         await courses.TransitionAsync(course.Id, false, default);
         publisher.Verify(x => x.PublishAsync(It.Is<EventEnvelope>(e => e.Type == EventTypes.CourseClosed &&

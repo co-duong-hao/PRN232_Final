@@ -1,4 +1,6 @@
 using Exe.Contracts.Events;
+using Exe.TeamService.Infrastructure.Caching;
+using Microsoft.Extensions.Configuration;
 using Exe.Shared.Web.Auth;
 using Exe.Shared.Web.Errors;
 using Exe.TeamService.Abstractions;
@@ -19,6 +21,7 @@ public sealed class RoomServiceTests : IAsyncLifetime
     private readonly Mock<IMatchingClient> matching = new();
     private readonly Mock<IEventPublisher> publisher = new();
     private readonly List<EventEnvelope> events = [];
+    private ITeamCache cache = null!;
     private TeamDbContext db = null!;
     private RoomService rooms = null!;
     private RoomApplyService applies = null!;
@@ -35,7 +38,8 @@ public sealed class RoomServiceTests : IAsyncLifetime
         user.SetupGet(x => x.UserId).Returns(() => userId);
         publisher.Setup(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()))
             .Callback<EventEnvelope, CancellationToken>((e, _) => events.Add(e)).Returns(Task.CompletedTask);
-        rooms = new RoomService(db, user.Object, matching.Object, publisher.Object, Options.Create(new RoomOptions()));
+        cache = TestCache.Create();
+        rooms = new RoomService(db, user.Object, matching.Object, publisher.Object, Options.Create(new RoomOptions()), cache, new ReferenceService(db, cache), new ConfigurationBuilder().Build());
         applies = new RoomApplyService(db, rooms, publisher.Object, Options.Create(new RoomOptions()));
         SelectStudent(1);
     }
@@ -52,6 +56,23 @@ public sealed class RoomServiceTests : IAsyncLifetime
     }
 
     private static CompositionAnalysis Analysis(bool satisfied) => new(satisfied, 4, 0, 3, 0, [], [], satisfied ? [] : ["Thiếu ngành."]);
+
+    [Fact]
+    public async Task Stats_WhenStudentJoins_InvalidatesCachedCounts()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        var courses = new CourseService(db, rooms, publisher.Object, cache);
+        var key = TeamCacheKeys.CourseStats(courseId);
+        var first = await cache.GetOrCreateAsync(key, TimeSpan.FromMinutes(1), ct => courses.StatsAsync(courseId, ct), default);
+        Assert.Equal(1, first.Value.StudentsInRoom);
+        var hit = await cache.GetOrCreateAsync(key, TimeSpan.FromMinutes(1), ct => courses.StatsAsync(courseId, ct), default);
+        Assert.True(hit.Hit);
+        SelectStudent(2);
+        await rooms.JoinAsync(room.Id, default);
+        var after = await cache.GetOrCreateAsync(key, TimeSpan.FromMinutes(1), ct => courses.StatsAsync(courseId, ct), default);
+        Assert.False(after.Hit);
+        Assert.Equal(2, after.Value.StudentsInRoom);
+    }
 
     [Fact]
     public async Task Create_WhenEnrolled_CreatesRoomAndLeader()
@@ -289,3 +310,4 @@ public sealed class RoomServiceTests : IAsyncLifetime
     }
 
 }
+
