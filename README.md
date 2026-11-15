@@ -24,7 +24,7 @@ Mô tả nghiệp vụ đầy đủ (18 quy tắc BR01–BR18, 6 quy trình QT01
 
 ```mermaid
 flowchart LR
-    Client["Client<br/>(Swagger, file .http)"] -->|"REST + JWT"| GW["API Gateway<br/>YARP"]
+    Client["Web app React<br/>(Nginx)"] -->|"REST + JWT"| GW["API Gateway<br/>YARP"]
     GW -->|"REST"| Auth["Auth Service"]
     GW -->|"REST"| Team["Team &amp; Member Service"]
     Auth --> AuthDb[("AuthDb")]
@@ -38,6 +38,7 @@ flowchart LR
 
 | Service | Vai trò | Giao tiếp |
 |---|---|---|
+| **Web app** | Giao diện React cho sinh viên, giảng viên, trưởng bộ môn, admin; Nginx chuyển `/api` sang Gateway | HTTP |
 | **API Gateway** | Cổng vào duy nhất; kiểm tra JWT rồi chuyển tiếp yêu cầu | REST |
 | **Auth Service** | Tài khoản, vai trò, đăng nhập, phát JWT | REST, AuthDb |
 | **Team & Member Service** | Dữ liệu nền, Course, phòng, đơn, nhóm; phát sự kiện; chạy tác vụ nền | REST, TeamDb, gRPC client, Redis producer |
@@ -71,6 +72,7 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 - **Redis 7** Streams (StackExchange.Redis)
 - **MailKit** gửi email, **Mailpit** làm hộp thư thử nghiệm
 - **Swagger** (Swashbuckle), lỗi trả về theo chuẩn **ProblemDetails** (RFC 7807)
+- **React 18**, TypeScript, Vite, **Ant Design 5**, React Router; Nginx phục vụ bản build
 - **xUnit**, Moq, SQLite in-memory cho test
 - **Docker**, Docker Compose
 
@@ -85,7 +87,8 @@ src/
   TeamService/        Team & Member Service
   MatchingService/    Matching Service (gRPC)
   NotiService/        Noti Service (worker)
-tests/                Unit test cho từng service
+frontend/             Web app React (Vite, Ant Design)
+tests/                Unit test cho từng service; tests/e2e: kiểm thử end-to-end
 docs/                 Đề bài, mô tả đề tài, tài liệu thiết kế
 docker-compose.yml
 ```
@@ -126,6 +129,7 @@ docker-compose.yml
 
 | Địa chỉ | Nội dung |
 |---|---|
+| http://localhost:3000 | **Web app** — đăng nhập bằng tài khoản mẫu bên dưới |
 | http://localhost:8080 | API Gateway — mọi lời gọi API đi qua đây |
 | http://localhost:5101/swagger | Swagger của Auth Service |
 | http://localhost:5102/swagger | Swagger của Team Service |
@@ -147,7 +151,15 @@ dotnet run --project src/NotiService
 dotnet run --project src/Gateway
 ```
 
-Mỗi lệnh `dotnet run` chạy trong một terminal riêng. Cổng mặc định: Gateway 5000, Auth 5101, Team 5102,
+Frontend ở chế độ phát triển (tự tải lại khi sửa code, proxy `/api` sang Gateway ở cổng 8080):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+rồi mở http://localhost:5173. Mỗi lệnh `dotnet run` và `npm run dev` chạy trong một terminal riêng. Cổng mặc định: Gateway 5000, Auth 5101, Team 5102,
 Matching 5103 (gRPC).
 
 ### Build và test
@@ -215,7 +227,7 @@ một phòng khác trong Course.
 - Sự kiện được phát ngay sau khi lưu database, chưa dùng outbox pattern: nếu Redis lỗi đúng thời điểm đó,
   thông báo của thao tác ấy bị mất (thao tác nghiệp vụ vẫn thành công).
 - Chưa có refresh token; access token hết hạn sau 60 phút.
-- Chưa có giao diện web và mobile; hệ thống được demo qua Swagger.
+- Chưa có ứng dụng mobile.
 
 ## Thành viên và phân công
 
