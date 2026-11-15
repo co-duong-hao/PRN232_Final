@@ -46,6 +46,7 @@ public sealed class OfflineIntegrationTests
         builder.Services.AddExeCurrentUser();
         builder.Services.AddDbContext<TeamDbContext>(options => options.UseSqlite(connection));
         builder.Services.Configure<RoomOptions>(_ => { });
+        builder.Services.AddScoped<IReferenceService, ReferenceService>();
         builder.Services.AddScoped<RoomService>();
         builder.Services.AddScoped<IRoomService>(sp => sp.GetRequiredService<RoomService>());
         builder.Services.AddScoped<IRoomApplyService, RoomApplyService>();

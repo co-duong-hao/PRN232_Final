@@ -97,6 +97,7 @@ public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEvent
         apply.DecidedBy = leader.Id;
         apply.DecidedAt = DateTime.UtcNow;
         await rooms.SaveMembershipAsync(ct);
+        if (approve) await rooms.InvalidateStatsAsync(room.CourseId, ct);
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomApplyDecided, room, [apply.Student],
             (EventDataKeys.ActorName, leader.FullName), (EventDataKeys.Decision, apply.Status.ToString())), ct);
         if (approve)

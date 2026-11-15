@@ -1,4 +1,5 @@
 using Exe.Contracts;
+using Exe.TeamService.Infrastructure.Caching;
 using Exe.Shared.Web.Paging;
 using Exe.TeamService.Dtos;
 using Exe.TeamService.Services;
@@ -10,7 +11,7 @@ namespace Exe.TeamService.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/courses")]
-public sealed class CoursesController(ICourseService service) : ControllerBase
+public sealed class CoursesController(ICourseService service, ITeamCache cache, IConfiguration configuration) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] CourseQuery query, CancellationToken ct) => Ok(await service.ListAsync(query, ct));
@@ -64,7 +65,12 @@ public sealed class CoursesController(ICourseService service) : ControllerBase
 
     [HttpGet("{id:guid}/stats")]
     [Authorize(Roles = Roles.Staff)]
-    public async Task<IActionResult> Stats(Guid id, CancellationToken ct) => Ok(await service.StatsAsync(id, ct));
+    public async Task<IActionResult> Stats(Guid id, CancellationToken ct)
+    {
+        var (value, hit) = await cache.GetOrCreateAsync(TeamCacheKeys.CourseStats(id), TimeSpan.FromSeconds(configuration.GetValue("Cache:CourseStatsSeconds", 30)), token => service.StatsAsync(id, token), ct);
+        Response.Headers["X-Cache"] = hit ? "HIT" : "MISS";
+        return Ok(value);
+    }
 
     [HttpGet("/api/me/courses")]
     [Authorize(Roles = Roles.Student)]
