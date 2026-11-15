@@ -1,3 +1,4 @@
+using Exe.Shared.Web.Json;
 using Exe.Shared.Web.Auth;
 using Exe.Shared.Web.Errors;
 using Exe.Shared.Web.Swagger;
@@ -12,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddExeSwagger("EXE Team & Member Service");
 builder.Services.AddExeErrorHandling();
+builder.Services.AddExeJson();
 builder.Services.AddExeJwtAuth(builder.Configuration);
 builder.Services.AddExeCurrentUser();
 builder.Services.AddHealthChecks();
