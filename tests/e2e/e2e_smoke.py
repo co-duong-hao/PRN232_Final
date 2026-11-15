@@ -171,7 +171,7 @@ def main():
     s, b = call("GET", f"/api/courses/{COURSE}/rooms?status=Completed&sortBy=code&page=1&pageSize=5", t[9])
     check("list rooms filtered and paged", s, 200, b)
 
-    # Notifications reach Mailpit through Redis Streams
+    # Notifications reach Mailpit through Kafka
     time.sleep(4)
     with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=50", timeout=10) as r:
         mails = json.loads(r.read())

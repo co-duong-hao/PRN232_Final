@@ -182,7 +182,7 @@ def main():
     require_status(current_step, s, 409, b)
     show("POST", "/api/rooms/{id}/leave", s, b)
 
-    step("14. Redis Streams → Noti Service → email (Mailpit)")
+    step("14. Kafka → Noti Service → email (Mailpit)")
     time.sleep(4)
     with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=100", timeout=10) as r:
         mails = json.loads(r.read())
