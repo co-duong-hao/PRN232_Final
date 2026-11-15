@@ -1,5 +1,7 @@
-"""End-to-end smoke test through the gateway. Usage (system running via docker compose, fresh data): python tests/e2e/e2e_smoke.py .env"""
+"""Cách dùng: python tests/e2e/e2e_smoke.py .env. Cần dữ liệu mẫu mới (docker compose down -v rồi up -d). Exit: 0 đạt, 1 lỗi, 2 dữ liệu cũ."""
 import json
+import os
+import traceback
 import sys
 import time
 import urllib.error
@@ -9,12 +11,7 @@ GW = "http://localhost:8080"
 COURSE = "30000000-0000-0000-0000-000000000001"
 sys.stdout.reconfigure(encoding="utf-8")
 
-env = dict(
-    line.strip().split("=", 1)
-    for line in open(sys.argv[1], encoding="utf-8")
-    if "=" in line and not line.lstrip().startswith("#")
-)
-PASSWORD = env["SEED_DEFAULT_PASSWORD"]
+PASSWORD = None
 
 results = []
 
@@ -28,7 +25,10 @@ def call(method, path, token=None, body=None):
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             raw = r.read()
-            return r.status, (json.loads(raw) if raw else None)
+            try:
+                return r.status, json.loads(raw) if raw else None
+            except ValueError:
+                return r.status, raw.decode(errors="replace")[:200]
     except urllib.error.HTTPError as e:
         raw = e.read()
         try:
@@ -44,6 +44,10 @@ def check(name, status, expected, body=None, code=None):
     if not ok:
         extra = f"  -> got {status} {json.dumps(body, ensure_ascii=False)[:300] if body is not None else ''}"
     print(f"[{'OK ' if ok else 'BAD'}] {name}: {status}{extra}")
+    if not ok:
+        details = body if isinstance(body, dict) else {}
+        print(f"   Thất bại tại {name}: HTTP {status}, code={details.get('code', 'không có')}, title={details.get('title', 'không có')}")
+        raise ScriptError()
     return body
 
 
@@ -53,93 +57,151 @@ def login(email):
     return b["accessToken"] if s == 200 else None
 
 
-# Gateway auth
-s, b = call("GET", f"/api/courses/{COURSE}/rooms")
-check("gateway rejects anonymous call", s, 401, b)
-s, b = call("POST", "/api/auth/login", body={"email": "student01@exe.local", "password": "wrong-password"})
-check("wrong password -> INVALID_CREDENTIALS", s, 401, b, "INVALID_CREDENTIALS")
+class ScriptError(Exception):
+    pass
 
-admin = login("admin@exe.local")
-t = {n: login(f"student{n:02d}@exe.local") for n in [1, 2, 6, 8, 9, 11]}
 
-s, b = call("GET", "/api/users?pageSize=5&sortBy=email", admin)
-check("admin lists users (paged)", s, 200, b)
-s, b = call("GET", "/api/users", t[1])
-check("student cannot list users", s, 403, b)
+def require_status(step_name, status, expected, body):
+    if status != expected:
+        details = body if isinstance(body, dict) else {}
+        print(f"   Thất bại tại {step_name}: HTTP {status}, code={details.get('code', 'không có')}, title={details.get('title', 'không có')}")
+        raise ScriptError()
 
-# Clean state: student01 may already own a room from a previous run.
-s, b = call("GET", "/api/me/courses", t[1])
-check("student01 my courses", s, 200, b)
 
-# QT01: SE student01 creates a room
-s, room = call("POST", f"/api/courses/{COURSE}/rooms", t[1])
-check("QT01 create room", s, 201, room)
-rid = room["id"]
-print("    room code:", room["code"])
+def preflight():
+    print("== Kiểm tra trước khi chạy")
+    try:
+        status, body = call("GET", "/health")
+    except (urllib.error.URLError, OSError, TimeoutError):
+        print("Không kết nối được API Gateway ở http://localhost:8080. Hãy chạy: docker compose up -d")
+        raise ScriptError()
+    require_status("kiểm tra Gateway", status, 200, body)
+    status, body = call("POST", "/api/auth/login", body={"email": "student01@exe.local", "password": PASSWORD})
+    if status != 200:
+        details = body if isinstance(body, dict) else {}
+        message = details.get("title") or details.get("message") or body or "Không có thông điệp"
+        print(f"Đăng nhập thất bại: HTTP {status}, code={details.get('code', 'không có')}, thông điệp: {message}. Kiểm tra SEED_DEFAULT_PASSWORD trong .env và trạng thái docker compose ps.")
+        raise ScriptError()
+    token = body["accessToken"]
+    status, body = call("GET", f"/api/courses/{COURSE}/rooms?pageSize=1", token)
+    require_status("kiểm tra dữ liệu mẫu", status, 200, body)
+    count = body["totalItems"]
+    if count > 0:
+        print(f"Dữ liệu đã được dùng ở lần chạy trước (Course FA26-EXE101 đang có {count} phòng). Script cần dữ liệu mẫu ban đầu. Reset bằng: docker compose down -v  rồi  docker compose up -d  (chờ 30–60 giây), sau đó chạy lại.")
+        return False
+    print("   Gateway, đăng nhập và dữ liệu mẫu: OK")
+    return True
 
-s, b = call("POST", f"/api/courses/{COURSE}/rooms", t[1])
-check("BR05 second room for same student", s, 409, b, "BR05")
 
-# QT02: SE student02 and AI student06 join -> locked at 3
-s, b = call("POST", f"/api/rooms/{rid}/join", t[2])
-check("QT02 student02 joins", s, 200, b)
-s, b = call("POST", f"/api/rooms/{rid}/join", t[6])
-check("QT02 student06 joins -> locked", s, 200, b)
-print("    status after 3 members:", b.get("status") if isinstance(b, dict) else b)
+def main():
+    # Gateway auth
+    s, b = call("GET", f"/api/courses/{COURSE}/rooms")
+    check("gateway rejects anonymous call", s, 401, b)
+    s, b = call("POST", "/api/auth/login", body={"email": "student01@exe.local", "password": "wrong-password"})
+    check("wrong password -> INVALID_CREDENTIALS", s, 401, b, "INVALID_CREDENTIALS")
 
-s, b = call("POST", f"/api/rooms/{rid}/join", t[8])
-check("locked room rejects direct join", s, 409, b, "ROOM_NOT_OPEN")
+    admin = login("admin@exe.local")
+    t = {n: login(f"student{n:02d}@exe.local") for n in [1, 2, 6, 8, 9, 11]}
 
-# gRPC via REST: composition (3 members, 2 majors -> not satisfied)
-s, comp = call("GET", f"/api/rooms/{rid}/composition", t[1])
-check("composition via gRPC", s, 200, comp)
-print("    violations:", comp.get("violations") if isinstance(comp, dict) else comp)
+    s, b = call("GET", "/api/users?pageSize=5&sortBy=email", admin)
+    check("admin lists users (paged)", s, 200, b)
+    s, b = call("GET", "/api/users", t[1])
+    check("student cannot list users", s, 403, b)
 
-s, b = call("POST", f"/api/rooms/{rid}/complete", t[1])
-check("BR16 complete when composition not satisfied", s, 409, b, "BR16")
+    # Clean state: student01 may already own a room from a previous run.
+    s, b = call("GET", "/api/me/courses", t[1])
+    check("student01 my courses", s, 200, b)
 
-# QT03: GD student08 applies, leader approves
-s, ap = call("POST", f"/api/rooms/{rid}/applies", t[8], {"message": "Mình làm thiết kế."})
-check("QT03 student08 applies", s, 201, ap)
-s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", t[2])
-check("BR09 non-leader cannot approve", s, 403, b, "NOT_ROOM_LEADER")
-s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", t[1])
-check("QT03 leader approves", s, 200, b)
+    # QT01: SE student01 creates a room
+    s, room = call("POST", f"/api/courses/{COURSE}/rooms", t[1])
+    check("QT01 create room", s, 201, room)
+    rid = room["id"]
+    print("    room code:", room["code"])
 
-# Recommendations (gRPC) for a student without room
-s, b = call("GET", f"/api/courses/{COURSE}/rooms/recommendations?limit=3", t[11])
-check("recommendations via gRPC", s, 200, b)
+    s, b = call("POST", f"/api/courses/{COURSE}/rooms", t[1])
+    check("BR05 second room for same student", s, 409, b, "BR05")
 
-# QT05: change leader then QT04 leave as former leader
-s, b = call("PUT", f"/api/rooms/{rid}/leader", t[1], {"studentId": "20000000-0000-0000-0000-000000000002"})
-check("QT05 change leader to student02", s, 200, b)
+    # QT02: SE student02 and AI student06 join -> locked at 3
+    s, b = call("POST", f"/api/rooms/{rid}/join", t[2])
+    check("QT02 student02 joins", s, 200, b)
+    s, b = call("POST", f"/api/rooms/{rid}/join", t[6])
+    check("QT02 student06 joins -> locked", s, 200, b)
+    print("    status after 3 members:", b.get("status") if isinstance(b, dict) else b)
 
-# QT06: now 4 members SE,SE,AI,GD -> satisfied; complete by new leader
-s, comp = call("GET", f"/api/rooms/{rid}/composition", t[2])
-check("composition satisfied", s, 200, comp)
-print("    satisfied:", comp.get("satisfied") if isinstance(comp, dict) else comp)
-s, grp = call("POST", f"/api/rooms/{rid}/complete", t[2])
-check("QT06 complete room -> group", s, 201, grp)
-if isinstance(grp, dict):
-    print("    group code:", grp.get("code"))
+    s, b = call("POST", f"/api/rooms/{rid}/join", t[8])
+    check("locked room rejects direct join", s, 409, b, "ROOM_NOT_OPEN")
 
-s, b = call("POST", f"/api/rooms/{rid}/leave", t[6])
-check("BR18 cannot leave completed room", s, 409, b, "BR18")
+    # gRPC via REST: composition (3 members, 2 majors -> not satisfied)
+    s, comp = call("GET", f"/api/rooms/{rid}/composition", t[1])
+    check("composition via gRPC", s, 200, comp)
+    print("    violations:", comp.get("violations") if isinstance(comp, dict) else comp)
 
-# Search / filter / paging on rooms
-s, b = call("GET", f"/api/courses/{COURSE}/rooms?status=Completed&sortBy=code&page=1&pageSize=5", t[9])
-check("list rooms filtered and paged", s, 200, b)
+    s, b = call("POST", f"/api/rooms/{rid}/complete", t[1])
+    check("BR16 complete when composition not satisfied", s, 409, b, "BR16")
 
-# Notifications reach Mailpit through Redis Streams
-time.sleep(4)
-with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=50", timeout=10) as r:
-    mails = json.loads(r.read())
-subjects = [m["Subject"] for m in mails.get("messages", [])]
-print(f"    mailpit has {mails.get('total')} messages; latest:")
-for subj in subjects[:8]:
-    print("     -", subj)
-results.append(any("Nhóm" in x for x in subjects))
-print(f"[{'OK ' if results[-1] else 'BAD'}] RoomCompleted email delivered")
+    # QT03: GD student08 applies, leader approves
+    s, ap = call("POST", f"/api/rooms/{rid}/applies", t[8], {"message": "Mình làm thiết kế."})
+    check("QT03 student08 applies", s, 201, ap)
+    s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", t[2])
+    check("BR09 non-leader cannot approve", s, 403, b, "NOT_ROOM_LEADER")
+    s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", t[1])
+    check("QT03 leader approves", s, 200, b)
 
-print(f"\n{sum(results)}/{len(results)} checks passed")
-sys.exit(0 if all(results) else 1)
+    # Recommendations (gRPC) for a student without room
+    s, b = call("GET", f"/api/courses/{COURSE}/rooms/recommendations?limit=3", t[11])
+    check("recommendations via gRPC", s, 200, b)
+
+    # QT05: change leader then QT04 leave as former leader
+    s, b = call("PUT", f"/api/rooms/{rid}/leader", t[1], {"studentId": "20000000-0000-0000-0000-000000000002"})
+    check("QT05 change leader to student02", s, 200, b)
+
+    # QT06: now 4 members SE,SE,AI,GD -> satisfied; complete by new leader
+    s, comp = call("GET", f"/api/rooms/{rid}/composition", t[2])
+    check("composition satisfied", s, 200, comp)
+    print("    satisfied:", comp.get("satisfied") if isinstance(comp, dict) else comp)
+    s, grp = call("POST", f"/api/rooms/{rid}/complete", t[2])
+    check("QT06 complete room -> group", s, 201, grp)
+    if isinstance(grp, dict):
+        print("    group code:", grp.get("code"))
+
+    s, b = call("POST", f"/api/rooms/{rid}/leave", t[6])
+    check("BR18 cannot leave completed room", s, 409, b, "BR18")
+
+    # Search / filter / paging on rooms
+    s, b = call("GET", f"/api/courses/{COURSE}/rooms?status=Completed&sortBy=code&page=1&pageSize=5", t[9])
+    check("list rooms filtered and paged", s, 200, b)
+
+    # Notifications reach Mailpit through Redis Streams
+    time.sleep(4)
+    with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=50", timeout=10) as r:
+        mails = json.loads(r.read())
+    subjects = [m["Subject"] for m in mails.get("messages", [])]
+    print(f"    mailpit has {mails.get('total')} messages; latest:")
+    for subj in subjects[:8]:
+        print("     -", subj)
+    results.append(any("Nhóm" in x for x in subjects))
+    print(f"[{'OK ' if results[-1] else 'BAD'}] RoomCompleted email delivered")
+
+    print(f"\n{sum(results)}/{len(results)} checks passed")
+    return 0 if all(results) else 1
+
+
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) != 2 or not os.path.isfile(sys.argv[1]):
+            print("Cách dùng: python tests/e2e/e2e_smoke.py .env")
+            sys.exit(1)
+        with open(sys.argv[1], encoding="utf-8") as env_file:
+            env = dict(line.strip().split("=", 1) for line in env_file
+                       if "=" in line and not line.lstrip().startswith("#"))
+        PASSWORD = env["SEED_DEFAULT_PASSWORD"]
+        if not preflight():
+            sys.exit(2)
+        sys.exit(main() or 0)
+    except ScriptError:
+        sys.exit(1)
+    except Exception as exc:
+        print(f"Không thể tiếp tục script: {exc}")
+        if os.environ.get("DEMO_DEBUG") == "1":
+            traceback.print_exc()
+        sys.exit(1)
