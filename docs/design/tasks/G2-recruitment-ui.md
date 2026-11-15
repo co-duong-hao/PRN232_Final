@@ -13,6 +13,31 @@ theo hợp đồng mới; backend sẽ có khi G1 xong, nên trong lúc làm ch�
   `RoomListParams.gpa/roleIds`, `RoomProfileRequest`, `StudentProfileRequest`) và `frontend/src/api/index.ts`
   (`referenceApi.teamRoles`, `meApi.updateProfile`, `coursesApi.createRoom(id, body)`, `roomsApi.updateProfile`)
 
+## Mẫu giao diện tham khảo (F-Spark, F-Caps)
+
+Manager đã xem hai hệ thống thật của trường. Bố cục cần bám theo (chữ tiếng Việt, màu cam, thẻ trắng bo góc trên
+nền xám nhạt, không chép dữ liệu thật):
+
+- **Tìm nhóm** (`CourseRoomsPage`, theo F-Spark "Discover Groups"): tiêu đề nhỏ màu cam "SINH VIÊN" phía trên tiêu
+  đề lớn "Tìm nhóm", phụ đề "Tìm nhóm phù hợp với mục tiêu dự án hoặc tạo nhóm mới", nút cam **+ Tạo nhóm** góc phải.
+  Bố cục **hai cột**: cột trái là bộ lọc (Tên nhóm, **GPA của bạn** — ghi "Tối đa 4", **Vai trò cần tuyển** — mặc
+  định "Tất cả vai trò") và danh sách thẻ phòng cuộn được; mỗi thẻ có tên nhóm, mã (FA26 · EXE101 · R001),
+  trưởng phòng, số người "x/MaxMemberCount", vai trò cần tuyển (hoặc "Chưa tuyển thêm"), và dải chéo góc phải
+  **"Đang tuyển"** khi phòng còn nhận người. Cột phải là chi tiết phòng đang chọn (hoặc ô trống "Chọn một nhóm" —
+  "Bấm vào một nhóm trong danh sách để xem chi tiết và gửi yêu cầu tham gia") với nút **Vào phòng** / **Gửi đơn**.
+- **Chi tiết phòng** (`RoomDetailPage`, theo F-Spark "My Group Workspace"): tiêu đề nhóm + các nút hành động ở góc
+  phải (Sửa thông tin tuyển, Chuyển trưởng phòng, Hoàn tất thành nhóm — nút cam, Rời phòng — viền đỏ); một thẻ có
+  tên nhóm, mã phòng và tag trạng thái; **lưới ô thông tin** nhỏ: Dự án, GPA yêu cầu, Điểm mục tiêu, Trưởng phòng,
+  Course, Số thành viên; khối **Mô tả ý tưởng**; khối **Vai trò cần tuyển**; sau đó là thành viên, cơ cấu nhóm và
+  đơn xin vào phòng.
+- **Course của tôi** (`MyCoursesPage`, theo F-Spark "Dashboard"): hàng thẻ thống kê có viền trái cam và biểu tượng
+  (số Course, đã có nhóm, đang ở phòng, đơn đang chờ); dưới là các thẻ "Nhóm của tôi" — mỗi Course một thẻ với
+  mã Course, tên nhóm/phòng, tag trạng thái và nút đi tới.
+- **Hồ sơ của tôi** (`ProfilePage`, theo F-Caps "Hồ sơ của tôi"): dòng phụ đề "Học kỳ … · họ tên · MSSV · email";
+  `Alert` nhắc khai GPA và vai trò trước khi tìm nhóm nếu còn thiếu; các thẻ phần có tiêu đề kèm biểu tượng
+  ("Thông tin cơ bản" chỉ đọc, "Học lực" với GPA, "Vai trò muốn đảm nhận"); thanh cố định cuối trang với
+  **"Hoàn thiện x%"** (tính từ GPA và vai trò đã khai) và nút cam **Lưu hồ sơ**.
+
 ## Được sửa
 
 - `frontend/src/pages/student/**` (gồm `ProfilePage.tsx` đang là trang giữ chỗ)
