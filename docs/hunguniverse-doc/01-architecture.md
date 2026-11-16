@@ -64,6 +64,7 @@ flowchart LR
 | 27 | [Bảng quản lý staff và admin](27-frontend-staff.md) |
 | 28 | [HTTP client và kiểu dữ liệu web](28-frontend-api.md) |
 | 29 | [Kiểm thử .NET](29-test-reference.md) |
+| 30 | [Diễn tập demo và E2E](30-demo-and-e2e.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
@@ -75,6 +76,7 @@ flowchart LR
 | Phòng chưa đủ cơ cấu hoặc gRPC lỗi | [Hợp đồng gRPC](18-grpc-contract.md), [MatchingService](19-matching-server.md) |
 | Nhóm đã tạo nhưng chưa có email | [Kafka producer](20-kafka-producer.md), [Kafka consumer](21-kafka-consumer.md) |
 | Thống kê vẫn hiện số cũ | [Cache Redis và job nền](22-cache-and-jobs.md) |
+| Cần chạy lại demo có dữ liệu mới | [Vận hành local](05-operations.md), [Diễn tập và E2E](30-demo-and-e2e.md) |
 
 ## Đối chiếu mã nguồn
 
