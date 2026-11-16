@@ -3,6 +3,7 @@ import "@/features/workspace.css";
 import { Button, Form, Grid, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from "antd";
 import { useCallback, useState } from "react";
 import { usersApi, type Role, type User, type UserListParams, type UserStatus } from "@/api";
+import { useAuth } from "@/auth/AuthContext";
 import { EmptyState } from "@/components/EmptyState";
 import { formatDateTime } from "@/components/format";
 import { roleLabel } from "@/components/labels";
@@ -16,6 +17,7 @@ import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 type Values = { email: string; fullName: string; password: string; roles: Role[]; status: UserStatus };
 
 export function UsersPage() {
+  const { user } = useAuth();
   const [params, setParams] = useState<UserListParams>({ page: 1, pageSize: 20 });
   const [searchText, setSearchText] = useState("");
   const screens = Grid.useBreakpoint();
@@ -23,6 +25,7 @@ export function UsersPage() {
   const [mode, setMode] = useState<"create" | "edit" | "password" | null>(null);
   const [busyId, setBusyId] = useState<string>();
   const [form] = Form.useForm<Values>();
+  const editingSelf = mode === "edit" && edit?.id === user?.id;
 
   const request = useCallback(() => usersApi.list(params), [params]);
   const { data, loading, failure, reload: load } = useStaffQuery(request);
@@ -197,7 +200,7 @@ export function UsersPage() {
                     Sửa
                   </Button>
                   <Button onClick={() => show("password", u)}>Đặt lại mật khẩu</Button>
-                  {u.status === "Active" && (
+                  {u.status === "Active" && u.id !== user?.id && (
                     <Popconfirm
                       title="Vô hiệu hóa tài khoản này?"
                       okText="Vô hiệu hóa"
@@ -271,9 +274,25 @@ export function UsersPage() {
                 label="Vai trò"
                 rules={[{ required: true, message: "Vui lòng chọn ít nhất một vai trò" }]}
               >
-                <Select mode="multiple" placeholder="Chọn vai trò" options={roleOptions} />
+                <Select
+                  mode="multiple"
+                  placeholder="Chọn vai trò"
+                  options={roleOptions?.map((option) => ({
+                    ...option,
+                    disabled: editingSelf && option.value === "Admin",
+                  }))}
+                  onChange={(next: Role[]) => {
+                    if (editingSelf && !next.includes("Admin"))
+                      form.setFieldValue("roles", [...next, "Admin"]);
+                  }}
+                />
               </Form.Item>
             </>
+          )}
+          {editingSelf && (
+            <Typography.Paragraph type="secondary">
+              Tài khoản đang đăng nhập phải hoạt động và giữ vai trò quản trị viên.
+            </Typography.Paragraph>
           )}
           {mode === "edit" && (
             <Form.Item
@@ -282,6 +301,7 @@ export function UsersPage() {
               rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
             >
               <Select
+                disabled={editingSelf}
                 options={[
                   { value: "Active", label: "Hoạt động" },
                   { value: "Inactive", label: "Vô hiệu hóa" },
