@@ -3,6 +3,10 @@ import {
   Alert,
   Button,
   Card,
+  Badge,
+  Col,
+  Row,
+  Pagination,
   Empty,
   Input,
   InputNumber,
@@ -11,7 +15,6 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -24,6 +27,7 @@ import type {
   RoomRecommendation,
   RoomStatus,
   RoomSummary,
+  Room,
   TeamRole,
 } from "@/api";
 import { MajorCounts, RoomStatusTag } from "@/components/StatusTag";
@@ -60,8 +64,8 @@ export function CourseRoomsPage() {
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<RoomStatus>();
   const [q, setQ] = useState("");
-  const [sortBy, setSortBy] = useState<string>();
-  const [sortDir, setSortDir] = useState<"asc" | "desc">();
+  const [selected, setSelected] = useState<Room>();
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [applyRoom, setApplyRoom] = useState<string>();
   const [message, setMessage] = useState("");
@@ -110,8 +114,6 @@ export function CourseRoomsPage() {
         pageSize: size,
         status,
         q,
-        sortBy,
-        sortDir,
         gpa: eligibleOnly ? (gpa ?? undefined) : undefined,
         roleIds,
       });
@@ -122,7 +124,7 @@ export function CourseRoomsPage() {
     } finally {
       setLoading(false);
     }
-  }, [courseId, page, size, status, q, sortBy, sortDir, gpa, eligibleOnly, roleIds, showError]);
+  }, [courseId, page, size, status, q, gpa, eligibleOnly, roleIds, showError]);
   const loadRecommendations = useCallback(async () => {
     try {
       const results = await coursesApi.recommendations(courseId, 3);
@@ -150,7 +152,7 @@ export function CourseRoomsPage() {
   const canAct = ready && !!mine && !mine.myRoom && !mine.myGroup && course?.status === "Forming";
   const actions = (id: string, state: RoomStatus) => (
     <Space>
-      <Link to={`/student/rooms/${id}`}>Xem</Link>
+      <Link to={`/student/rooms/${id}`}>Xem trang phòng</Link>
       {canAct && state === "Open" && (
         <Button
           loading={joining}
@@ -176,7 +178,30 @@ export function CourseRoomsPage() {
   );
   return (
     <Spin spinning={!ready && !course}>
-      <Typography.Title level={2}>Phòng trong Course {course?.code}</Typography.Title>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 16,
+        }}
+      >
+        <div>
+          <Typography.Text style={{ color: "#fa8c16" }}>SINH VIÊN</Typography.Text>
+          <Typography.Title level={2} style={{ margin: "4px 0" }}>
+            Tìm nhóm — {course?.code}
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            Tìm nhóm phù hợp với mục tiêu dự án hoặc tạo nhóm mới
+          </Typography.Text>
+        </div>
+        {canAct && (
+          <Button type="primary" onClick={() => setCreateOpen(true)}>
+            + Tạo nhóm
+          </Button>
+        )}
+      </div>
       {course && (
         <Card>
           <p>Loại nhóm: {course.groupTypeName}</p>
@@ -211,129 +236,198 @@ export function CourseRoomsPage() {
           }
         />
       )}
-      {canAct && (
-        <Button type="primary" style={{ margin: "16px 0" }} onClick={() => setCreateOpen(true)}>
-          + Tạo nhóm
-        </Button>
-      )}
       <CreateRoomModal open={createOpen} course={mine} onClose={() => setCreateOpen(false)} />
-      {unavailable && <Alert type="warning" message="Dịch vụ gợi ý tạm thời không phản hồi" />}
-      {recommendations.length > 0 && (
-        <Card title="Gợi ý cho bạn" style={{ margin: "16px 0" }}>
-          <Space direction="vertical">
-            {recommendations.map((r) => {
-              return (
-                <div key={r.roomId}>
-                  <strong>{r.roomCode}</strong> · Điểm: {r.score} · {r.reasons.join(", ")}{" "}
-                  {actions(r.roomId, recommendedRooms[r.roomId])}
-                </div>
-              );
-            })}
-          </Space>
-        </Card>
-      )}
-      <Typography.Title level={3}>Danh sách phòng</Typography.Title>
-      <Space wrap>
-        <Input.Search
-          placeholder="Tìm tên nhóm, dự án, mã phòng"
-          allowClear
-          onSearch={(v) => {
-            setQ(v);
-            setPage(1);
-          }}
-        />
-        <InputNumber
-          min={0}
-          max={4}
-          step={0.01}
-          precision={2}
-          value={gpa}
-          onChange={(v) => {
-            setGpa(v);
-            setPage(1);
-          }}
-          placeholder="GPA của bạn (tối đa 4)"
-        />
-        <span>
-          Chỉ phòng tôi vào được{" "}
-          <Switch
-            checked={eligibleOnly}
-            disabled={gpa == null}
-            onChange={(v) => {
-              setEligibleOnly(v);
-              setPage(1);
-            }}
-          />
-        </span>
-        <Select
-          mode="multiple"
-          placeholder="Tất cả vai trò"
-          style={{ minWidth: 200 }}
-          value={roleIds}
-          options={roles.map((r) => ({ value: r.id, label: r.name }))}
-          onChange={(v) => {
-            setRoleIds(v);
-            setPage(1);
-          }}
-        />
-        <Select
-          allowClear
-          placeholder="Trạng thái"
-          style={{ width: 180 }}
-          value={status}
-          onChange={(v) => {
-            setStatus(v);
-            setPage(1);
-          }}
-          options={Object.entries(roomStatusLabel)
-            .filter(([value]) => value !== "Cancelled")
-            .map(([value, label]) => ({ value, label: label.text }))}
-        />
-      </Space>
-      <Table
-        rowKey="id"
-        loading={loading}
-        dataSource={rooms}
-        locale={{ emptyText: <Empty description="Không có phòng" /> }}
-        pagination={{ current: page, pageSize: size, total, showSizeChanger: true }}
-        onChange={(p, _f, sorter) => {
-          setPage(p.current ?? 1);
-          setSize(p.pageSize ?? 20);
-          const s = Array.isArray(sorter) ? sorter[0] : sorter;
-          setSortBy(s.order ? String(s.field) : undefined);
-          setSortDir(s.order === "ascend" ? "asc" : s.order === "descend" ? "desc" : undefined);
-        }}
-        columns={[
-          { title: "Tên nhóm", render: (_, r) => r.name || r.code },
-          { title: "Mã phòng", dataIndex: "code", sorter: true },
-          { title: "Dự án", render: (_, r) => r.projectName || "—" },
-          { title: "GPA yêu cầu", render: (_, r) => r.requiredGpa ?? "—" },
-          { title: "Điểm mục tiêu", render: (_, r) => r.targetGrade ?? "—" },
-          {
-            title: "Vai trò cần tuyển",
-            render: (_, r) =>
-              r.neededRoles.length
-                ? r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>)
-                : "Chưa tuyển thêm",
-          },
-          { title: "Trạng thái", render: (_, r) => <RoomStatusTag status={r.status} /> },
-          {
-            title: "Số người",
-            dataIndex: "memberCount",
-            sorter: true,
-            render: (n: number) => `${n} / ${type?.maxMemberCount ?? "—"}`,
-          },
-          { title: "Ngành", render: (_, r) => <MajorCounts majors={r.majors} /> },
-          { title: "Trưởng phòng", dataIndex: "leaderName" },
-          {
-            title: "Ngày tạo",
-            dataIndex: "createdAt",
-            sorter: true,
-            render: (v: string) => formatDateTime(v),
-          },
-          { title: "Thao tác", render: (_, r) => actions(r.id, r.status) },
-        ]}
-      />
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} lg={10}>
+          <Card title="Bộ lọc">
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <span>Tên nhóm</span>
+              <Input.Search
+                placeholder="Tìm tên nhóm, dự án, mã phòng"
+                allowClear
+                onSearch={(v) => {
+                  setQ(v);
+                  setPage(1);
+                }}
+              />
+              <span>GPA của bạn — Tối đa 4</span>
+              <InputNumber
+                min={0}
+                max={4}
+                step={0.01}
+                precision={2}
+                value={gpa}
+                onChange={(v) => {
+                  setGpa(v);
+                  setPage(1);
+                }}
+                style={{ width: "100%" }}
+              />
+              <span>
+                Chỉ phòng tôi vào được{" "}
+                <Switch
+                  checked={eligibleOnly}
+                  disabled={gpa == null}
+                  onChange={(v) => {
+                    setEligibleOnly(v);
+                    setPage(1);
+                  }}
+                />
+              </span>
+              <span>Vai trò cần tuyển</span>
+              <Select
+                mode="multiple"
+                placeholder="Tất cả vai trò"
+                style={{ width: "100%" }}
+                value={roleIds}
+                options={roles.map((r) => ({ value: r.id, label: r.name }))}
+                onChange={(v) => {
+                  setRoleIds(v);
+                  setPage(1);
+                }}
+              />
+              <span>Trạng thái</span>
+              <Select
+                allowClear
+                placeholder="Tất cả trạng thái"
+                style={{ width: "100%" }}
+                value={status}
+                onChange={(v) => {
+                  setStatus(v);
+                  setPage(1);
+                }}
+                options={Object.entries(roomStatusLabel)
+                  .filter(([value]) => value !== "Cancelled")
+                  .map(([value, label]) => ({ value, label: label.text }))}
+              />
+            </Space>
+          </Card>
+          {unavailable && <Alert type="warning" message="Dịch vụ gợi ý tạm thời không phản hồi" />}
+          {recommendations.length > 0 && (
+            <Card title="Gợi ý cho bạn" style={{ marginTop: 16 }}>
+              <Space direction="vertical">
+                {recommendations.map((r) => (
+                  <div key={r.roomId}>
+                    <strong>{r.roomCode}</strong> · Điểm: {r.score} · {r.reasons.join(", ")}{" "}
+                    {actions(r.roomId, recommendedRooms[r.roomId])}
+                  </div>
+                ))}
+              </Space>
+            </Card>
+          )}
+          <Typography.Title level={3}>Danh sách phòng</Typography.Title>
+          <Spin spinning={loading}>
+            <div style={{ maxHeight: 650, overflowY: "auto", padding: "8px 4px" }}>
+              {!loading && rooms.length === 0 && <Empty description="Không có phòng" />}
+              <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                {rooms.map((r) => {
+                  const card = (
+                    <Card
+                      hoverable
+                      style={{ borderColor: selected?.id === r.id ? "#fa8c16" : undefined }}
+                      onClick={async () => {
+                        setDetailLoading(true);
+                        setSelected(undefined);
+                        try {
+                          setSelected(await roomsApi.get(r.id));
+                        } catch (e) {
+                          showError(e);
+                        } finally {
+                          setDetailLoading(false);
+                        }
+                      }}
+                    >
+                      <Typography.Title level={4}>{r.name || r.code}</Typography.Title>
+                      <Typography.Text type="secondary">
+                        {course?.code} · {r.code}
+                      </Typography.Text>
+                      <p>
+                        Trưởng phòng: {r.leaderName} · {r.memberCount}/{type?.maxMemberCount ?? "—"}
+                      </p>
+                      <p>
+                        {r.neededRoles.length
+                          ? r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>)
+                          : "Chưa tuyển thêm"}
+                      </p>
+                      <span>GPA yêu cầu: {r.requiredGpa ?? "Không yêu cầu"}</span>
+                    </Card>
+                  );
+                  return (
+                    <div key={r.id}>
+                      {(r.status === "Open" || r.status === "Locked") && r.neededRoles.length > 0 ? (
+                        <Badge.Ribbon text="Đang tuyển" color="orange">
+                          {card}
+                        </Badge.Ribbon>
+                      ) : (
+                        card
+                      )}
+                    </div>
+                  );
+                })}
+              </Space>
+            </div>
+            <Pagination
+              style={{ marginTop: 16 }}
+              current={page}
+              pageSize={size}
+              total={total}
+              showSizeChanger
+              onChange={(p, s) => {
+                setPage(p);
+                setSize(s);
+              }}
+            />
+          </Spin>
+        </Col>
+        <Col xs={24} lg={14}>
+          <Card>
+            <Spin spinning={detailLoading}>
+              {selected ? (
+                <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                  <Typography.Title level={3}>{selected.name || selected.code}</Typography.Title>
+                  <RoomStatusTag status={selected.status} />
+                  <div>
+                    <strong>Dự án:</strong> {selected.projectName || "Chưa có"}
+                  </div>
+                  <div>
+                    <strong>Mô tả ý tưởng:</strong> {selected.ideaDescription || "Chưa có"}
+                  </div>
+                  <div>
+                    <strong>GPA yêu cầu:</strong> {selected.requiredGpa ?? "Không yêu cầu"}
+                  </div>
+                  <div>
+                    <strong>Điểm mục tiêu:</strong> {selected.targetGrade ?? "Chưa có"}
+                  </div>
+                  <div>
+                    <strong>Vai trò cần tuyển:</strong>{" "}
+                    {selected.neededRoles.length
+                      ? selected.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
+                      : "Chưa tuyển thêm"}
+                  </div>
+                  <div>
+                    <strong>Cơ cấu ngành:</strong> <MajorCounts majors={selected.majors} />
+                  </div>
+                  <div>
+                    <strong>Thành viên:</strong>{" "}
+                    {selected.members.map((m) => m.fullName).join(", ") || "Chưa có"}
+                  </div>
+                  {actions(selected.id, selected.status)}
+                </Space>
+              ) : (
+                <Empty
+                  description={
+                    <>
+                      <strong>Chọn một nhóm</strong>
+                      <br />
+                      Bấm vào một nhóm trong danh sách để xem chi tiết và gửi yêu cầu tham gia
+                    </>
+                  }
+                />
+              )}
+            </Spin>
+          </Card>
+        </Col>
+      </Row>
       <Modal
         title="Gửi đơn xin vào phòng"
         open={!!applyRoom}

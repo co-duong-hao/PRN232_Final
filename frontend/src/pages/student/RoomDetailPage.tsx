@@ -4,6 +4,8 @@ import {
   Alert,
   Button,
   Card,
+  Row,
+  Col,
   Empty,
   Input,
   Modal,
@@ -140,45 +142,16 @@ export function RoomDetailPage() {
     <Spin spinning={loading}>
       {room ? (
         <>
-          <Typography.Title level={2}>{room.name || room.code}</Typography.Title>
-          <CreateRoomModal
-            open={editOpen}
-            room={room}
-            onClose={() => setEditOpen(false)}
-            onSaved={() => void refresh()}
-          />
-          {room.status === "Completed" && (
-            <Alert
-              type="success"
-              message={
-                <>
-                  Phòng đã thành nhóm{" "}
-                  {group && <Link to={`/student/groups/${group.id}`}>Xem nhóm {group.code}</Link>}
-                </>
-              }
-            />
-          )}
-          <Card>
-            <h3>
-              {room.name || room.code} · {room.code}
-            </h3>
-            <p>Course: {room.courseCode}</p>
-            <p>
-              Dự án: {room.projectName || "Chưa có"} · GPA yêu cầu: {room.requiredGpa ?? "Không yêu cầu"} ·
-              Điểm mục tiêu: {room.targetGrade ?? "Chưa có"}
-            </p>
-            <p>Mô tả ý tưởng: {room.ideaDescription || "Chưa có"}</p>
-            <p>
-              Vai trò cần tuyển:{" "}
-              {room.neededRoles.length
-                ? room.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
-                : "Chưa tuyển thêm"}
-            </p>
-            <p>
-              Trạng thái: <RoomStatusTag status={room.status} />
-            </p>
-            <p>Số người: {room.memberCount}</p>
-            <p>Trưởng phòng: {room.leaderName}</p>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <Typography.Title level={2}>{room.name || room.code}</Typography.Title>
             <Space wrap>
               {active && !isMember && room.status === "Open" && (
                 <Button
@@ -249,6 +222,61 @@ export function RoomDetailPage() {
                 </>
               )}
             </Space>
+          </div>
+          <CreateRoomModal
+            open={editOpen}
+            room={room}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => void refresh()}
+          />
+          {room.status === "Completed" && (
+            <Alert
+              type="success"
+              message={
+                <>
+                  Phòng đã thành nhóm{" "}
+                  {group && <Link to={`/student/groups/${group.id}`}>Xem nhóm {group.code}</Link>}
+                </>
+              }
+            />
+          )}
+          <Card>
+            <Typography.Title level={4}>{room.name || room.code}</Typography.Title>
+            <Typography.Text type="secondary">
+              {room.code} · {room.courseCode}
+            </Typography.Text>{" "}
+            <RoomStatusTag status={room.status} />
+            <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+              {[
+                ["Dự án", room.projectName || "Chưa có"],
+                ["GPA yêu cầu", room.requiredGpa ?? "Không yêu cầu"],
+                ["Điểm mục tiêu", room.targetGrade ?? "Chưa có"],
+                ["Trưởng phòng", room.leaderName],
+                ["Course", room.courseCode],
+                ["Số thành viên", room.memberCount],
+              ].map(([label, value]) => (
+                <Col xs={24} sm={12} lg={8} key={label}>
+                  <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 12, height: "100%" }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12, textTransform: "uppercase" }}>
+                      {label}
+                    </Typography.Text>
+                    <div>{value}</div>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+            <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 16, marginTop: 16 }}>
+              <strong>Mô tả ý tưởng</strong>
+              <div>{room.ideaDescription || "Chưa có"}</div>
+            </div>
+            <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 16, marginTop: 16 }}>
+              <strong>Vai trò cần tuyển</strong>
+              <div>
+                {room.neededRoles.length
+                  ? room.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
+                  : "Chưa tuyển thêm"}
+              </div>
+            </div>
           </Card>
           <Typography.Title level={3}>Thành viên</Typography.Title>
           <Table

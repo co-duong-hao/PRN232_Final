@@ -1,3 +1,4 @@
+import { BookOutlined, TeamOutlined, HomeOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Col, Empty, Pagination, Row, Space, Spin, Statistic, Typography } from "antd";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
@@ -53,14 +54,31 @@ export function MyCoursesPage() {
       <CreateRoomModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         {[
-          { title: "Số Course", value: allCourses.length },
-          { title: "Đã có nhóm", value: allCourses.filter((c) => c.myGroup).length },
-          { title: "Đang ở phòng", value: allCourses.filter((c) => c.myRoom && !c.myGroup).length },
-          { title: "Đơn đang chờ", value: pending },
+          { title: "Số Course", value: allCourses.length, icon: <BookOutlined /> },
+          { title: "Đã có nhóm", value: allCourses.filter((c) => c.myGroup).length, icon: <TeamOutlined /> },
+          {
+            title: "Đang ở phòng",
+            value: allCourses.filter((c) => c.myRoom && !c.myGroup).length,
+            icon: <HomeOutlined />,
+          },
+          { title: "Đơn đang chờ", value: pending, icon: <ClockCircleOutlined /> },
         ].map((item) => (
           <Col xs={12} md={6} key={item.title}>
-            <Card>
-              <Statistic title={item.title} value={item.value} />
+            <Card style={{ borderLeft: "4px solid #fa8c16", height: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <Statistic title={item.title} value={item.value} />
+                <span
+                  style={{
+                    background: "#fff7e6",
+                    color: "#fa8c16",
+                    borderRadius: 8,
+                    padding: 12,
+                    height: 44,
+                  }}
+                >
+                  {item.icon}
+                </span>
+              </div>
             </Card>
           </Col>
         ))}
