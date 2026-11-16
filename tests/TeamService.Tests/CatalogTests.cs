@@ -67,6 +67,8 @@ public sealed class CatalogTests : IAsyncLifetime
     public async Task Delete_WhenPlannedAndEnrolled_RemovesEnrollments()
     {
         var course = await db.Courses.SingleAsync(x => x.Code == "FA26-EXE201");
+        course.Status = CourseStatus.Planned;
+        await db.SaveChangesAsync();
         var student = await db.Students.FirstAsync();
         await courses.EnrollAsync(course.Id, [student.Id], default);
         await courses.DeleteAsync(course.Id, default);
@@ -123,7 +125,7 @@ public sealed class CatalogTests : IAsyncLifetime
         var service = new RoomService(db, user.Object, Mock.Of<IMatchingClient>(), publisher.Object, Options.Create(new RoomOptions()), cache, references, new ConfigurationBuilder().Build());
         var room = await service.CreateAsync(course.Id, default);
         var page = await courses.MyCoursesAsync(new PageQuery(), default);
-        var item = Assert.Single(page.Items);
+        var item = Assert.Single(page.Items, x => x.Id == course.Id);
         Assert.Equal(course.Id, item.Id);
         Assert.Equal(room.Id, item.MyRoom!.Id);
         Assert.Null(item.MyGroup);

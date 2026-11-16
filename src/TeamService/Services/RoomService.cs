@@ -18,7 +18,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
 
     internal async Task<Student> CurrentStudentAsync(CancellationToken ct)
     {
-        return await db.Students.Include(x => x.Major).SingleOrDefaultAsync(x => x.UserId == user.UserId, ct)
+        return await db.Students.Include(x => x.Major).Include(x => x.Roles).ThenInclude(x => x.TeamRole).SingleOrDefaultAsync(x => x.UserId == user.UserId, ct)
             ?? throw new ForbiddenException("Tài khoản không gắn với sinh viên nào.", "NOT_A_STUDENT");
     }
 
@@ -49,10 +49,47 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
     internal async Task<Room> LoadRoomAsync(Guid id, CancellationToken ct)
     {
         return await db.Rooms.Include(x => x.Course).ThenInclude(x => x.GroupType).ThenInclude(x => x.Majors).ThenInclude(x => x.Major)
+            .Include(x => x.NeededRoles).ThenInclude(x => x.TeamRole)
+            .Include(x => x.Members).ThenInclude(x => x.Student).ThenInclude(x => x.Roles).ThenInclude(x => x.TeamRole)
             .Include(x => x.Leader)
             .Include(x => x.Members).ThenInclude(x => x.Student).ThenInclude(x => x.Major)
             .SingleOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException("Không tìm thấy phòng.");
+    }
+
+    private async Task<List<TeamRole>> ValidateProfileAsync(RoomProfileRequest? profile, CancellationToken ct)
+    {
+        var ids = profile?.NeededRoleIds ?? [];
+        if (profile is not null && ((profile.Name?.Length ?? 0) > 100 || (profile.ProjectName?.Length ?? 0) > 200 || (profile.IdeaDescription?.Length ?? 0) > 1000 || profile.RequiredGpa is < 0 or > 4 || profile.TargetGrade is < 0 or > 10 || (profile.RequiredGpa.HasValue && decimal.Round(profile.RequiredGpa.Value, 2) != profile.RequiredGpa) || ids.Count > 5 || ids.Distinct().Count() != ids.Count)) throw new BadRequestException("Thông tin tuyển không hợp lệ.");
+        var roles = await db.TeamRoles.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        if (roles.Count != ids.Count) throw new BadRequestException("Vai trò không tồn tại.");
+        return roles;
+    }
+    private static void ApplyProfile(Room room, RoomProfileRequest? profile, List<TeamRole> roles)
+    {
+        room.Name = profile?.Name; room.ProjectName = profile?.ProjectName; room.IdeaDescription = profile?.IdeaDescription; room.RequiredGpa = profile?.RequiredGpa; room.TargetGrade = profile?.TargetGrade;
+        foreach (var role in roles) room.NeededRoles.Add(new RoomNeededRole { TeamRole = role });
+    }
+    public async Task<RoomDto> UpdateProfileAsync(Guid id, RoomProfileRequest profile, CancellationToken ct)
+    {
+        var room = await LoadRoomAsync(id, ct); CheckForming(room.Course);
+        var student = await CurrentStudentAsync(ct); await CheckEnrollmentAsync(room.CourseId, student.Id, ct);
+        CheckLeader(room, student); CheckActive(room);
+        var roles = await ValidateProfileAsync(profile, ct);
+        foreach (var old in room.NeededRoles.Where(x => roles.All(r => r.Id != x.TeamRoleId)).ToArray()) { db.RoomNeededRoles.Remove(old); room.NeededRoles.Remove(old); }
+        var added = roles.Where(r => room.NeededRoles.All(x => x.TeamRoleId != r.Id)).ToList();
+        ApplyProfile(room, profile, added); room.Version++; await db.SaveChangesAsync(ct); return Map(room);
+    }
+    public async Task<StudentDto> UpdateStudentProfileAsync(StudentProfileRequest request, CancellationToken ct)
+    {
+        var ids = request.RoleIds;
+        if (request.Gpa is < 0 or > 4 || (request.Gpa.HasValue && decimal.Round(request.Gpa.Value, 2) != request.Gpa) || ids is null || ids.Count is < 1 or > 3 || ids.Distinct().Count() != ids.Count) throw new BadRequestException("Hồ sơ sinh viên không hợp lệ.");
+        var roles = await db.TeamRoles.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        if (roles.Count != ids.Count) throw new BadRequestException("Vai trò không tồn tại.");
+        var student = await CurrentStudentAsync(ct); student.Gpa = request.Gpa;
+        foreach (var old in student.Roles.Where(x => !ids.Contains(x.TeamRoleId)).ToArray()) { db.StudentTeamRoles.Remove(old); student.Roles.Remove(old); }
+        foreach (var role in roles.Where(r => student.Roles.All(x => x.TeamRoleId != r.Id))) student.Roles.Add(new StudentTeamRole { TeamRole = role });
+        await db.SaveChangesAsync(ct); return await references.StudentAsync(student.Id, ct);
     }
 
     internal static GroupTypeRule Rule(GroupType type)
@@ -76,8 +113,10 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
             room.Members.GroupBy(x => x.Student.Major.Code).Select(x => new MajorCountDto(x.Key, x.Count())).ToArray(),
             room.CreatedAt, room.CourseId, room.Course.Code, room.LeaderId,
             room.Members.Select(x => new RoomMemberDto(x.StudentId, x.Student.StudentCode, x.Student.FullName,
-                x.Student.Major.Code, x.StudentId == room.LeaderId, x.JoinedAt)).ToArray());
+                x.Student.Major.Code, x.StudentId == room.LeaderId, x.JoinedAt) { Gpa = x.Student.Gpa, Roles = RoleDtos(x.Student) }).ToArray()) { Name = room.Name, ProjectName = room.ProjectName, IdeaDescription = room.IdeaDescription, RequiredGpa = room.RequiredGpa, TargetGrade = room.TargetGrade, NeededRoles = room.NeededRoles.Select(x => new RoleDto(x.TeamRole.Id, x.TeamRole.Code, x.TeamRole.Name)).ToArray() };
     }
+
+    internal static RoleDto[] RoleDtos(Student student) => student.Roles.Select(x => new RoleDto(x.TeamRole.Id, x.TeamRole.Code, x.TeamRole.Name)).ToArray();
 
     internal static void CheckCapacity(Room room, Student student)
     {
@@ -117,9 +156,12 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         }
     }
 
-    public async Task<RoomDto> CreateAsync(Guid courseId, CancellationToken ct)
+    public Task<RoomDto> CreateAsync(Guid courseId, CancellationToken ct) => CreateAsync(courseId, null, ct);
+
+    public async Task<RoomDto> CreateAsync(Guid courseId, RoomProfileRequest? profile, CancellationToken ct)
     {
         var student = await CurrentStudentAsync(ct);
+        var roles = await ValidateProfileAsync(profile, ct);
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var course = await db.Courses.SingleOrDefaultAsync(x => x.Id == courseId, ct)
@@ -138,6 +180,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
                 Version = 1,
                 CreatedAt = DateTime.UtcNow
             };
+            ApplyProfile(room, profile, roles);
             room.Members.Add(new StudentInRoom { Student = student, CourseId = courseId, JoinedAt = DateTime.UtcNow });
             db.Rooms.Add(room);
             await CancelPendingAsync(courseId, student.Id, null, ct);
@@ -169,6 +212,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         var student = await CurrentStudentAsync(ct);
         await CheckEnrollmentAsync(room.CourseId, student.Id, ct);
         await CheckMembershipAsync(room.CourseId, student.Id, ct);
+        if (room.RequiredGpa.HasValue && (!student.Gpa.HasValue || student.Gpa < room.RequiredGpa)) throw new BusinessRuleException("BR19", "GPA chưa đáp ứng yêu cầu của phòng; hãy gửi đơn.");
         CheckCapacity(room, student);
         var previous = room.Members.Select(x => x.Student).ToArray();
         room.Members.Add(new StudentInRoom { Student = student, CourseId = room.CourseId, JoinedAt = DateTime.UtcNow });
@@ -275,6 +319,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
     public async Task<RoomDto> GetAsync(Guid roomId, CancellationToken ct)
     {
         var room = await LoadRoomAsync(roomId, ct);
+        if (room.Status == RoomStatus.Cancelled && !user.IsInRole(Roles.Admin)) throw new NotFoundException("Không tìm thấy phòng.");
         await CheckViewAsync(room, ct);
         return Map(room);
     }
@@ -300,7 +345,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
             throw new BusinessRuleException("BR16", "Phòng chưa thỏa cơ cấu nhóm: " + string.Join(" ", analysis.Violations));
         }
         var groupCode = room.Code[..room.Code.LastIndexOf("-R", StringComparison.Ordinal)] + "-G" + room.Code[(room.Code.LastIndexOf("-R", StringComparison.Ordinal) + 2)..];
-        var group = new Group { CourseId = room.CourseId, RoomId = room.Id, GroupTypeId = room.Course.GroupTypeId, Code = groupCode, Name = groupCode, CreatedAt = DateTime.UtcNow };
+        var group = new Group { CourseId = room.CourseId, RoomId = room.Id, GroupTypeId = room.Course.GroupTypeId, Code = groupCode, Name = room.Name ?? groupCode, CreatedAt = DateTime.UtcNow };
         foreach (var member in room.Members)
         {
             group.Members.Add(new StudentInGroup { StudentId = member.StudentId, IsLeader = member.StudentId == room.LeaderId });

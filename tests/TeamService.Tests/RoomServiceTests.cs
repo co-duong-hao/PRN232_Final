@@ -6,6 +6,7 @@ using Exe.Shared.Web.Errors;
 using Exe.TeamService.Abstractions;
 using Exe.TeamService.Data;
 using Exe.TeamService.Domain;
+using Exe.TeamService.Dtos;
 using Exe.TeamService.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,89 @@ public sealed class RoomServiceTests : IAsyncLifetime
     }
 
     private static CompositionAnalysis Analysis(bool satisfied) => new(satisfied, 4, 0, 3, 0, [], [], satisfied ? [] : ["Thiếu ngành."]);
+
+    [Fact]
+    public async Task Join_WhenGpaBelowOrMissing_ThrowsBR19_AndEqualSucceeds()
+    {
+        var room = await rooms.CreateAsync(courseId, new RoomProfileRequest("Team", null, null, 3.1m, null, []), default);
+        SelectStudent(3);
+        Assert.Equal("BR19", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.JoinAsync(room.Id, default))).Code);
+        var student = await db.Students.SingleAsync(x => x.UserId == userId);
+        student.Gpa = null; await db.SaveChangesAsync();
+        Assert.Equal("BR19", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.JoinAsync(room.Id, default))).Code);
+        SelectStudent(2);
+        Assert.Equal(2, (await rooms.JoinAsync(room.Id, default)).MemberCount);
+    }
+
+    [Fact]
+    public async Task Profile_WhenInvalidAndValid_ValidatesAndReturnsUpdatedData()
+    {
+        var role = await db.TeamRoles.FirstAsync();
+        await Assert.ThrowsAsync<BadRequestException>(() => rooms.UpdateStudentProfileAsync(new(4.1m, [role.Id]), default));
+        await Assert.ThrowsAsync<BadRequestException>(() => rooms.UpdateStudentProfileAsync(new(3m, [Guid.NewGuid()]), default));
+        await Assert.ThrowsAsync<BadRequestException>(() => rooms.UpdateStudentProfileAsync(new(3m, [Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()]), default));
+        var result = await rooms.UpdateStudentProfileAsync(new(3.25m, [role.Id]), default);
+        Assert.Equal(3.25m, result.Gpa); Assert.Equal(role.Id, Assert.Single(result.Roles).Id);
+    }
+
+    [Fact]
+    public async Task Create_WhenDifferentCourses_AllowsBothAndRejectsSameCourse()
+    {
+        var first = await rooms.CreateAsync(courseId, default);
+        var secondCourse = Guid.Parse("30000000-0000-0000-0000-000000000002");
+        var second = await rooms.CreateAsync(secondCourse, default);
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal("BR05", (await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.CreateAsync(courseId, default))).Code);
+    }
+
+    [Fact]
+    public async Task CreateProfile_WhenInvalidOrNonLeader_RejectsRequests()
+    {
+        await Assert.ThrowsAsync<BadRequestException>(() => rooms.CreateAsync(courseId, new(null, null, null, 4.5m, null, []), default));
+        await Assert.ThrowsAsync<BadRequestException>(() => rooms.CreateAsync(courseId, new(null, null, null, null, 11m, []), default));
+        var role = await db.TeamRoles.FirstAsync();
+        var created = await rooms.CreateAsync(courseId, new("Team", "Project", "Idea", 3m, 8m, [role.Id]), default);
+        Assert.Equal("Team", created.Name); Assert.Equal(role.Id, Assert.Single(created.NeededRoles).Id);
+        SelectStudent(2);
+        Assert.Equal("NOT_ROOM_LEADER", (await Assert.ThrowsAsync<ForbiddenException>(() => rooms.UpdateProfileAsync(created.Id, new(null, null, null, null, null, []), default))).Code);
+    }
+
+    [Fact]
+    public async Task Apply_WhenGpaBelowRequirement_CanBeApproved()
+    {
+        var room = await rooms.CreateAsync(courseId, new(null, null, null, 4m, null, []), default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id); entity.Status = RoomStatus.Locked; await db.SaveChangesAsync();
+        SelectStudent(2); var apply = await applies.CreateAsync(room.Id, "", default);
+        SelectStudent(1); var approved = await applies.DecideAsync(apply.Id, true, default);
+        Assert.Equal("Approved", approved.Status);
+    }
+
+    [Fact]
+    public async Task Rooms_WhenCancelled_HiddenExceptForAdmin()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        await rooms.LeaveAsync(room.Id, default);
+        user.Setup(x => x.IsInRole("Student")).Returns(true);
+        var read = new TeamReadService(db, user.Object, rooms);
+        Assert.Empty((await read.RoomsAsync(courseId, new RoomListQuery { Status = "Cancelled" }, default)).Items);
+        await Assert.ThrowsAsync<NotFoundException>(() => rooms.GetAsync(room.Id, default));
+        user.Setup(x => x.IsInRole("Student")).Returns(false);
+        user.Setup(x => x.IsInRole("Lecturer")).Returns(true);
+        Assert.Empty((await read.RoomsAsync(courseId, new RoomListQuery { Status = "Cancelled" }, default)).Items);
+        user.Setup(x => x.IsInRole("Admin")).Returns(true);
+        Assert.Single((await read.RoomsAsync(courseId, new RoomListQuery { Status = "Cancelled" }, default)).Items);
+    }
+
+    [Fact]
+    public async Task Rooms_WhenFilteringGpaRolesAndName_ReturnsMatchingRoom()
+    {
+        var role = await db.TeamRoles.SingleAsync(x => x.Code == "BE");
+        var created = await rooms.CreateAsync(courseId, new("Unique Team", null, null, 3m, 8m, [role.Id]), default);
+        var read = new TeamReadService(db, user.Object, rooms);
+        var result = await read.RoomsAsync(courseId, new RoomListQuery { Gpa = 3m, RoleIds = [Guid.NewGuid(), role.Id], Q = "Unique" }, default);
+        Assert.Equal(created.Id, Assert.Single(result.Items).Id);
+        Assert.Empty((await read.RoomsAsync(courseId, new RoomListQuery { Gpa = 2m }, default)).Items);
+    }
 
     [Fact]
     public async Task Stats_WhenStudentJoins_InvalidatesCachedCounts()

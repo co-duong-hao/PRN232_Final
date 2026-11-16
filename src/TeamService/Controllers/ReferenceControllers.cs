@@ -10,7 +10,7 @@ namespace Exe.TeamService.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/{kind:regex(^(semesters|subjects|majors)$)}")]
+[Route("api/{kind:regex(^(semesters|subjects|majors|team-roles)$)}")]
 public sealed class LookupsController(IReferenceService service) : ControllerBase
 {
     [HttpGet]

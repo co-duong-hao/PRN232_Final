@@ -16,6 +16,8 @@ public sealed class MeController(RoomService rooms) : ControllerBase
     {
         var student = await rooms.CurrentStudentAsync(ct);
         return Ok(new StudentDto(student.Id, student.UserId, student.StudentCode, student.FullName, student.Email,
-            student.MajorId, student.Major.Code));
+            student.MajorId, student.Major.Code) { Gpa = student.Gpa, Roles = RoomService.RoleDtos(student) });
     }
+    [HttpPut("api/me/student/profile")]
+    public async Task<ActionResult<StudentDto>> Profile(StudentProfileRequest request, CancellationToken ct) => Ok(await rooms.UpdateStudentProfileAsync(request, ct));
 }

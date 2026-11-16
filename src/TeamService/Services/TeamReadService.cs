@@ -35,10 +35,13 @@ public sealed class TeamReadService(TeamDbContext db, ICurrentUser user, RoomSer
     {
         await CheckCourseAsync(courseId, ct);
         var source = db.Rooms.Where(x => x.CourseId == courseId).Include(x => x.Course).Include(x => x.Leader)
-            .Include(x => x.Members).ThenInclude(x => x.Student).ThenInclude(x => x.Major).AsQueryable();
+            .Include(x => x.Members).ThenInclude(x => x.Student).ThenInclude(x => x.Major).Include(x => x.NeededRoles).ThenInclude(x => x.TeamRole).AsQueryable();
+        if (!user.IsInRole(Roles.Admin)) source = source.Where(x => x.Status != RoomStatus.Cancelled);
+        if (query.Gpa.HasValue) source = source.Where(x => x.RequiredGpa == null || (double)x.RequiredGpa.Value <= (double)query.Gpa.Value);
+        if (query.RoleIds is { Length: > 0 }) source = source.Where(x => x.NeededRoles.Any(r => query.RoleIds.Contains(r.TeamRoleId)));
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
-            source = source.Where(x => x.Code.Contains(query.Q));
+            source = source.Where(x => x.Code.Contains(query.Q) || (x.Name != null && x.Name.Contains(query.Q)) || (x.ProjectName != null && x.ProjectName.Contains(query.Q)));
         }
         if (Enum.TryParse<RoomStatus>(query.Status, true, out var status))
         {
@@ -46,23 +49,25 @@ public sealed class TeamReadService(TeamDbContext db, ICurrentUser user, RoomSer
         }
         source = query.SortBy?.ToLowerInvariant() switch
         {
+            "requiredgpa" => query.Descending ? source.OrderByDescending(x => (double?)x.RequiredGpa) : source.OrderBy(x => (double?)x.RequiredGpa),
+            "targetgrade" => query.Descending ? source.OrderByDescending(x => (double?)x.TargetGrade) : source.OrderBy(x => (double?)x.TargetGrade),
             "createdat" => query.Descending ? source.OrderByDescending(x => x.CreatedAt) : source.OrderBy(x => x.CreatedAt),
             "membercount" => query.Descending ? source.OrderByDescending(x => x.MemberCount) : source.OrderBy(x => x.MemberCount),
             _ => query.Descending ? source.OrderByDescending(x => x.Code) : source.OrderBy(x => x.Code)
         };
         return MapPage(await source.ToPagedResultAsync(query, ct), x => new RoomSummaryDto(x.Id, x.Code, x.Status.ToString(), x.MemberCount, x.Leader.FullName,
-            x.Members.GroupBy(m => m.Student.Major.Code).Select(m => new MajorCountDto(m.Key, m.Count())).ToArray(), x.CreatedAt));
+            x.Members.GroupBy(m => m.Student.Major.Code).Select(m => new MajorCountDto(m.Key, m.Count())).ToArray(), x.CreatedAt) { Name = x.Name, ProjectName = x.ProjectName, IdeaDescription = x.IdeaDescription, RequiredGpa = x.RequiredGpa, TargetGrade = x.TargetGrade, NeededRoles = x.NeededRoles.Select(r => new RoleDto(r.TeamRole.Id, r.TeamRole.Code, r.TeamRole.Name)).ToArray() });
     }
 
     private static ApplyDto MapApply(RoomApply x)
     {
         return new ApplyDto(x.Id, x.RoomId, x.Room.Code, x.StudentId, x.Student.StudentCode, x.Student.FullName,
-            x.Student.Major.Code, x.Message, x.Status.ToString(), x.DecidedAt, x.CreatedAt);
+            x.Student.Major.Code, x.Message, x.Status.ToString(), x.DecidedAt, x.CreatedAt) { Gpa = x.Student.Gpa, Roles = RoomService.RoleDtos(x.Student) };
     }
 
     private async Task<PagedResult<ApplyDto>> AppliesAsync(IQueryable<RoomApply> source, ApplyListQuery query, CancellationToken ct)
     {
-        source = source.Include(x => x.Room).Include(x => x.Student).ThenInclude(x => x.Major);
+        source = source.Include(x => x.Room).Include(x => x.Student).ThenInclude(x => x.Major).Include(x => x.Student).ThenInclude(x => x.Roles).ThenInclude(x => x.TeamRole);
         if (Enum.TryParse<ApplyStatus>(query.Status, true, out var status))
         {
             source = source.Where(x => x.Status == status);
