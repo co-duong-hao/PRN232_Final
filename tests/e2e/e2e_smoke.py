@@ -37,18 +37,38 @@ def call(method, path, token=None, body=None):
             return e.code, raw.decode(errors="replace")[:200]
 
 
-def check(name, status, expected, body=None, code=None):
-    ok = status == expected and (code is None or (isinstance(body, dict) and body.get("code") == code))
+def check(name, status, expected, body=None, code=None, *, expected_fields=None):
+    ok = (
+        status == expected
+        and (code is None or (isinstance(body, dict) and body.get("code") == code))
+        and (
+            expected_fields is None
+            or (isinstance(body, dict) and all(body.get(key) == value for key, value in expected_fields.items()))
+        )
+    )
     results.append(ok)
     extra = ""
     if not ok:
         extra = f"  -> got {status} {json.dumps(body, ensure_ascii=False)[:300] if body is not None else ''}"
     print(f"[{'OK ' if ok else 'BAD'}] {name}: {status}{extra}")
+    if not ok and expected_fields is not None:
+        print(f"   Dữ liệu cần có: {json.dumps(expected_fields, ensure_ascii=False)}")
     if not ok:
         details = body if isinstance(body, dict) else {}
         print(f"   Thất bại tại {name}: HTTP {status}, code={details.get('code', 'không có')}, title={details.get('title', 'không có')}")
         raise ScriptError()
     return body
+
+
+def check_stats(lecturer, name, *, in_room, in_group, groups, room_counts):
+    status, body = call("GET", f"/api/courses/{COURSE}/stats", lecturer)
+    check(name, status, 200, body, expected_fields={
+        "totalStudents": 12,
+        "studentsInRoom": in_room,
+        "studentsInGroup": in_group,
+        "groupCount": groups,
+        "roomsByStatus": room_counts,
+    })
 
 
 def login(email):
@@ -108,7 +128,13 @@ def main():
     s, b = call("GET", "/api/users", t[1])
     check("student cannot list users", s, 403, b)
 
-    # Clean state: student01 may already own a room from a previous run.
+    # Seeded Course statistics, including changes to a previously fetched result.
+    lecturer = login("lecturer@exe.local")
+    s, b = call("GET", f"/api/courses/{COURSE}/stats", t[1])
+    check("student cannot see staff statistics", s, 403, b)
+    check_stats(lecturer, "lecturer sees empty room and group statistics",
+                in_room=0, in_group=0, groups=0, room_counts={})
+
     s, b = call("GET", "/api/me/courses", t[1])
     check("student01 my courses", s, 200, b)
 
@@ -127,6 +153,8 @@ def main():
     s, b = call("POST", f"/api/rooms/{rid}/join", t[6])
     check("QT02 student06 joins -> locked", s, 200, b)
     print("    status after 3 members:", b.get("status") if isinstance(b, dict) else b)
+    check_stats(lecturer, "lecturer sees three students in a locked room",
+                in_room=3, in_group=0, groups=0, room_counts={"Locked": 1})
 
     s, b = call("POST", f"/api/rooms/{rid}/join", t[8])
     check("locked room rejects direct join", s, 409, b, "ROOM_NOT_OPEN")
@@ -163,6 +191,8 @@ def main():
     check("QT06 complete room -> group", s, 201, grp)
     if isinstance(grp, dict):
         print("    group code:", grp.get("code"))
+    check_stats(lecturer, "lecturer sees the completed group and four members",
+                in_room=4, in_group=4, groups=1, room_counts={"Completed": 1})
 
     s, b = call("POST", f"/api/rooms/{rid}/leave", t[6])
     check("BR18 cannot leave completed room", s, 409, b, "BR18")

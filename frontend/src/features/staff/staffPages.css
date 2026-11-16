@@ -1,0 +1,33 @@
+.staff-page {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.staff-page .ant-table-pagination {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.staff-page .staff-table .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 991.98px) {
+  .staff-page {
+    padding-block-start: 20px;
+  }
+}
+
+@media (max-width: 575px) {
+  .staff-page .staff-filters {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .staff-page .staff-filters .ant-input-search,
+  .staff-page .staff-filters .ant-select {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}

@@ -97,8 +97,24 @@ def preflight():
     return True
 
 
+def show_course_stats(lecturer):
+    status, stats = call("GET", f"/api/courses/{COURSE}/stats", lecturer)
+    require_status("xem thống kê Course", status, 200, stats)
+    total = stats["totalStudents"]
+    in_room = stats["studentsInRoom"]
+    in_group = stats["studentsInGroup"]
+    without_room = max(0, total - in_room)
+    print(f"   Giảng viên xem FA26-EXE101: {in_room}/{total} SV đã vào phòng, "
+          f"{in_group}/{total} SV đã có nhóm, {without_room} SV chưa có phòng, "
+          f"{stats['groupCount']} nhóm chính thức.")
+    labels = {"Open": "Đang mở", "Locked": "Đã khóa", "Completed": "Đã thành nhóm"}
+    counts = ", ".join(f"{label} {stats['roomsByStatus'].get(key, 0)}" for key, label in labels.items())
+    print(f"   Trạng thái phòng: {counts}")
+
+
 def main():
     step("1. Đăng nhập qua API Gateway (Auth Service phát JWT)")
+    lecturer = login("lecturer@exe.local")["accessToken"]
     for n in [1, 2, 6, 8, 11]:
         u = login(f"student{n:02d}@exe.local")
         print(f"   {u['user']['fullName']:<14} {u['user']['email']:<22} role={u['user']['roles']}")
@@ -122,6 +138,7 @@ def main():
     s, room = call("POST", f"/api/rooms/{rid}/join", S(6))
     require_status(current_step, s, 200, room)
     room_line(room)
+    show_course_stats(lecturer)
 
     step("5. Sinh viên 08 (GD) không vào thẳng được phòng đã khóa")
     s, b = call("POST", f"/api/rooms/{rid}/join", S(8))
@@ -176,6 +193,13 @@ def main():
     print(f"   Nhóm {grp['code']} ({grp['groupTypeName']})")
     for m in grp["members"]:
         print(f"   - {m['studentCode']} {m['fullName']} ({m['majorCode']}){'  ★ trưởng nhóm' if m['isLeader'] else ''}")
+
+    show_course_stats(lecturer)
+    print("   Trên web: đăng nhập giảng viên, mở Quản lý Course / FA26-EXE101 / Thống kê.")
+    print("   Chọn Xem sinh viên để lọc người chưa có phòng hoặc chọn Đã thành nhóm để xem phòng hoàn tất.")
+    print("   Thu hẹp cửa sổ để xem các chỉ số xếp lại và cuộn ngang trong bảng.")
+    print("   Có thể chặn riêng yêu cầu GET */stats trong DevTools, tải lại trang để xem lỗi, "
+          "rồi bỏ chặn và bấm Thử lại.")
 
     step("13. BR18 – Thành viên không tự rời nhóm đã thành lập")
     s, b = call("POST", f"/api/rooms/{rid}/leave", S(6))
