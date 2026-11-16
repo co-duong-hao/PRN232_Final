@@ -82,6 +82,28 @@ docker compose build web
 
 Sau khi `git pull`, chỉ cần build lại service có code thay đổi (ví dụ chỉ `team-service` và `web`).
 
+### Cách khác: tải image đã build sẵn (không cần build)
+
+Mỗi lần code được đưa lên nhánh `main`, GitHub Actions tự build và lưu image lên GitHub Container Registry (GHCR).
+Máy yếu hoặc Docker hay sập khi build thì dùng cách này:
+
+1. Tạo token trên GitHub: *Settings → Developer settings → Personal access tokens → Tokens (classic)*, chỉ tích
+   quyền `read:packages`.
+2. Đăng nhập (dán token khi được hỏi mật khẩu):
+
+   ```powershell
+   docker login ghcr.io -u <tên-GitHub-của-bạn>
+   ```
+
+3. Tải image rồi chạy, bỏ qua bước build:
+
+   ```powershell
+   docker compose pull
+   docker compose up -d --no-build
+   ```
+
+Image trên GHCR là bản của nhánh `main`. Đang sửa code ở nhánh khác thì vẫn build trên máy như trên.
+
 ---
 
 ## 5. Khởi động
@@ -246,7 +268,8 @@ Giữ nguyên dữ liệu. Thêm `-v` (`docker compose down -v`) để xóa luô
 | `docker compose up` báo thiếu `MSSQL_ACCEPT_EULA` hoặc `JWT_KEY` | Chưa có `.env` | Làm lại phần 3 |
 | Script báo *"Dữ liệu đã được dùng ở lần chạy trước"* | Chưa reset | Phần 7 — reset dữ liệu |
 | Script báo *"Không kết nối được API Gateway"* | Hệ thống chưa chạy | `docker compose up -d`, chờ 60 giây |
-| Web không thấy tính năng mới sau `git pull` | Image cũ | Build lại `team-service` và `web`, rồi `docker compose up -d` |
+| Web không thấy tính năng mới sau `git pull` | Image cũ | Build lại `team-service` và `web` (hoặc `docker compose pull`), rồi `docker compose up -d` |
+| `docker compose pull` báo *"denied"* hoặc *"unauthorized"* | Chưa đăng nhập GHCR, hoặc token thiếu quyền `read:packages` | Làm lại bước đăng nhập ở phần 4 |
 | Cổng 1433, 3000, 8080… đã bị chiếm | Phần mềm khác đang dùng cổng | Tắt phần mềm đó (ví dụ SQL Server cài sẵn trên máy) |
 
 ---
