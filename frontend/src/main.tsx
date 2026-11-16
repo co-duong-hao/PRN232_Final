@@ -1,20 +1,21 @@
 import { App as AntApp, ConfigProvider } from "antd";
+import enUS from "antd/locale/en_US";
 import viVN from "antd/locale/vi_VN";
-import dayjs from "dayjs";
-import "dayjs/locale/vi";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { LanguageProvider, useI18n } from "./i18n";
 import "./styles.css";
 
-dayjs.locale("vi");
+function RootApp() {
+  const { language } = useI18n();
+  const antdLocale = language === "en" ? enUS : viVN;
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
+  return (
     <ConfigProvider
-      locale={viVN}
+      locale={antdLocale}
       theme={{
         token: {
           colorPrimary: "#C2410C",
@@ -53,5 +54,13 @@ createRoot(document.getElementById("root")!).render(
         </BrowserRouter>
       </AntApp>
     </ConfigProvider>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <LanguageProvider>
+      <RootApp />
+    </LanguageProvider>
   </StrictMode>,
 );
