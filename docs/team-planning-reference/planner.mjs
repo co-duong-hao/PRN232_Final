@@ -2,7 +2,6 @@ import { readdir } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// Standalone reference for capacity planning with synthetic student teams.
 // List catalogs: node planner.mjs
 // Inspect plans: node planner.mjs campus-support ticket-triage
 
