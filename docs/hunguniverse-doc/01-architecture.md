@@ -1,0 +1,209 @@
+# Kiến trúc hệ thống
+
+Tài liệu tham chiếu cho PRN232 Final v0.4 tại commit 2e3789f.
+
+## Cách hoạt động
+
+Ứng dụng React, Gateway và các dịch vụ .NET có thể theo dõi theo từng chặng khi một thao tác trên web thất bại.
+
+AuthService quản lý AuthDb. TeamService quản lý TeamDb. Hai database dùng cùng SQL Server ở môi trường Compose và tham chiếu người dùng qua `UserId`.
+
+TeamService gọi MatchingService qua gRPC khi cần kết quả để quyết định ngay. Kafka vận chuyển sự kiện sau khi ghi dữ liệu để NotiService gửi email.
+
+## Cách kiểm tra
+
+1. Theo một yêu cầu đăng nhập từ Nginx đến Gateway và AuthService.
+2. Theo một yêu cầu hoàn tất phòng qua TeamService, gRPC, SQL Server và Kafka.
+
+## Sơ đồ luồng chính
+
+~~~mermaid
+flowchart LR
+    Web["React và Nginx"] --> Gateway["Gateway YARP"]
+    Gateway --> Auth["AuthService"]
+    Gateway --> Team["TeamService"]
+    Auth --> AuthDb[("AuthDb")]
+    Team --> TeamDb[("TeamDb")]
+    Team --> Redis[("Cache Redis")]
+    Team -->|"gRPC"| Matching["MatchingService"]
+    Team -->|"Sự kiện"| Kafka["Kafka"]
+    Kafka --> Noti["NotiService"]
+    Noti -->|"SMTP"| Mailpit["Mailpit"]
+~~~
+
+## Mục lục
+
+| Chương | Nội dung |
+|---:|---|
+| 01 | [Kiến trúc hệ thống](01-architecture.md) |
+
+## Đối chiếu nhanh theo tình huống
+
+| Tình huống | Chương đọc trước |
+|---|---|
+
+## Đối chiếu mã nguồn
+
+Các trích đoạn dưới đây hỗ trợ tra cứu. Đường dẫn mở phần tương ứng trong repo.
+
+### Program.cs
+
+Gateway nạp định tuyến và cấu hình xác thực ở mức ứng dụng.
+
+[src/Gateway/Program.cs dòng 1–19](../../src/Gateway/Program.cs#L1-L19)
+
+~~~csharp
+using Exe.Shared.Web.Auth;
+
+// Single entry point. Validates the JWT, then forwards the request (Authorization header included)
+// to Auth Service or Team Service. Routes live in appsettings.json under "ReverseProxy".
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddExeJwtAuth(builder.Configuration);
+builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/health");
+app.MapReverseProxy();
+
+app.Run();
+~~~
+
+### appsettings.json
+
+Các tuyến tách Auth Service khỏi Team Service. Trích phần cấu hình reverse proxy.
+
+[src/Gateway/appsettings.json dòng 14–53](../../src/Gateway/appsettings.json#L14-L53)
+
+~~~json
+  "ReverseProxy": {
+    "Routes": {
+      "auth-public": {
+        "ClusterId": "auth",
+        "Order": 1,
+        "Match": { "Path": "/api/auth/{**catch-all}" }
+      },
+      "auth-users": {
+        "ClusterId": "auth",
+        "Order": 1,
+        "AuthorizationPolicy": "default",
+        "Match": { "Path": "/api/users/{**catch-all}" }
+      },
+      "auth-roles": {
+        "ClusterId": "auth",
+        "Order": 1,
+        "AuthorizationPolicy": "default",
+        "Match": { "Path": "/api/roles/{**catch-all}" }
+      },
+      "team": {
+        "ClusterId": "team",
+        "Order": 100,
+        "AuthorizationPolicy": "default",
+        "Match": { "Path": "/api/{**catch-all}" }
+      }
+    },
+    "Clusters": {
+      "auth": {
+        "Destinations": {
+          "d1": { "Address": "http://localhost:5101/" }
+        }
+      },
+      "team": {
+        "Destinations": {
+          "d1": { "Address": "http://localhost:5102/" }
+        }
+      }
+    }
+  }
+}
+~~~
+
+### Program.cs
+
+MatchingService đăng ký gRPC và endpoint health.
+
+[src/MatchingService/Program.cs dòng 1–18](../../src/MatchingService/Program.cs#L1-L18)
+
+~~~csharp
+using Exe.MatchingService.Services;
+
+// gRPC only, no database. Kestrel listens on two endpoints (see appsettings.json):
+// "Grpc" speaks HTTP/2 without TLS, "Health" speaks HTTP/1.1 for /health.
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddGrpc();
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+app.MapGrpcService<MatchingGrpcService>();
+app.MapHealthChecks("/health");
+
+app.Run();
+
+/// <summary>Exposed for WebApplicationFactory in tests.</summary>
+public partial class Program;
+~~~
+
+### Program.cs
+
+NotiService đăng ký worker Kafka, renderer và SMTP.
+
+[src/NotiService/Program.cs dòng 1–14](../../src/NotiService/Program.cs#L1-L14)
+
+~~~csharp
+using Exe.NotiService.Email;
+using Exe.NotiService.Options;
+using Exe.NotiService.Workers;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection("Kafka"));
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+builder.Services.AddSingleton<IDeadLetterPublisher, DeadLetterPublisher>();
+builder.Services.AddSingleton<EmailTemplateRenderer>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<EventProcessor>();
+builder.Services.AddHostedService<EventConsumerWorker>();
+var host = builder.Build();
+host.Run();
+~~~
+
+### nginx.conf
+
+Nginx phục vụ SPA và chuyển các URL `/api/` đến Gateway.
+
+[frontend/nginx.conf dòng 1–26](../../frontend/nginx.conf#L1-L26)
+
+~~~nginx
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Same-origin API: the browser calls /api, Nginx forwards to the gateway. No CORS needed.
+    location /api/ {
+        proxy_pass http://gateway:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Hashed build assets can be cached for a long time.
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Client-side routing: unknown paths serve the SPA.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+~~~
