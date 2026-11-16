@@ -334,6 +334,26 @@ def application_workflow(rooms_path, tokens):
     results.append(True)
     print("[OK ] RoomApplyCreated email delivered to room leader")
 
+    status, duplicate = call("POST", applies_path, first_applicant, {"message": "Duplicate request"})
+    check("QT03 cannot submit a second pending application", status, 409, duplicate, "APPLY_ALREADY_PENDING")
+
+    pending_views = (
+        ("room leader", applies_path + "?status=Pending", leader),
+        (
+            "applicant",
+            f"/api/me/applies?status=Pending&courseId={WORKFLOW_COURSE}",
+            first_applicant,
+        ),
+    )
+    for viewer, path, token in pending_views:
+        status, page = call("GET", path, token)
+        items = page.get("items") if isinstance(page, dict) else None
+        check(f"QT03 {viewer} sees the original pending application", status, 200, page,
+              matches=isinstance(items, list) and page.get("totalItems") == 1
+              and len(items) == 1 and isinstance(items[0], dict)
+              and items[0].get("id") == rejected["id"]
+              and items[0].get("status") == "Pending" and items[0].get("message") == "UI/UX")
+
     reject_path = f"/api/room-applies/{rejected['id']}"
     status, body = call("POST", reject_path + "/reject", other_member)
     check("BR09 non-leader cannot reject", status, 403, body, "NOT_ROOM_LEADER")
