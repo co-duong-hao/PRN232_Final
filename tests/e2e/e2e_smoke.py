@@ -10,6 +10,7 @@ import traceback
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 GW = "http://localhost:8080"
@@ -279,6 +280,48 @@ def room_leave_workflow(rooms_path, tokens):
           matches=isinstance(page, dict) and page.get("totalItems") == 0)
 
 
+def room_discovery_workflow(rooms_path, tokens):
+    viewer = tokens[8]
+    status, page = call("GET", "/api/team-roles?pageSize=100", viewer)
+    roles = {role["code"]: role["id"] for role in page.get("items", [])} if isinstance(page, dict) else {}
+    check("discovery roles are available", status, 200, page,
+          matches={"UIUX", "FE"} <= roles.keys())
+
+    status, design_room = call("POST", rooms_path, tokens[1],
+                               {"name": "Discovery design", "requiredGpa": 3.2, "neededRoleIds": [roles["UIUX"]]})
+    check("create design recruitment room", status, 201, design_room)
+    status, frontend_room = call("POST", rooms_path, tokens[2],
+                                 {"name": "Discovery frontend", "requiredGpa": 2.5, "neededRoleIds": [roles["FE"]]})
+    check("create frontend recruitment room", status, 201, frontend_room)
+
+    for label, query, expected_ids, page_number, total in (
+        ("returns first page", {"page": 1, "pageSize": 1, "sortBy": "code"},
+         [design_room["id"]], 1, 2),
+        ("returns second page", {"page": 2, "pageSize": 1, "sortBy": "code"},
+         [frontend_room["id"]], 2, 2),
+        ("includes GPA at the threshold", {"gpa": 3.2, "roleIds": [roles["UIUX"]]},
+         [design_room["id"]], 1, 1),
+        ("excludes GPA below the threshold", {"gpa": 3.1, "roleIds": [roles["UIUX"]]},
+         [], 1, 0),
+        ("matches any requested role", {"gpa": 3.2, "roleIds": [roles["UIUX"], roles["FE"]], "sortBy": "code"},
+         [design_room["id"], frontend_room["id"]], 1, 2),
+        ("combines search and role", {"q": "design", "roleIds": [roles["FE"]]},
+         [], 1, 0),
+        ("finds room by name", {"q": "design"},
+         [design_room["id"]], 1, 1),
+    ):
+        status, page = call("GET", f"{rooms_path}?{urllib.parse.urlencode(query, doseq=True)}", viewer)
+        check(f"discovery {label}", status, 200, page,
+              matches=isinstance(page, dict)
+              and [room["id"] for room in page.get("items", [])] == expected_ids
+              and page.get("page") == page_number
+              and page.get("totalItems") == total)
+
+    for owner, room in ((1, design_room), (2, frontend_room)):
+        status, body = call("POST", f"/api/rooms/{room['id']}/leave", tokens[owner])
+        check("close discovery fixture after its leader leaves", status, 204, body)
+
+
 def application_workflow(rooms_path, tokens):
     room_path = create_locked_room(rooms_path, tokens)
     leader, other_member, first_applicant, second_applicant = (tokens[n] for n in (1, 2, 8, 9))
@@ -349,6 +392,7 @@ def workflows():
     rooms_path = course_path + "/rooms"
     tokens = {number: login(f"student{number:02d}@exe.local") for number in (1, 2, 6, 8, 9)}
     room_leave_workflow(rooms_path, tokens)
+    room_discovery_workflow(rooms_path, tokens)
     room_path = application_workflow(rooms_path, tokens)
     course_close_workflow(course_path, room_path, tokens)
     print(f"\n{sum(results)}/{len(results)} workflow checks passed")
