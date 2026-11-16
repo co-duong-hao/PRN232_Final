@@ -182,3 +182,22 @@
     gap: 10px;
   }
 }
+
+.student-profile__role-hidden {
+  display: none;
+}
+
+.student-profile__roles-skeleton {
+  display: grid;
+  gap: 8px;
+}
+
+.student-profile__roles-box {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 11px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
+}

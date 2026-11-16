@@ -12,6 +12,7 @@ import { meApi, referenceApi } from "@/api";
 import type { Student, StudentProfileRequest, TeamRole } from "@/api";
 import { useAuth } from "@/auth/AuthContext";
 import { useApiAction } from "@/components/useApiAction";
+import { SkeletonTags } from "@/features/WorkspaceSkeletons";
 import "./ProfilePage.css";
 
 export function ProfilePage() {
@@ -168,9 +169,25 @@ function ProfileForm({ student }: { student: Student }) {
                 }
               />
             )}
+            {rolesStatus === "loading" && (
+              <div
+                className="student-profile__roles-skeleton"
+                aria-busy="true"
+                aria-label="Đang tải danh sách vai trò"
+              >
+                <div className="ant-form-item-label">
+                  <label>Vai trò</label>
+                </div>
+                <div className="student-profile__roles-box" aria-hidden="true">
+                  <SkeletonTags widths={[78, 92]} />
+                </div>
+                <div className="ant-form-item-extra">Chọn từ 1 đến 3 vai trò phù hợp với bạn.</div>
+              </div>
+            )}
             <Form.Item
               name="roleIds"
               label="Vai trò"
+              className={rolesStatus === "loading" ? "student-profile__role-hidden" : undefined}
               extra="Chọn từ 1 đến 3 vai trò phù hợp với bạn."
               rules={[{ required: true, type: "array", min: 1, max: 3, message: "Chọn từ 1 đến 3 vai trò." }]}
             >

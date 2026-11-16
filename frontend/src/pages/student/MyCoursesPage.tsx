@@ -7,9 +7,10 @@ import {
   ClockCircleOutlined,
 } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Empty, Pagination, Space, Spin, Statistic, Typography } from "antd";
+import { Button, Card, Empty, Pagination, Space, Statistic, Typography } from "antd";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 import { CreateRoomModal } from "@/features/student/CreateRoomModal";
+import { CourseGridSkeleton, MetricsSkeleton } from "@/features/WorkspaceSkeletons";
 import { Link } from "react-router-dom";
 import { meApi } from "@/api";
 import type { MyCourse } from "@/api";
@@ -21,11 +22,12 @@ export function MyCoursesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [allCourses, setAllCourses] = useState<MyCourse[]>([]);
   const [pending, setPending] = useState(0);
+  const [metricsLoading, setMetricsLoading] = useState(true);
   const [items, setItems] = useState<MyCourse[]>([]);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const showError = useShowError();
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,12 +42,14 @@ export function MyCoursesPage() {
     }
   }, [page, size, showError]);
   useEffect(() => {
+    setMetricsLoading(true);
     Promise.all([loadAllMyCourses(), meApi.applies({ status: "Pending", pageSize: 1 })])
       .then(([courses, applies]) => {
         setAllCourses(courses);
         setPending(applies.totalItems);
       })
-      .catch(showError);
+      .catch(showError)
+      .finally(() => setMetricsLoading(false));
   }, [showError]);
   useEffect(() => {
     void load();
@@ -62,31 +66,42 @@ export function MyCoursesPage() {
         </Button>
       </header>
       <CreateRoomModal open={createOpen} onClose={() => setCreateOpen(false)} />
-      <div className="workspace-metrics">
-        {[
-          { title: "Số Course", value: allCourses.length, icon: <BookOutlined /> },
-          { title: "Đã có nhóm", value: allCourses.filter((c) => c.myGroup).length, icon: <TeamOutlined /> },
-          {
-            title: "Đang ở phòng",
-            value: allCourses.filter((c) => c.myRoom && !c.myGroup).length,
-            icon: <HomeOutlined />,
-          },
-          { title: "Đơn đang chờ", value: pending, icon: <ClockCircleOutlined /> },
-        ].map((item) => (
-          <Card key={item.title}>
-            <div className="workspace-metric">
-              <Statistic title={item.title} value={item.value} />
-              <span className="workspace-metric-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {metricsLoading ? (
+        <MetricsSkeleton count={4} />
+      ) : (
+        <div className="workspace-metrics">
+          {[
+            { title: "Số Course", value: allCourses.length, icon: <BookOutlined /> },
+            {
+              title: "Đã có nhóm",
+              value: allCourses.filter((c) => c.myGroup).length,
+              icon: <TeamOutlined />,
+            },
+            {
+              title: "Đang ở phòng",
+              value: allCourses.filter((c) => c.myRoom && !c.myGroup).length,
+              icon: <HomeOutlined />,
+            },
+            { title: "Đơn đang chờ", value: pending, icon: <ClockCircleOutlined /> },
+          ].map((item) => (
+            <Card key={item.title}>
+              <div className="workspace-metric">
+                <Statistic title={item.title} value={item.value} />
+                <span className="workspace-metric-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
       <Typography.Title level={2}>Nhóm của tôi</Typography.Title>
-      <Spin spinning={loading}>
+      {loading ? (
+        <CourseGridSkeleton count={3} />
+      ) : items.length === 0 ? (
+        <Empty description="Chưa có Course" />
+      ) : (
         <div className="workspace-course-grid">
-          {!loading && items.length === 0 && <Empty description="Chưa có Course" />}
           {items.map((c) => (
             <Card key={c.id} title={c.code} extra={<CourseStatusTag status={c.status} />}>
               <Space direction="vertical">
@@ -128,19 +143,20 @@ export function MyCoursesPage() {
             </Card>
           ))}
         </div>
-        {total > 0 && (
-          <Pagination
-            current={page}
-            pageSize={size}
-            total={total}
-            showSizeChanger
-            onChange={(p, s) => {
-              setPage(p);
-              setSize(s);
-            }}
-          />
-        )}
-      </Spin>
+      )}
+      {total > 0 && (
+        <Pagination
+          current={page}
+          pageSize={size}
+          total={total}
+          showSizeChanger
+          disabled={loading}
+          onChange={(p, s) => {
+            setPage(p);
+            setSize(s);
+          }}
+        />
+      )}
     </div>
   );
 }

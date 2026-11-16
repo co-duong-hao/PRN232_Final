@@ -1,40 +1,40 @@
+import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 import "@/features/workspace.css";
-import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from "antd";
-import { useCallback, useEffect, useState } from "react";
 import {
-  usersApi,
-  type Paged,
-  type Role,
-  type RoleInfo,
-  type User,
-  type UserListParams,
-  type UserStatus,
-} from "@/api";
+  Empty,
+  Grid,
+  Button,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import { useCallback, useState } from "react";
+import { usersApi, type Role, type User, type UserListParams, type UserStatus } from "@/api";
 import { formatDateTime } from "@/components/format";
 import { roleLabel } from "@/components/labels";
-import { useApiAction, useShowError } from "@/components/useApiAction";
+import { useApiAction } from "@/components/useApiAction";
+import { StaffLoadError } from "@/features/staff/StaffLoadError";
+import { useStaffQuery } from "@/features/staff/useStaffQuery";
+import "@/features/staff/staffPages.css";
+
 type Values = { email: string; fullName: string; password: string; roles: Role[]; status: UserStatus };
+
 export function UsersPage() {
   const [params, setParams] = useState<UserListParams>({ page: 1, pageSize: 20 });
-  const [data, setData] = useState<Paged<User>>();
-  const [roles, setRoles] = useState<RoleInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const screens = Grid.useBreakpoint();
   const [edit, setEdit] = useState<User | null>(null);
   const [mode, setMode] = useState<"create" | "edit" | "password" | null>(null);
   const [form] = Form.useForm<Values>();
-  const showError = useShowError();
-  const load = useCallback(() => {
-    setLoading(true);
-    usersApi
-      .list(params)
-      .then(setData)
-      .catch(showError)
-      .finally(() => setLoading(false));
-  }, [params, showError]);
-  useEffect(load, [load]);
-  useEffect(() => {
-    usersApi.roles().then(setRoles).catch(showError);
-  }, [showError]);
+  const request = useCallback(() => usersApi.list(params), [params]);
+  const { data, loading, failure, reload: load } = useStaffQuery(request);
+  const roles = useStaffQuery(usersApi.roles);
+  const roleOptions = roles.data?.map((r) => ({ value: r.code, label: roleLabel[r.code] }));
   const [save, saving] = useApiAction(async (v: Values) => {
     if (mode === "create")
       return usersApi.create({ email: v.email, fullName: v.fullName, password: v.password, roles: v.roles });
@@ -55,14 +55,14 @@ export function UsersPage() {
   };
   const filter = (p: Partial<UserListParams>) => setParams((x) => ({ ...x, ...p, page: 1 }));
   return (
-    <div className="workspace-page">
+    <div className="workspace-page staff-page">
       <header className="workspace-heading">
         <div>
           <Typography.Title level={1}>Tài khoản</Typography.Title>
           <p>Quản lý người dùng, vai trò và trạng thái truy cập.</p>
         </div>
       </header>
-      <Space wrap className="workspace-toolbar">
+      <Space wrap className="workspace-toolbar staff-filters">
         <Input.Search
           aria-label="Tìm tài khoản"
           placeholder="Tìm email hoặc họ tên"
@@ -74,7 +74,9 @@ export function UsersPage() {
           placeholder="Vai trò"
           allowClear
           style={{ width: 170 }}
-          options={roles.map((r) => ({ value: r.code, label: roleLabel[r.code] }))}
+          loading={roles.loading}
+          disabled={!!roles.failure}
+          options={roleOptions}
           onChange={(role) => filter({ role })}
         />
         <Select
@@ -88,68 +90,103 @@ export function UsersPage() {
           ]}
           onChange={(status) => filter({ status })}
         />
-        <Button type="primary" onClick={() => show("create")}>
+        <Button type="primary" disabled={!roles.data} onClick={() => show("create")}>
           Tạo tài khoản
         </Button>
       </Space>
-      <Table
-        rowKey="id"
-        scroll={{ x: "max-content" }}
-        loading={loading}
-        dataSource={data?.items ?? []}
-        pagination={{
-          current: params.page,
-          pageSize: params.pageSize,
-          total: data?.totalItems,
-          showSizeChanger: true,
-        }}
-        onChange={(p, _, s) => {
-          const sort = Array.isArray(s) ? s[0] : s;
-          setParams((x) => ({
-            ...x,
-            page: p.current,
-            pageSize: p.pageSize,
-            sortBy: sort?.order ? String(sort.field) : undefined,
-            sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
-          }));
-        }}
-        columns={[
-          { title: "Email", dataIndex: "email", sorter: true },
-          { title: "Họ tên", dataIndex: "fullName", sorter: true },
-          {
-            title: "Vai trò",
-            dataIndex: "roles",
-            render: (rs: Role[]) => rs.map((r) => <Tag key={r}>{roleLabel[r]}</Tag>),
-          },
-          {
-            title: "Trạng thái",
-            dataIndex: "status",
-            render: (s: UserStatus) => (s === "Active" ? "Hoạt động" : "Vô hiệu hóa"),
-          },
-          { title: "Ngày tạo", dataIndex: "createdAt", sorter: true, render: formatDateTime },
-          {
-            title: "Thao tác",
-            render: (_: unknown, u: User) => (
-              <Space wrap>
-                <Button onClick={() => show("edit", u)}>Sửa</Button>
-                <Button onClick={() => show("password", u)}>Đặt lại mật khẩu</Button>
-                {u.status === "Active" && (
-                  <Popconfirm
-                    title="Vô hiệu hóa tài khoản này?"
-                    onConfirm={async () => {
-                      if (await deactivate(u.id)) load();
-                    }}
-                  >
-                    <Button danger loading={busy}>
-                      Vô hiệu hóa
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
+      {roles.failure && (
+        <StaffLoadError
+          title="Không tải được vai trò tài khoản"
+          error={roles.failure.error}
+          onRetry={roles.reload}
+        />
+      )}
+      {failure ? (
+        <StaffLoadError title="Không tải được danh sách tài khoản" error={failure.error} onRetry={load} />
+      ) : loading ? (
+        <TableSkeleton
+          scrollX="max-content"
+          rows={5}
+          pagination={{ current: params.page, pageSize: params.pageSize, total: data?.totalItems }}
+          columns={[
+            { title: "Email", kind: "longText" },
+            { title: "Họ tên", kind: "text" },
+            { title: "Vai trò", kind: "tags" },
+            { title: "Trạng thái", kind: "text" },
+            { title: "Ngày tạo", kind: "date" },
+            { title: "Thao tác", kind: "actions", actionWidths: [58, 134, 96] },
+          ]}
+        />
+      ) : (
+        <Table
+          className="staff-table"
+          scroll={{ x: "max-content" }}
+          size={screens.sm ? "middle" : "small"}
+          rowKey="id"
+          dataSource={data?.items ?? []}
+          pagination={{
+            current: params.page,
+            pageSize: params.pageSize,
+            total: data?.totalItems,
+            showSizeChanger: !!screens.sm,
+            responsive: true,
+            showLessItems: !screens.sm,
+          }}
+          onChange={(p, _, s) => {
+            const sort = Array.isArray(s) ? s[0] : s;
+            setParams((x) => ({
+              ...x,
+              page: p.current,
+              pageSize: p.pageSize,
+              sortBy: sort?.order ? String(sort.field) : undefined,
+              sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
+            }));
+          }}
+          locale={{
+            emptyText: (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài khoản phù hợp" />
             ),
-          },
-        ]}
-      />
+          }}
+          columns={[
+            { title: "Email", dataIndex: "email", sorter: true },
+            { title: "Họ tên", dataIndex: "fullName", sorter: true },
+            {
+              title: "Vai trò",
+              dataIndex: "roles",
+              render: (rs: Role[]) => rs.map((r) => <Tag key={r}>{roleLabel[r]}</Tag>),
+            },
+            {
+              title: "Trạng thái",
+              dataIndex: "status",
+              render: (s: UserStatus) => (s === "Active" ? "Hoạt động" : "Vô hiệu hóa"),
+            },
+            { title: "Ngày tạo", dataIndex: "createdAt", sorter: true, render: formatDateTime },
+            {
+              title: "Thao tác",
+              render: (_: unknown, u: User) => (
+                <Space wrap>
+                  <Button disabled={!roles.data} onClick={() => show("edit", u)}>
+                    Sửa
+                  </Button>
+                  <Button onClick={() => show("password", u)}>Đặt lại mật khẩu</Button>
+                  {u.status === "Active" && (
+                    <Popconfirm
+                      title="Vô hiệu hóa tài khoản này?"
+                      onConfirm={async () => {
+                        if (await deactivate(u.id)) load();
+                      }}
+                    >
+                      <Button danger loading={busy}>
+                        Vô hiệu hóa
+                      </Button>
+                    </Popconfirm>
+                  )}
+                </Space>
+              ),
+            },
+          ]}
+        />
+      )}
       <Modal
         title={mode === "create" ? "Tạo tài khoản" : mode === "edit" ? "Sửa tài khoản" : "Đặt lại mật khẩu"}
         open={mode !== null}
@@ -179,10 +216,7 @@ export function UsersPage() {
                 <Input />
               </Form.Item>
               <Form.Item name="roles" label="Vai trò" rules={[{ required: true }]}>
-                <Select
-                  mode="multiple"
-                  options={roles.map((r) => ({ value: r.code, label: roleLabel[r.code] }))}
-                />
+                <Select mode="multiple" options={roleOptions} />
               </Form.Item>
             </>
           )}

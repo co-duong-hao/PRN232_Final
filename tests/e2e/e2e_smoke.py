@@ -138,6 +138,19 @@ def wait_for_notification(subject, student_numbers, prior_message_ids):
     raise ScriptError()
 
 
+def check_stats(lecturer, name, *, in_room, in_group, groups, room_counts):
+    status, body = call("GET", f"/api/courses/{COURSE}/stats", lecturer)
+    expected = {
+        "totalStudents": 12,
+        "studentsInRoom": in_room,
+        "studentsInGroup": in_group,
+        "groupCount": groups,
+        "roomsByStatus": room_counts,
+    }
+    check(name, status, 200, body,
+          matches=isinstance(body, dict) and all(body.get(key) == value for key, value in expected.items()))
+
+
 def main():
     # Gateway auth
     s, b = call("GET", f"/api/courses/{COURSE}/rooms")
@@ -152,6 +165,12 @@ def main():
     check("admin lists users (paged)", s, 200, b)
     s, b = call("GET", "/api/users", t[1])
     check("student cannot list users", s, 403, b)
+
+    lecturer = login("lecturer@exe.local")
+    s, b = call("GET", f"/api/courses/{COURSE}/stats", t[1])
+    check("student cannot see staff statistics", s, 403, b)
+    check_stats(lecturer, "lecturer sees empty room and group statistics",
+                in_room=0, in_group=0, groups=0, room_counts={})
 
     # Verify the seeded course is available to the student.
     s, b = call("GET", "/api/me/courses", t[1])
@@ -174,6 +193,8 @@ def main():
     check("QT02 student06 joins -> locked", s, 200, b,
           matches=isinstance(b, dict) and b.get("status") == "Locked" and b.get("memberCount") == 3)
     print("    status after 3 members:", b.get("status") if isinstance(b, dict) else b)
+    check_stats(lecturer, "lecturer sees three students in a locked room",
+                in_room=3, in_group=0, groups=0, room_counts={"Locked": 1})
 
     s, b = call("POST", f"/api/rooms/{rid}/join", t[8])
     check("locked room rejects direct join", s, 409, b, "ROOM_NOT_OPEN")
@@ -223,6 +244,8 @@ def main():
           matches=isinstance(grp, dict) and grp.get("roomId") == rid and bool(grp.get("code"))
           and isinstance(members, list) and len(members) == 4 and leaders == [student02_id])
     print("    group code:", grp["code"])
+    check_stats(lecturer, "lecturer sees the completed group and four members",
+                in_room=4, in_group=4, groups=1, room_counts={"Completed": 1})
 
     s, b = call("POST", f"/api/rooms/{rid}/leave", t[6])
     check("BR18 cannot leave completed room", s, 409, b, "BR18")

@@ -26,6 +26,7 @@ export function CourseActions({
   const [semesters, setSemesters] = useState<Lookup[]>([]);
   const [subjects, setSubjects] = useState<Lookup[]>([]);
   const [types, setTypes] = useState<GroupType[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const [form] = Form.useForm<Values>();
   const showError = useShowError();
   const [save, saving] = useApiAction(async (v: Values) => {
@@ -46,13 +47,15 @@ export function CourseActions({
   }, "Đã xóa Course");
   useEffect(() => {
     if (!visible) return;
+    setOptionsLoading(true);
     Promise.all([referenceApi.semesters(), referenceApi.subjects(), referenceApi.groupTypes()])
       .then(([a, b, c]) => {
         setSemesters(a.items);
         setSubjects(b.items);
         setTypes(c.items);
       })
-      .catch(showError);
+      .catch(showError)
+      .finally(() => setOptionsLoading(false));
   }, [visible, showError]);
   const show = () => {
     form.resetFields();
@@ -131,15 +134,22 @@ export function CourseActions({
           {!course && (
             <>
               <Form.Item name="semesterId" label="Học kỳ" rules={[{ required: true }]}>
-                <Select options={semesters.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))} />
+                <Select
+                  loading={optionsLoading}
+                  options={semesters.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))}
+                />
               </Form.Item>
               <Form.Item name="subjectId" label="Môn" rules={[{ required: true }]}>
-                <Select options={subjects.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))} />
+                <Select
+                  loading={optionsLoading}
+                  options={subjects.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))}
+                />
               </Form.Item>
             </>
           )}
           <Form.Item name="groupTypeId" label="Loại nhóm" rules={[{ required: true }]}>
             <Select
+              loading={optionsLoading}
               disabled={!!course && course.status !== "Planned"}
               options={types.map((x) => ({ value: x.id, label: x.name }))}
             />

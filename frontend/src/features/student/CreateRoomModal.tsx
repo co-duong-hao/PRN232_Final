@@ -13,6 +13,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
   const [courses, setCourses] = useState<MyCourse[]>([]);
   const [semesters, setSemesters] = useState<Lookup[]>([]);
   const [roles, setRoles] = useState<TeamRole[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const semesterId = Form.useWatch("semesterId", form);
   const navigate = useNavigate();
   const showError = useShowError();
@@ -26,6 +27,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
         ? { ...room, neededRoleIds: room.neededRoles.map((r) => r.id) }
         : { semesterId: course?.semesterId, courseId: course?.id, neededRoleIds: [] },
     );
+    setOptionsLoading(true);
     Promise.all([
       referenceApi.teamRoles(),
       referenceApi.semesters(),
@@ -36,7 +38,8 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
         setSemesters(s.items);
         setCourses(c);
       })
-      .catch(showError);
+      .catch(showError)
+      .finally(() => setOptionsLoading(false));
   }, [open, course, room, form, showError]);
   const eligible = courses.filter((c) => c.status === "Forming" && !c.myRoom && !c.myGroup);
   return (
@@ -77,6 +80,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
               <Form.Item name="semesterId" label="Kỳ" rules={[{ required: true }]}>
                 <Select
                   disabled={!!course}
+                  loading={optionsLoading}
                   placeholder="Chọn kỳ"
                   options={semesters
                     .filter((s) => eligible.some((c) => c.semesterId === s.id))
@@ -89,6 +93,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
               <Form.Item name="courseId" label="Course" rules={[{ required: true }]}>
                 <Select
                   disabled={!!course}
+                  loading={optionsLoading}
                   placeholder="Chọn Course"
                   options={eligible
                     .filter((c) => c.semesterId === semesterId)
@@ -137,7 +142,12 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
           </Col>
         </Row>
         <Form.Item name="neededRoleIds" label="Vai trò cần tuyển">
-          <Select mode="multiple" maxCount={5} options={roles.map((r) => ({ value: r.id, label: r.name }))} />
+          <Select
+            mode="multiple"
+            loading={optionsLoading}
+            maxCount={5}
+            options={roles.map((r) => ({ value: r.id, label: r.name }))}
+          />
         </Form.Item>
         <Form.Item name="ideaDescription" label="Mô tả ý tưởng">
           <Input.TextArea
