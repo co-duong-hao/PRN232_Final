@@ -96,7 +96,7 @@ Chỉ metric HTTP và runtime (không có Meter riêng).
 |---|---|
 | `http_server_request_duration_seconds_count` / `_bucket` | Số request, độ trễ; nhãn `http_route`, `http_request_method`, `http_response_status_code` |
 | `http_client_request_duration_seconds_*` | Gateway gọi Auth/Team |
-| `process_runtime_dotnet_gc_heap_size_bytes`, `process_runtime_dotnet_gc_collections_count_total`, `process_runtime_dotnet_thread_pool_threads_count` | Runtime .NET |
+| `process_runtime_dotnet_gc_objects_size_bytes`, `process_runtime_dotnet_gc_collections_count_total`, `process_runtime_dotnet_thread_pool_threads_count` | Runtime .NET |
 | `up` | Prometheus gọi được target hay không |
 
 Tên chính xác của metric runtime phụ thuộc phiên bản package: **kiểm tra trên http://localhost:9090** trước khi
@@ -108,13 +108,21 @@ Tiêu đề "EXE Team Matching", `uid` `exe-overview`, datasource uid `prometheu
 gần nhất, biến `service` (multi, All) lấy từ `label_values(up, service)`. Các hàng:
 
 1. **Tổng quan**: 5 ô `up` theo service (xanh/đỏ); request/giây theo service; tỉ lệ 5xx; p95 độ trễ theo service.
-2. **Nghiệp vụ**: phòng tạo, lượt vào phòng theo `mode`, đơn theo `result`, nhóm thành lập (ô số, cộng dồn
-   trong khoảng thời gian chọn); bảng/thanh `exe_api_errors_total` theo `code` (top 10).
+2. **Nghiệp vụ**: phòng tạo, lượt vào phòng theo `mode`, đơn theo `result`, nhóm thành lập (ô số = **tổng từ lúc service khởi động**, ví dụ `sum(exe_rooms_created_total)`);
+   thanh `exe_api_errors_total` theo `code` (top 10, cũng là tổng).
 3. **Kafka**: sự kiện gửi theo `type` (Team) đặt cạnh sự kiện đọc theo `type` (Noti); retry; `dead_lettered`
    (ô số, đỏ khi > 0); p95 thời gian xử lý.
 4. **Cache và job**: tỉ lệ HIT theo `cache`; số lần job chạy và Course đã đóng.
 5. **Email**: email gửi theo `result`.
-6. **Runtime .NET**: bộ nhớ heap, số lần GC, thread pool theo service.
+6. **Runtime .NET**: bộ nhớ heap (`process_runtime_dotnet_gc_objects_size_bytes`), số lần GC, thread pool theo service.
+
+**Lưu ý khi viết truy vấn** (rút ra khi tích hợp O1/O2):
+
+- Counter OpenTelemetry chỉ xuất hiện từ lần ghi đầu tiên, lúc giá trị đã là 1. `increase()` / `rate()` không thấy
+  bước từ "chưa có" lên 1, nên ô số dùng `increase(...[$__range])` hiện **0** sau một buổi demo tạo 1 phòng.
+  Ô số dùng tổng (`sum(metric)`); biểu đồ theo thời gian vẫn dùng `rate()`.
+- Panel loại `row` phải có `"collapsed": false` và `"panels": []`; thiếu hai trường này Grafana 12 chỉ hiện tiêu đề
+  hàng, không hiện panel nào.
 
 Mọi panel có tiêu đề tiếng Việt và mô tả ngắn (`description`).
 
