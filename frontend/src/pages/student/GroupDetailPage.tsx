@@ -10,10 +10,12 @@ import { MajorCounts } from "@/components/StatusTag";
 import { formatDateTime } from "@/components/format";
 import { useShowError } from "@/components/useApiAction";
 import { GroupDetailSkeleton } from "@/features/WorkspaceSkeletons";
+import { useI18n } from "@/i18n";
 
 export function GroupDetailPage() {
   const { groupId = "" } = useParams();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [group, setGroup] = useState<Group>();
   const [loading, setLoading] = useState(true);
   const showError = useShowError();
@@ -44,11 +46,11 @@ export function GroupDetailPage() {
             <div>
               <Link className="workspace-heading__back" to="/student/courses">
                 <ArrowLeftOutlined aria-hidden="true" />
-                Quay lại Học phần của tôi
+                {t.groupDetail.backToCourses}
               </Link>
               <div className="workspace-heading__title-row">
                 <Typography.Title level={1}>{group.name || group.code}</Typography.Title>
-                <Tag color="geekblue">Đã thành nhóm</Tag>
+                <Tag color="geekblue">{t.groupDetail.statusBadge}</Tag>
               </div>
               <p>
                 {group.code} · {group.courseCode}
@@ -56,26 +58,26 @@ export function GroupDetailPage() {
             </div>
           </header>
 
-          <Card title="Thông tin nhóm chính thức">
+          <Card title={t.groupDetail.infoTitle}>
             <dl className="workspace-facts">
               <div className="workspace-fact">
-                <dt>Học phần</dt>
+                <dt>{t.groupDetail.factCourse}</dt>
                 <dd>{group.courseCode}</dd>
               </div>
               <div className="workspace-fact">
-                <dt>Loại nhóm</dt>
+                <dt>{t.groupDetail.factGroupType}</dt>
                 <dd>{group.groupTypeName}</dd>
               </div>
               <div className="workspace-fact">
-                <dt>Ngày thành lập</dt>
+                <dt>{t.groupDetail.factCreatedAt}</dt>
                 <dd>{formatDateTime(group.createdAt)}</dd>
               </div>
               <div className="workspace-fact">
-                <dt>Tổng thành viên</dt>
-                <dd>{group.members.length} thành viên</dd>
+                <dt>{t.groupDetail.factTotalMembers}</dt>
+                <dd>{t.common.membersCount(group.members.length)}</dd>
               </div>
               <div className="workspace-fact">
-                <dt>Phân bố theo ngành</dt>
+                <dt>{t.groupDetail.factMajorsDistribution}</dt>
                 <dd>
                   <MajorCounts
                     majors={Object.entries(counts).map(([majorCode, count]) => ({ majorCode, count }))}
@@ -85,25 +87,25 @@ export function GroupDetailPage() {
             </dl>
           </Card>
 
-          <Card title={`Danh sách thành viên (${group.members.length})`} className="workspace-section">
+          <Card title={t.groupDetail.membersTitle(group.members.length)} className="workspace-section">
             <Table
               scroll={{ x: 420 }}
               rowKey="studentId"
               dataSource={group.members}
               pagination={false}
-              locale={{ emptyText: <EmptyState title="Chưa có thành viên" /> }}
+              locale={{ emptyText: <EmptyState title={t.groupDetail.emptyMembers} /> }}
               columns={[
-                { title: "Mã SV", dataIndex: "studentCode" },
+                { title: t.groupDetail.colStudentCode, dataIndex: "studentCode" },
                 {
-                  title: "Họ tên",
+                  title: t.groupDetail.colFullName,
                   render: (_, m) => (
                     <Space size={6} wrap>
                       <span>{m.fullName}</span>
-                      {m.isLeader && <Tag color="orange">Trưởng nhóm</Tag>}
+                      {m.isLeader && <Tag color="orange">{t.groupDetail.leaderBadge}</Tag>}
                     </Space>
                   ),
                 },
-                { title: "Ngành", dataIndex: "majorCode" },
+                { title: t.groupDetail.colMajor, dataIndex: "majorCode" },
               ]}
             />
           </Card>
@@ -111,11 +113,11 @@ export function GroupDetailPage() {
       ) : (
         <Card>
           <EmptyState
-            title="Không tìm thấy nhóm"
-            description="Nhóm này không tồn tại hoặc bạn không có quyền xem."
+            title={t.groupDetail.notFoundTitle}
+            description={t.groupDetail.notFoundDesc}
             action={
               <Button type="primary" onClick={() => navigate("/student/courses")}>
-                Về Học phần của tôi
+                {t.common.goToMyCourses}
               </Button>
             }
           />
