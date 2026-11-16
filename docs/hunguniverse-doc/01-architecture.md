@@ -54,6 +54,7 @@ flowchart LR
 | 17 | [Hồ sơ và tiêu chí tuyển](17-recruitment.md) |
 | 18 | [Hợp đồng và client gRPC](18-grpc-contract.md) |
 | 19 | [Phân tích cơ cấu và gợi ý phòng](19-matching-server.md) |
+| 20 | [Sự kiện Kafka và producer](20-kafka-producer.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
