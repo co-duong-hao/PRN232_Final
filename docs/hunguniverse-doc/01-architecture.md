@@ -59,6 +59,7 @@ flowchart LR
 | 22 | [Cache Redis và job nền](22-cache-and-jobs.md) |
 | 23 | [Điều hướng và xác thực trên web](23-frontend-shell.md) |
 | 24 | [Giao diện tìm nhóm](24-frontend-discovery.md) |
+| 25 | [Giao diện chi tiết phòng](25-frontend-room.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
