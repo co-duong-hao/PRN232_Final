@@ -1,5 +1,6 @@
-import { Button, Card, Col, Empty, Progress, Row, Space, Statistic, Typography } from "antd";
+import { Button, Card, Col, Progress, Row, Space, Statistic, Typography } from "antd";
 import type { CourseStats, RoomStatus } from "@/api";
+import { EmptyState } from "@/components/EmptyState";
 import { RoomStatusTag } from "@/components/StatusTag";
 
 const roomStatuses: RoomStatus[] = ["Open", "Locked", "Completed", "Cancelled"];
@@ -44,7 +45,7 @@ export function CourseStatistics({
           { label: "Đã có nhóm", value: stats.studentsInGroup },
         ].map(({ label, value, link, action }) => (
           <Col xs={12} lg={6} key={label}>
-            <Card size="small" style={{ height: "100%" }}>
+            <Card size="small" className="workspace-metric-card">
               <Statistic title={label} value={value} />
               {action && (
                 <Button type="link" onClick={action} style={{ paddingInline: 0, whiteSpace: "normal" }}>
@@ -58,14 +59,19 @@ export function CourseStatistics({
       <Card size="small" title="Tỷ lệ sinh viên đã có nhóm">
         {stats.totalStudents > 0 ? (
           <>
-            <Progress percent={progress} status="normal" aria-label="Tỷ lệ sinh viên đã có nhóm" />
+            <Progress
+              percent={progress}
+              status="normal"
+              strokeColor="#c2410c"
+              aria-label="Tỷ lệ sinh viên đã có nhóm"
+            />
             <Typography.Text type="secondary">
               {stats.studentsInGroup}/{stats.totalStudents} sinh viên đã có nhóm. Sinh viên đã có nhóm vẫn
               được tính trong số đã vào phòng.
             </Typography.Text>
           </>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Course chưa có sinh viên" />
+          <EmptyState title="Học phần chưa có sinh viên" />
         )}
       </Card>
       <Row gutter={[12, 12]}>

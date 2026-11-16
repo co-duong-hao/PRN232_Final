@@ -1,20 +1,23 @@
-import { TableSkeleton } from "@/features/WorkspaceSkeletons";
-import { Button, Modal, Spin, Typography } from "antd";
+import { Button, Modal, Spin } from "antd";
 import { useCallback, useState, type ReactNode } from "react";
-import { roomsApi, type Room } from "@/api";
+import { roomsApi, type GroupType, type Room, type RoomSummary } from "@/api";
+import { RoomCompositionSummary } from "@/features/student/RoomCompositionSummary";
+import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 import { StaffLoadError } from "./StaffLoadError";
 import { useStaffQuery } from "./useStaffQuery";
 
 export function StaffRoomDetails({
-  roomId,
+  room,
+  groupType,
   renderMembers,
 }: {
-  roomId: string;
+  room: RoomSummary;
+  groupType?: GroupType;
   renderMembers: (members: Room["members"]) => ReactNode;
 }) {
   const [showComposition, setShowComposition] = useState(false);
-  const loadDetails = useCallback(() => roomsApi.get(roomId), [roomId]);
-  const loadComposition = useCallback(() => roomsApi.composition(roomId), [roomId]);
+  const loadDetails = useCallback(() => roomsApi.get(room.id), [room.id]);
+  const loadComposition = useCallback(() => roomsApi.composition(room.id), [room.id]);
   const details = useStaffQuery(loadDetails);
   const composition = useStaffQuery(showComposition ? loadComposition : null);
 
@@ -42,13 +45,19 @@ export function StaffRoomDetails({
         renderMembers(details.data.members)
       ) : null}
       <Button onClick={() => setShowComposition(true)} style={{ marginTop: 8 }}>
-        Kiểm tra cơ cấu
+        Kiểm tra cơ cấu phòng
       </Button>
       <Modal
-        title="Kiểm tra cơ cấu"
+        title={`Kiểm tra cơ cấu: ${room.name || room.code}`}
         open={showComposition}
+        width={560}
+        destroyOnHidden
         onCancel={() => setShowComposition(false)}
-        footer={<Button onClick={() => setShowComposition(false)}>Đóng</Button>}
+        footer={
+          <Button type="primary" onClick={() => setShowComposition(false)}>
+            Đóng
+          </Button>
+        }
       >
         {composition.loading && <Spin aria-label="Đang kiểm tra cơ cấu" />}
         {composition.failure && (
@@ -59,18 +68,11 @@ export function StaffRoomDetails({
           />
         )}
         {composition.data && (
-          <>
-            <Typography.Paragraph>
-              {composition.data.satisfied ? "Cơ cấu đạt yêu cầu" : "Cơ cấu chưa đạt yêu cầu"}
-            </Typography.Paragraph>
-            {composition.data.violations.length > 0 && (
-              <ul>
-                {composition.data.violations.map((violation, index) => (
-                  <li key={index}>{violation}</li>
-                ))}
-              </ul>
-            )}
-          </>
+          <RoomCompositionSummary
+            composition={composition.data}
+            groupType={groupType}
+            majorCounts={room.majors}
+          />
         )}
       </Modal>
     </>
