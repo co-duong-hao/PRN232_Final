@@ -81,6 +81,35 @@ public sealed class EventConsumerWorkerTests
     }
 
     [Fact]
+    public async Task ProcessMessage_PartialDelivery_RetriesOnlyUnsentRecipients()
+    {
+        var first = new EventRecipient("one@example.com", "One");
+        var second = new EventRecipient("two@example.com", "Two");
+        var third = new EventRecipient("three@example.com", "Three");
+        var sender = new Mock<IEmailSender>();
+        sender.Setup(x => x.SendAsync(It.IsAny<EventRecipient>(), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        sender.SetupSequence(x => x.SendAsync(second, It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("smtp")).Returns(Task.CompletedTask);
+        var dlq = new Mock<IDeadLetterPublisher>(MockBehavior.Strict);
+        var worker = CreateWorker(sender, dlq, 3);
+        var message = new Message<string, string>
+        {
+            Key = "room",
+            Value = (EmailTemplateRendererTests.CreateEvent(EventTypes.RoomCompleted) with
+            { Recipients = [first, second, third] }).ToJson()
+        };
+
+        var outcome = await worker.ProcessMessageAsync(message, default, (_, _) => Task.CompletedTask);
+
+        Assert.Equal("processed", outcome.Result);
+        sender.Verify(x => x.SendAsync(first, It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()), Times.Once());
+        sender.Verify(x => x.SendAsync(second, It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        sender.Verify(x => x.SendAsync(third, It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()), Times.Once());
+        dlq.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ProcessMessage_UnknownType_RecordsSkippedAfterCommit()
     {
         using var capture = new MetricCapture("Exe.NotiService");

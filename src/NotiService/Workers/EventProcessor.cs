@@ -8,7 +8,8 @@ public sealed record ProcessingResult(ProcessingStatus Status, string? Error = n
 
 public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer renderer, ILogger<EventProcessor> logger, NotiMetrics metrics)
 {
-    public async Task<ProcessingResult> ProcessAsync(string payload, CancellationToken cancellationToken)
+    public async Task<ProcessingResult> ProcessAsync(string payload, CancellationToken cancellationToken,
+        ISet<string>? deliveredRecipients = null)
     {
         EventEnvelope? envelope;
         try
@@ -29,12 +30,16 @@ public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer re
         }
         try
         {
+            deliveredRecipients ??= new HashSet<string>(StringComparer.Ordinal);
             foreach (var recipient in envelope.Recipients)
             {
+                if (deliveredRecipients.Contains(recipient.Email)) continue;
+
                 var email = renderer.Render(envelope, recipient)!;
                 try
                 {
                     await sender.SendAsync(recipient, email, cancellationToken);
+                    deliveredRecipients.Add(recipient.Email);
                     metrics.Email("ok");
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }

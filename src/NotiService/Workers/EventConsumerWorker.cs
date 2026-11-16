@@ -39,6 +39,7 @@ public sealed class EventConsumerWorker(
                         if (record is null) continue;
                         // Keep the current record until both processing and commit succeed.
                         var processed = false;
+                        var deliveredRecipients = new HashSet<string>(StringComparer.Ordinal);
                         (string Type, string Result) outcome = ("unknown", "skipped");
                         while (!ct.IsCancellationRequested)
                         {
@@ -46,7 +47,7 @@ public sealed class EventConsumerWorker(
                             {
                                 if (!processed)
                                 {
-                                    outcome = await ProcessMessageAsync(record.Message, ct);
+                                    outcome = await ProcessMessageAsync(record.Message, ct, deliveredRecipients: deliveredRecipients);
                                     processed = true;
                                 }
                                 CommitAndRecord(() => consumer.Commit(record), outcome);
@@ -87,7 +88,7 @@ public sealed class EventConsumerWorker(
     }
 
     internal async Task<(string Type, string Result)> ProcessMessageAsync(Message<string, string> message, CancellationToken ct,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null, ISet<string>? deliveredRecipients = null)
     {
         var started = Stopwatch.GetTimestamp();
         var type = "unknown";
@@ -100,13 +101,14 @@ public sealed class EventConsumerWorker(
         try
         {
             delay ??= Task.Delay;
+            deliveredRecipients ??= new HashSet<string>(StringComparer.Ordinal);
             var attempts = Math.Max(1, options.Value.MaxAttempts);
             ProcessingResult result = new(ProcessingStatus.PermanentFailure, "Payload rỗng.");
             for (var attempt = 1; attempt <= attempts; attempt++)
             {
                 result = message.Value is null
                     ? new(ProcessingStatus.PermanentFailure, "Payload rỗng.")
-                    : await processor.ProcessAsync(message.Value, ct);
+                    : await processor.ProcessAsync(message.Value, ct, deliveredRecipients);
                 if (result.Status == ProcessingStatus.Success) return (type, "processed");
                 if (result.Status == ProcessingStatus.Skipped) return (type, "skipped");
                 if (result.Status == ProcessingStatus.PermanentFailure || attempt == attempts) break;
