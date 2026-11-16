@@ -43,6 +43,7 @@ flowchart LR
 | 06 | [Quy ước HTTP dùng chung](06-api-basics.md) |
 | 07 | [Đăng nhập và JWT](07-auth-login.md) |
 | 08 | [Quản trị tài khoản](08-auth-admin.md) |
+| 09 | [Dữ liệu mẫu v0.4](09-seed-data.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
