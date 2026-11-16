@@ -52,6 +52,7 @@ flowchart LR
 | 15 | [Đơn xin vào phòng](15-room-applies.md) |
 | 16 | [Tìm phòng và tra cứu nhóm](16-rooms-read.md) |
 | 17 | [Hồ sơ và tiêu chí tuyển](17-recruitment.md) |
+| 18 | [Hợp đồng và client gRPC](18-grpc-contract.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
