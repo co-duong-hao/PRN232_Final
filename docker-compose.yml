@@ -213,6 +213,7 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/exe-overview.json
       GF_USERS_DEFAULT_LANGUAGE: en-US
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"   # no plugin downloads at start-up; the dashboard uses built-in panels only
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
