@@ -63,6 +63,7 @@ flowchart LR
 | 26 | [Học phần trên web](26-frontend-courses.md) |
 | 27 | [Bảng quản lý staff và admin](27-frontend-staff.md) |
 | 28 | [HTTP client và kiểu dữ liệu web](28-frontend-api.md) |
+| 29 | [Kiểm thử .NET](29-test-reference.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
