@@ -48,12 +48,14 @@ flowchart LR
 | 11 | [Migration dữ liệu tuyển thành viên](11-migrations-recruitment.md) |
 | 12 | [Quản lý Course](12-courses.md) |
 | 13 | [Danh mục và loại nhóm](13-reference-data.md) |
+| 14 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
 | Tình huống | Chương đọc trước |
 |---|---|
 | Không đăng nhập được | [Đăng nhập và JWT](07-auth-login.md) |
+| Mã lỗi BR05 hoặc BR19 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
 
 ## Đối chiếu mã nguồn
 
