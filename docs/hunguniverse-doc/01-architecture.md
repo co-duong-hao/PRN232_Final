@@ -53,6 +53,7 @@ flowchart LR
 | 16 | [Tìm phòng và tra cứu nhóm](16-rooms-read.md) |
 | 17 | [Hồ sơ và tiêu chí tuyển](17-recruitment.md) |
 | 18 | [Hợp đồng và client gRPC](18-grpc-contract.md) |
+| 19 | [Phân tích cơ cấu và gợi ý phòng](19-matching-server.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
@@ -61,6 +62,7 @@ flowchart LR
 | Không đăng nhập được | [Đăng nhập và JWT](07-auth-login.md) |
 | Mã lỗi BR05 hoặc BR19 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
 | Trạng thái đơn chưa cập nhật | [Đơn xin vào phòng](15-room-applies.md) |
+| Phòng chưa đủ cơ cấu hoặc gRPC lỗi | [Hợp đồng gRPC](18-grpc-contract.md), [MatchingService](19-matching-server.md) |
 
 ## Đối chiếu mã nguồn
 
