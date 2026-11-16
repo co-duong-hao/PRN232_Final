@@ -14,7 +14,14 @@ import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
-type Values = { email: string; fullName: string; password: string; roles: Role[]; status: UserStatus };
+type Values = {
+  email: string;
+  fullName: string;
+  password: string;
+  confirmPassword: string;
+  roles: Role[];
+  status: UserStatus;
+};
 
 export function UsersPage() {
   const { user } = useAuth();
@@ -310,16 +317,34 @@ export function UsersPage() {
             </Form.Item>
           )}
           {mode !== "edit" && (
-            <Form.Item
-              name="password"
-              label="Mật khẩu"
-              rules={[
-                { required: true, message: "Vui lòng nhập mật khẩu" },
-                { min: 8, message: "Mật khẩu phải có ít nhất 8 ký tự" },
-              ]}
-            >
-              <Input.Password placeholder="Tối thiểu 8 ký tự" />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="password"
+                label="Mật khẩu"
+                rules={[
+                  { required: true, message: "Vui lòng nhập mật khẩu" },
+                  { min: 8, message: "Mật khẩu phải có ít nhất 8 ký tự" },
+                ]}
+              >
+                <Input.Password autoComplete="new-password" placeholder="Tối thiểu 8 ký tự" />
+              </Form.Item>
+              <Form.Item
+                name="confirmPassword"
+                label="Nhập lại mật khẩu"
+                dependencies={["password"]}
+                rules={[
+                  { required: true, message: "Vui lòng nhập lại mật khẩu" },
+                  ({ getFieldValue }) => ({
+                    validator: (_, confirmation?: string) =>
+                      !confirmation || confirmation === getFieldValue("password")
+                        ? Promise.resolve()
+                        : Promise.reject(new Error("Hai mật khẩu không khớp")),
+                  }),
+                ]}
+              >
+                <Input.Password autoComplete="new-password" />
+              </Form.Item>
+            </>
           )}
         </Form>
       </Modal>
