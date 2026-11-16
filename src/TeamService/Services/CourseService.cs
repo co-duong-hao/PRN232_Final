@@ -135,7 +135,7 @@ public sealed class CourseService(TeamDbContext db, RoomService rooms, IEventPub
     public async Task<PagedResult<CourseStudentDto>> StudentsAsync(Guid id, CourseStudentQuery query, CancellationToken ct)
     {
         await EntityAsync(id, ct);
-        var source = db.StudentInCourses.Where(x => x.CourseId == id).Select(x => new CourseStudentDto { Id = x.StudentId, StudentCode = x.Student.StudentCode, FullName = x.Student.FullName, Email = x.Student.Email, MajorId = x.Student.MajorId, MajorCode = x.Student.Major.Code, HasRoom = db.StudentInRooms.Any(r => r.CourseId == id && r.StudentId == x.StudentId) });
+        var source = db.StudentInCourses.Where(x => x.CourseId == id).Select(x => new CourseStudentDto { Id = x.StudentId, StudentCode = x.Student.StudentCode, FullName = x.Student.FullName, Email = x.Student.Email, MajorId = x.Student.MajorId, MajorCode = x.Student.Major.Code, HasRoom = db.StudentInRooms.Any(r => r.CourseId == id && r.StudentId == x.StudentId), Gpa = x.Student.Gpa, Roles = x.Student.Roles.Select(r => new RoleDto(r.TeamRole.Id, r.TeamRole.Code, r.TeamRole.Name)).ToList() });
         if (query.MajorId.HasValue)
         {
             source = source.Where(x => x.MajorId == query.MajorId);

@@ -167,6 +167,8 @@ export interface CourseStudent {
   majorId: string;
   majorCode: string;
   hasRoom: boolean;
+  gpa: number | null;
+  roles: TeamRole[];
 }
 
 export interface CourseStudentParams extends PageParams {

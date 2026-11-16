@@ -261,6 +261,16 @@ export function CourseDetailPage() {
                     { title: "Email", dataIndex: "email" },
                     { title: "Ngành", dataIndex: "majorCode" },
                     {
+                      title: "GPA",
+                      dataIndex: "gpa",
+                      render: (v: number | null) => (v == null ? "—" : v.toFixed(2)),
+                    },
+                    {
+                      title: "Vai trò",
+                      render: (_: unknown, s: CourseStudent) =>
+                        s.roles.length ? s.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
+                    },
+                    {
                       title: "Phòng",
                       dataIndex: "hasRoom",
                       render: (v: boolean) => (v ? "Đã có phòng" : "Chưa có phòng"),
