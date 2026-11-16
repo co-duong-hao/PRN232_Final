@@ -65,10 +65,10 @@ class ScriptError(Exception):
     pass
 
 
-def require_status(step_name, status, expected, body):
-    if status != expected:
-        details = body if isinstance(body, dict) else {}
-        print(f"   Thất bại tại {step_name}: HTTP {status}, code={details.get('code', 'không có')}, title={details.get('title', 'không có')}")
+def require_status(step_name, status, expected, body, code=None):
+    details = body if isinstance(body, dict) else {}
+    if status != expected or (code is not None and details.get("code") != code):
+        print(f"   Thất bại tại {step_name}: HTTP {status}, code={details.get('code', 'không có')}, title={details.get('title', 'không có')} (mong đợi HTTP {expected}{f', code={code}' if code else ''})")
         raise ScriptError()
 
 
@@ -86,15 +86,46 @@ def preflight():
         message = details.get("title") or details.get("message") or body or "Không có thông điệp"
         print(f"Đăng nhập thất bại: HTTP {status}, code={details.get('code', 'không có')}, thông điệp: {message}. Kiểm tra SEED_DEFAULT_PASSWORD trong .env và trạng thái docker compose ps.")
         raise ScriptError()
-    token = body["accessToken"]
+    token = body.get("accessToken") if isinstance(body, dict) else None
+    if not isinstance(token, str) or not token.strip():
+        print("   Đăng nhập trả HTTP 200 nhưng thiếu accessToken hợp lệ.")
+        raise ScriptError()
     status, body = call("GET", f"/api/courses/{COURSE}/rooms?pageSize=1", token)
     require_status("kiểm tra dữ liệu mẫu", status, 200, body)
-    count = body["totalItems"]
+    count = body.get("totalItems") if isinstance(body, dict) else None
+    if type(count) is not int or count < 0:
+        print("   Danh sách phòng trả totalItems không hợp lệ.")
+        raise ScriptError()
     if count > 0:
         print(f"Dữ liệu đã được dùng ở lần chạy trước (Course FA26-EXE101 đang có {count} phòng). Script cần dữ liệu mẫu ban đầu. Reset bằng: docker compose down -v  rồi  docker compose up -d  (chờ 30–60 giây), sau đó chạy lại.")
         return False
     print("   Gateway, đăng nhập và dữ liệu mẫu: OK")
     return True
+
+
+def mailpit_messages():
+    with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=100", timeout=3) as response:
+        inbox = json.load(response)
+    return inbox["messages"] or []
+
+
+def wait_for_room_completed_mail(group_code, prior_message_ids):
+    expected = {f"student{number:02d}@exe.local" for number in (1, 2, 6, 8)}
+    subject = f"[EXE] Nhóm {group_code} đã được thành lập"
+    deadline = time.monotonic() + 20
+    recipients = set()
+    while time.monotonic() < deadline:
+        messages = [
+            message for message in mailpit_messages()
+            if message["ID"] not in prior_message_ids and message["Subject"] == subject
+        ]
+        recipients = {person["Address"].lower() for message in messages for person in message["To"]}
+        if expected <= recipients:
+            return messages
+        time.sleep(0.5)
+    missing = ", ".join(sorted(expected - recipients))
+    print(f"   Mailpit chưa nhận đủ email RoomCompleted cho nhóm {group_code}. Thiếu: {missing}")
+    raise ScriptError()
 
 
 def main():
@@ -113,7 +144,7 @@ def main():
 
     step("3. BR05 – Sinh viên 01 thử tạo phòng thứ hai trong cùng Course")
     s, b = call("POST", f"/api/courses/{COURSE}/rooms", S(1))
-    require_status(current_step, s, 409, b)
+    require_status(current_step, s, 409, b, "BR05")
     show("POST", "/api/courses/{FA26-EXE101}/rooms", s, b)
 
     step("4. QT02 – Sinh viên 02 (SE) và 06 (AI) vào phòng; đủ 3 người thì phòng tự KHÓA (BR08)")
@@ -125,7 +156,7 @@ def main():
 
     step("5. Sinh viên 08 (GD) không vào thẳng được phòng đã khóa")
     s, b = call("POST", f"/api/rooms/{rid}/join", S(8))
-    require_status(current_step, s, 409, b)
+    require_status(current_step, s, 409, b, "ROOM_NOT_OPEN")
     show("POST", "/api/rooms/{id}/join", s, b)
 
     step("6. gRPC – Kiểm tra cơ cấu phòng qua Matching Service")
@@ -137,7 +168,7 @@ def main():
 
     step("7. BR16 – Trưởng phòng thử hoàn tất khi chưa đủ cơ cấu")
     s, b = call("POST", f"/api/rooms/{rid}/complete", S(1))
-    require_status(current_step, s, 409, b)
+    require_status(current_step, s, 409, b, "BR16")
     show("POST", "/api/rooms/{id}/complete", s, b)
 
     step("8. gRPC – Sinh viên 08 (GD) xem gợi ý phòng")
@@ -151,7 +182,7 @@ def main():
     require_status(current_step, s, 201, ap)
     print(f"   Đơn {ap['status']} – {ap['fullName']} ({ap['majorCode']}): {ap['message']}")
     s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", S(2))
-    require_status(current_step, s, 403, b)
+    require_status(current_step, s, 403, b, "NOT_ROOM_LEADER")
     show("POST", "/api/room-applies/{id}/approve  (sinh viên 02, không phải trưởng phòng)", s, b)
     s, ap = call("POST", f"/api/room-applies/{ap['id']}/approve", S(1))
     require_status(current_step, s, 200, ap)
@@ -171,6 +202,7 @@ def main():
     print(f"   satisfied={comp['satisfied']}  violations={comp['violations']}")
 
     step("12. QT06 – Trưởng phòng mới hoàn tất phòng → Nhóm chính thức")
+    prior_message_ids = {message["ID"] for message in mailpit_messages()}
     s, grp = call("POST", f"/api/rooms/{rid}/complete", S(2))
     require_status(current_step, s, 201, grp)
     print(f"   Nhóm {grp['code']} ({grp['groupTypeName']})")
@@ -179,16 +211,15 @@ def main():
 
     step("13. BR18 – Thành viên không tự rời nhóm đã thành lập")
     s, b = call("POST", f"/api/rooms/{rid}/leave", S(6))
-    require_status(current_step, s, 409, b)
+    require_status(current_step, s, 409, b, "BR18")
     show("POST", "/api/rooms/{id}/leave", s, b)
 
     step("14. Kafka → Noti Service → email (Mailpit)")
-    time.sleep(4)
-    with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=100", timeout=10) as r:
-        mails = json.loads(r.read())
-    print(f"   Mailpit đã nhận {mails['total']} email. Mới nhất:")
-    for m in mails["messages"][:6]:
-        print(f"   - tới {m['To'][0]['Address']:<22} {m['Subject']}")
+    messages = wait_for_room_completed_mail(grp["code"], prior_message_ids)
+    print(f"   Mailpit đã nhận email thành lập nhóm {grp['code']} cho 4 thành viên:")
+    for message in messages:
+        recipients = ", ".join(person["Address"] for person in message["To"])
+        print(f"   - tới {recipients}: {message['Subject']}")
     print("\nXem tất cả email: http://localhost:8025")
 
 

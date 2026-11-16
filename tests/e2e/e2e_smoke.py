@@ -37,16 +37,15 @@ def call(method, path, token=None, body=None):
             return e.code, raw.decode(errors="replace")[:200]
 
 
-def check(name, status, expected, body=None, code=None):
-    ok = status == expected and (code is None or (isinstance(body, dict) and body.get("code") == code))
+def check(name, status, expected, body=None, code=None, *, matches=True):
+    ok = matches and status == expected and (code is None or (isinstance(body, dict) and body.get("code") == code))
     results.append(ok)
-    extra = ""
-    if not ok:
-        extra = f"  -> got {status} {json.dumps(body, ensure_ascii=False)[:300] if body is not None else ''}"
-    print(f"[{'OK ' if ok else 'BAD'}] {name}: {status}{extra}")
+    print(f"[{'OK ' if ok else 'BAD'}] {name}: {status}")
     if not ok:
         details = body if isinstance(body, dict) else {}
         print(f"   Thất bại tại {name}: HTTP {status}, code={details.get('code', 'không có')}, title={details.get('title', 'không có')}")
+        if status == expected and not matches:
+            print("   Nội dung phản hồi không khớp kết quả nghiệp vụ mong đợi.")
         raise ScriptError()
     return body
 
@@ -54,7 +53,7 @@ def check(name, status, expected, body=None, code=None):
 def login(email):
     s, b = call("POST", "/api/auth/login", body={"email": email, "password": PASSWORD})
     check(f"login {email}", s, 200, b)
-    return b["accessToken"] if s == 200 else None
+    return b["accessToken"]
 
 
 class ScriptError(Exception):
@@ -82,15 +81,46 @@ def preflight():
         message = details.get("title") or details.get("message") or body or "Không có thông điệp"
         print(f"Đăng nhập thất bại: HTTP {status}, code={details.get('code', 'không có')}, thông điệp: {message}. Kiểm tra SEED_DEFAULT_PASSWORD trong .env và trạng thái docker compose ps.")
         raise ScriptError()
-    token = body["accessToken"]
+    token = body.get("accessToken") if isinstance(body, dict) else None
+    if not isinstance(token, str) or not token.strip():
+        print("   Đăng nhập trả HTTP 200 nhưng thiếu accessToken hợp lệ.")
+        raise ScriptError()
     status, body = call("GET", f"/api/courses/{COURSE}/rooms?pageSize=1", token)
     require_status("kiểm tra dữ liệu mẫu", status, 200, body)
-    count = body["totalItems"]
+    count = body.get("totalItems") if isinstance(body, dict) else None
+    if type(count) is not int or count < 0:
+        print("   Danh sách phòng trả totalItems không hợp lệ.")
+        raise ScriptError()
     if count > 0:
         print(f"Dữ liệu đã được dùng ở lần chạy trước (Course FA26-EXE101 đang có {count} phòng). Script cần dữ liệu mẫu ban đầu. Reset bằng: docker compose down -v  rồi  docker compose up -d  (chờ 30–60 giây), sau đó chạy lại.")
         return False
     print("   Gateway, đăng nhập và dữ liệu mẫu: OK")
     return True
+
+
+def mailpit_messages():
+    with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=100", timeout=3) as response:
+        inbox = json.load(response)
+    return inbox["messages"] or []
+
+
+def wait_for_room_completed_mail(group_code, prior_message_ids):
+    expected = {f"student{number:02d}@exe.local" for number in (1, 2, 6, 8)}
+    subject = f"[EXE] Nhóm {group_code} đã được thành lập"
+    deadline = time.monotonic() + 20
+    recipients = set()
+    while time.monotonic() < deadline:
+        messages = [
+            message for message in mailpit_messages()
+            if message["ID"] not in prior_message_ids and message["Subject"] == subject
+        ]
+        recipients = {person["Address"].lower() for message in messages for person in message["To"]}
+        if expected <= recipients:
+            return messages
+        time.sleep(0.5)
+    missing = ", ".join(sorted(expected - recipients))
+    print(f"   Mailpit chưa nhận đủ email RoomCompleted cho nhóm {group_code}. Thiếu: {missing}")
+    raise ScriptError()
 
 
 def main():
@@ -108,13 +138,14 @@ def main():
     s, b = call("GET", "/api/users", t[1])
     check("student cannot list users", s, 403, b)
 
-    # Clean state: student01 may already own a room from a previous run.
+    # Verify the seeded course is available to the student.
     s, b = call("GET", "/api/me/courses", t[1])
     check("student01 my courses", s, 200, b)
 
     # QT01: SE student01 creates a room
     s, room = call("POST", f"/api/courses/{COURSE}/rooms", t[1])
-    check("QT01 create room", s, 201, room)
+    check("QT01 create room", s, 201, room,
+          matches=isinstance(room, dict) and room.get("status") == "Open" and room.get("memberCount") == 1)
     rid = room["id"]
     print("    room code:", room["code"])
 
@@ -125,7 +156,8 @@ def main():
     s, b = call("POST", f"/api/rooms/{rid}/join", t[2])
     check("QT02 student02 joins", s, 200, b)
     s, b = call("POST", f"/api/rooms/{rid}/join", t[6])
-    check("QT02 student06 joins -> locked", s, 200, b)
+    check("QT02 student06 joins -> locked", s, 200, b,
+          matches=isinstance(b, dict) and b.get("status") == "Locked" and b.get("memberCount") == 3)
     print("    status after 3 members:", b.get("status") if isinstance(b, dict) else b)
 
     s, b = call("POST", f"/api/rooms/{rid}/join", t[8])
@@ -133,7 +165,8 @@ def main():
 
     # gRPC via REST: composition (3 members, 2 majors -> not satisfied)
     s, comp = call("GET", f"/api/rooms/{rid}/composition", t[1])
-    check("composition via gRPC", s, 200, comp)
+    check("composition via gRPC", s, 200, comp,
+          matches=isinstance(comp, dict) and comp.get("satisfied") is False and bool(comp.get("violations")))
     print("    violations:", comp.get("violations") if isinstance(comp, dict) else comp)
 
     s, b = call("POST", f"/api/rooms/{rid}/complete", t[1])
@@ -141,46 +174,56 @@ def main():
 
     # QT03: GD student08 applies, leader approves
     s, ap = call("POST", f"/api/rooms/{rid}/applies", t[8], {"message": "Mình làm thiết kế."})
-    check("QT03 student08 applies", s, 201, ap)
+    check("QT03 student08 applies", s, 201, ap,
+          matches=isinstance(ap, dict) and ap.get("status") == "Pending" and ap.get("roomId") == rid)
     s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", t[2])
     check("BR09 non-leader cannot approve", s, 403, b, "NOT_ROOM_LEADER")
     s, b = call("POST", f"/api/room-applies/{ap['id']}/approve", t[1])
-    check("QT03 leader approves", s, 200, b)
+    check("QT03 leader approves", s, 200, b,
+          matches=isinstance(b, dict) and b.get("status") == "Approved" and b.get("roomId") == rid)
 
     # Recommendations (gRPC) for a student without room
     s, b = call("GET", f"/api/courses/{COURSE}/rooms/recommendations?limit=3", t[11])
     check("recommendations via gRPC", s, 200, b)
 
-    # QT05: change leader then QT04 leave as former leader
-    s, b = call("PUT", f"/api/rooms/{rid}/leader", t[1], {"studentId": "20000000-0000-0000-0000-000000000002"})
-    check("QT05 change leader to student02", s, 200, b)
+    # QT05: transfer leadership to student02.
+    student02_id = "20000000-0000-0000-0000-000000000002"
+    s, b = call("PUT", f"/api/rooms/{rid}/leader", t[1], {"studentId": student02_id})
+    check("QT05 change leader to student02", s, 200, b,
+          matches=isinstance(b, dict) and b.get("leaderId") == student02_id)
 
     # QT06: now 4 members SE,SE,AI,GD -> satisfied; complete by new leader
     s, comp = call("GET", f"/api/rooms/{rid}/composition", t[2])
-    check("composition satisfied", s, 200, comp)
+    check("composition satisfied", s, 200, comp,
+          matches=isinstance(comp, dict) and comp.get("satisfied") is True and comp.get("violations") == [])
     print("    satisfied:", comp.get("satisfied") if isinstance(comp, dict) else comp)
+    prior_message_ids = {message["ID"] for message in mailpit_messages()}
     s, grp = call("POST", f"/api/rooms/{rid}/complete", t[2])
-    check("QT06 complete room -> group", s, 201, grp)
-    if isinstance(grp, dict):
-        print("    group code:", grp.get("code"))
+    members = grp.get("members") if isinstance(grp, dict) else None
+    leaders = []
+    if isinstance(members, list):
+        leaders = [member.get("studentId") for member in members
+                   if isinstance(member, dict) and member.get("isLeader") is True]
+    check("QT06 complete room -> group", s, 201, grp,
+          matches=isinstance(grp, dict) and grp.get("roomId") == rid and bool(grp.get("code"))
+          and isinstance(members, list) and len(members) == 4 and leaders == [student02_id])
+    print("    group code:", grp["code"])
 
     s, b = call("POST", f"/api/rooms/{rid}/leave", t[6])
     check("BR18 cannot leave completed room", s, 409, b, "BR18")
 
     # Search / filter / paging on rooms
     s, b = call("GET", f"/api/courses/{COURSE}/rooms?status=Completed&sortBy=code&page=1&pageSize=5", t[9])
-    check("list rooms filtered and paged", s, 200, b)
+    items = b.get("items") if isinstance(b, dict) else None
+    check("list rooms filtered and paged", s, 200, b,
+          matches=isinstance(items, list) and b.get("page") == 1 and b.get("pageSize") == 5
+          and any(isinstance(item, dict) and item.get("id") == rid
+                  and item.get("status") == "Completed" for item in items))
 
     # Notifications reach Mailpit through Kafka
-    time.sleep(4)
-    with urllib.request.urlopen("http://localhost:8025/api/v1/messages?limit=50", timeout=10) as r:
-        mails = json.loads(r.read())
-    subjects = [m["Subject"] for m in mails.get("messages", [])]
-    print(f"    mailpit has {mails.get('total')} messages; latest:")
-    for subj in subjects[:8]:
-        print("     -", subj)
-    results.append(any("Nhóm" in x for x in subjects))
-    print(f"[{'OK ' if results[-1] else 'BAD'}] RoomCompleted email delivered")
+    wait_for_room_completed_mail(grp["code"], prior_message_ids)
+    results.append(True)
+    print(f"[OK ] RoomCompleted email delivered for {grp['code']}")
 
     print(f"\n{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
