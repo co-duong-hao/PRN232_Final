@@ -28,3 +28,15 @@ Khi nút bị ẩn do quyền hoặc trạng thái, kiểm tra phản hồi âm 
 | CT__ | | | | | |
 
 Chụp ảnh cửa sổ liên quan hoặc lưu phản hồi đã che token. Nếu một ca tạo trạng thái sai, ghi ca bị ảnh hưởng và chuẩn bị lại dữ liệu trước khi chạy tiếp. Dùng [smoke test](../tests/e2e/e2e_smoke.py) để đối chiếu phần API trên một lượt seed riêng.
+
+## Kết quả đối chiếu qua API ngày 16/11/2026
+
+Lượt chạy trên Docker Compose với backend `a353bca` và script `b9f76e0`.
+
+| Phạm vi | Kết quả ghi nhận |
+|---|---|
+| CT01–CT08 qua API | Smoke test 29/29. Tạo phòng `FA26-EXE101-R001`, hoàn tất thành nhóm `FA26-EXE101-G001`, xác nhận bốn email thành lập. |
+| CT09 qua API | Bộ lọc Completed trả phòng R001. API thống kê với vai trò Lecturer trả 1 phòng hoàn tất, 1 nhóm và 4 sinh viên trong nhóm. |
+| CT10 qua API | SV01 tạo phòng EXE201 sau khi đã vào nhóm EXE101. Tạo phòng cần GPA 3.2 và vai trò UIUX. Lọc GPA 3.2 với UIUX trả 1 phòng, GPA 3.1 với UIUX trả 0 và GPA 3.2 với FE trả 0. |
+
+Các thao tác trên giao diện vẫn cần được ghi riêng vào bảng kết quả khi diễn tập.
