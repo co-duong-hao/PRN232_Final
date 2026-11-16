@@ -51,6 +51,7 @@ flowchart LR
 | 14 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
 | 15 | [Đơn xin vào phòng](15-room-applies.md) |
 | 16 | [Tìm phòng và tra cứu nhóm](16-rooms-read.md) |
+| 17 | [Hồ sơ và tiêu chí tuyển](17-recruitment.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
