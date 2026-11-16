@@ -91,7 +91,11 @@ public sealed class EventConsumerWorker(
     {
         var started = Stopwatch.GetTimestamp();
         var type = "unknown";
-        try { var value = message.Value is null ? null : EventEnvelope.FromJson(message.Value); if (value?.Type is { } t && EventTypes.All.Contains(t, StringComparer.Ordinal)) type = t; }
+        try
+        {
+            var value = message.Value is null ? null : EventEnvelope.FromJson(message.Value);
+            if (value?.Type is { } t && EventTypes.All.Contains(t, StringComparer.Ordinal)) type = t;
+        }
         catch (JsonException) { }
         try
         {

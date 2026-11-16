@@ -11,6 +11,14 @@ public class MatchingTests {
   Assert.Equal(1, capture.Count("exe.composition.checks", "invalid"));
  }
 
+ [Fact] public async Task RecommendRooms_WhenCalled_RecordsRequestWithMethod() {
+  using var capture = new MetricCapture("Exe.MatchingService");
+  var service = new MatchingGrpcService(new MatchingMetrics(capture.Factory));
+  await service.RecommendRooms(new Exe.Contracts.Grpc.RecommendRoomsRequest { Rule = new(), StudentMajorCode = "SE" }, null!);
+  Assert.Equal(1, capture.Count("exe.matching.requests", "RecommendRooms"));
+  Assert.Equal(1, capture.Count("exe.matching.requests"));
+ }
+
  private static readonly GroupRule Rule=new(4,6,3,[new("SE",2,3)]);
  [Theory]
  [InlineData("SE,SE,GD,MKT",true,0)] [InlineData("SE,SE,GD",false,2)] [InlineData("SE,GD,MKT,AI",false,1)] [InlineData("SE,SE,SE,SE,GD,MKT",false,1)]

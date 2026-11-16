@@ -80,6 +80,28 @@ public sealed class EventConsumerWorkerTests
         dlq.VerifyNoOtherCalls();
     }
 
+    [Fact]
+    public async Task ProcessMessage_UnknownType_RecordsSkippedAfterCommit()
+    {
+        using var capture = new MetricCapture("Exe.NotiService");
+        var metrics = new NotiMetrics(capture.Factory);
+        var sender = new Mock<IEmailSender>(MockBehavior.Strict);
+        var dlq = new Mock<IDeadLetterPublisher>(MockBehavior.Strict);
+        var worker = new EventConsumerWorker(Microsoft.Extensions.Options.Options.Create(new KafkaOptions { MaxAttempts = 4 }),
+            new EventProcessor(sender.Object, new EmailTemplateRenderer(), NullLogger<EventProcessor>.Instance, metrics),
+            dlq.Object, NullLogger<EventConsumerWorker>.Instance, metrics);
+        var message = new Message<string, string> { Value = EmailTemplateRendererTests.CreateEvent("Unknown").ToJson() };
+
+        var outcome = await worker.ProcessMessageAsync(message, default);
+        Assert.Equal(("unknown", "skipped"), outcome);
+        Assert.Equal(0, capture.Count("exe.kafka.events.consumed"));
+        worker.CommitAndRecord(() => { }, outcome);
+        Assert.Equal(1, capture.Count("exe.kafka.events.consumed", "skipped"));
+        Assert.Equal(0, capture.Count("exe.kafka.event.retries"));
+        sender.VerifyNoOtherCalls();
+        dlq.VerifyNoOtherCalls();
+    }
+
     private static EventConsumerWorker CreateWorker(Mock<IEmailSender> sender, Mock<IDeadLetterPublisher> dlq, int attempts) =>
         new(Microsoft.Extensions.Options.Options.Create(new KafkaOptions { MaxAttempts = attempts }),
             new EventProcessor(sender.Object, new EmailTemplateRenderer(), NullLogger<EventProcessor>.Instance, Metrics()),
