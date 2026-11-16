@@ -23,18 +23,20 @@ import type { ApplyStatus, CompositionAnalysis, Group, GroupType, Room, RoomAppl
 import { useAuth } from "@/auth/AuthContext";
 import { EmptyState } from "@/components/EmptyState";
 import { formatDateTime, formatDecimal } from "@/components/format";
-import { applyStatusLabel } from "@/components/labels";
+import { getApplyStatusLabels } from "@/components/labels";
 import { ApplyStatusTag, RoomStatusTag } from "@/components/StatusTag";
 import { useApiAction, useShowError } from "@/components/useApiAction";
 import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 import { RoomCompositionSummary } from "@/features/student/RoomCompositionSummary";
 import { RoomCompositionSkeleton, RoomDetailSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
+import { useI18n } from "@/i18n";
 
 export function RoomDetailPage() {
   const { roomId = "" } = useParams();
   const navigate = useNavigate();
   const { student } = useAuth();
+  const { t, language } = useI18n();
   const showError = useShowError();
   const appliesSectionRef = useRef<HTMLDivElement>(null);
 
@@ -61,33 +63,56 @@ export function RoomDetailPage() {
   const [leaderOpen, setLeaderOpen] = useState(false);
   const [leaderId, setLeaderId] = useState<string>();
 
-  const [join, joining] = useApiAction(async (id: string) => {
-    try {
-      return await roomsApi.join(id);
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "BR19") {
-        Modal.confirm({
-          title: "Chưa đủ GPA để vào trực tiếp",
-          content:
-            "GPA hiện tại của bạn thấp hơn yêu cầu của phòng (hoặc chưa khai báo trong hồ sơ). Hãy cập nhật hồ sơ hoặc gửi đơn khi phòng chuyển sang trạng thái Đã khóa.",
-          okText: "Cập nhật hồ sơ",
-          cancelText: "Đóng",
-          onOk: () => navigate("/student/profile"),
-        });
-        return undefined;
+  const [join, joining] = useApiAction(
+    async (id: string) => {
+      try {
+        return await roomsApi.join(id);
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "BR19") {
+          Modal.confirm({
+            title: t.roomDetail.br19ModalTitle,
+            content:
+              language === "en"
+                ? "Your current GPA does not meet the requirement for direct joining. You can update your profile or apply when the room is locked."
+                : "GPA hiện tại của bạn thấp hơn yêu cầu của phòng (hoặc chưa khai báo trong hồ sơ). Hãy cập nhật hồ sơ hoặc gửi đơn khi phòng chuyển sang trạng thái Đã khóa.",
+            okText: t.appLayout.onboardingUpdateBtn,
+            cancelText: t.common.close,
+            onOk: () => navigate("/student/profile"),
+          });
+          return undefined;
+        }
+        throw e;
       }
-      throw e;
-    }
-  }, "Đã tham gia phòng");
-  const [apply, applying] = useApiAction(roomsApi.apply, "Đã gửi đơn xin vào phòng");
-  const [leave, leaving] = useApiAction(async (id: string) => {
-    await roomsApi.leave(id);
-    return true;
-  }, "Đã rời phòng");
-  const [changeLeader, changing] = useApiAction(roomsApi.changeLeader, "Đã chuyển quyền trưởng phòng");
-  const [complete, completing] = useApiAction(roomsApi.complete, "Đã hoàn tất thành nhóm chính thức");
-  const [approve] = useApiAction(appliesApi.approve, "Đã chấp nhận đơn");
-  const [reject] = useApiAction(appliesApi.reject, "Đã từ chối đơn");
+    },
+    language === "en" ? "Joined room successfully" : "Đã tham gia phòng",
+  );
+  const [apply, applying] = useApiAction(
+    roomsApi.apply,
+    language === "en" ? "Application sent successfully" : "Đã gửi đơn xin vào phòng",
+  );
+  const [leave, leaving] = useApiAction(
+    async (id: string) => {
+      await roomsApi.leave(id);
+      return true;
+    },
+    language === "en" ? "Left room successfully" : "Đã rời phòng",
+  );
+  const [changeLeader, changing] = useApiAction(
+    roomsApi.changeLeader,
+    language === "en" ? "Leadership transferred successfully" : "Đã chuyển quyền trưởng phòng",
+  );
+  const [complete, completing] = useApiAction(
+    roomsApi.complete,
+    language === "en" ? "Finalized into official team" : "Đã hoàn tất thành nhóm chính thức",
+  );
+  const [approve] = useApiAction(
+    appliesApi.approve,
+    language === "en" ? "Application approved" : "Đã chấp nhận đơn",
+  );
+  const [reject] = useApiAction(
+    appliesApi.reject,
+    language === "en" ? "Application rejected" : "Đã từ chối đơn",
+  );
 
   const loadRoom = useCallback(async () => {
     try {
@@ -103,41 +128,31 @@ export function RoomDetailPage() {
   }, [roomId, showError]);
 
   const loadComposition = useCallback(
-    async (refreshRoom = false) => {
+    async (manual = false) => {
       setCompositionLoading(true);
-      setComposition(undefined);
-      setUnavailable(false);
       try {
-        const [analysis] = await Promise.all([
-          roomsApi.composition(roomId),
-          refreshRoom ? loadRoom() : undefined,
-        ]);
-        setComposition(analysis);
+        const c = await roomsApi.composition(roomId);
+        setComposition(c);
+        setUnavailable(false);
       } catch (e) {
         if (e instanceof ApiError && e.status === 503 && e.code === "MATCHING_UNAVAILABLE") {
           setUnavailable(true);
-        } else {
+        } else if (manual) {
           showError(e);
         }
       } finally {
         setCompositionLoading(false);
       }
     },
-    [roomId, loadRoom, showError],
+    [roomId, showError],
   );
 
   const loadApplies = useCallback(async () => {
     setAppliesLoading(true);
     try {
-      const [data, pendingCountData] = await Promise.all([
-        roomsApi.applies(roomId, { page, pageSize: size, status }),
-        status === "Pending"
-          ? Promise.resolve(undefined)
-          : roomsApi.applies(roomId, { status: "Pending", pageSize: 1 }),
-      ]);
+      const data = await roomsApi.applies(roomId, { page, pageSize: size, status });
       setApplies(data.items);
       setTotal(data.totalItems);
-      setPendingTotal(pendingCountData ? pendingCountData.totalItems : data.totalItems);
     } catch (e) {
       showError(e);
     } finally {
@@ -145,58 +160,63 @@ export function RoomDetailPage() {
     }
   }, [roomId, page, size, status, showError]);
 
-  const isMember = !!student && !!room?.members.some((m) => m.studentId === student.id);
-  const isLeader = !!student && room?.leaderId === student.id;
-  const active = room?.status === "Open" || room?.status === "Locked";
-  const courseId = room?.courseId;
+  const loadPendingCount = useCallback(async () => {
+    try {
+      const data = await roomsApi.applies(roomId, { page: 1, pageSize: 1, status: "Pending" });
+      setPendingTotal(data.totalItems);
+    } catch {
+      // Background count
+    }
+  }, [roomId]);
 
   useEffect(() => {
-    setRoom(undefined);
     setLoading(true);
     void loadRoom();
     void loadComposition();
   }, [loadRoom, loadComposition]);
 
   useEffect(() => {
-    if (!courseId) return;
-    let current = true;
-    async function loadRules(id: string) {
-      try {
-        const course = await coursesApi.get(id);
-        if (!current) return;
-        let p = 1;
-        while (current) {
-          const types = await referenceApi.groupTypes({ q: course.groupTypeName, page: p });
-          if (!current) return;
-          const groupType = types.items.find((type) => type.id === course.groupTypeId);
-          if (groupType) {
-            setCompositionRules({ courseId: id, groupType });
-            return;
-          }
-          if (p >= types.totalPages) return;
-          p++;
-        }
-      } catch (e) {
-        if (current) showError(e);
-      }
-    }
-    void loadRules(courseId);
-    return () => {
-      current = false;
-    };
-  }, [courseId, showError]);
-
-  useEffect(() => {
-    if (isLeader) void loadApplies();
-  }, [isLeader, loadApplies]);
-
-  useEffect(() => {
-    if (room?.status === "Completed") {
+    if (room?.courseId) {
       loadAllMyCourses()
-        .then((courses) => setGroup(courses.find((c) => c.myGroup?.roomId === roomId)?.myGroup ?? undefined))
-        .catch(showError);
+        .then((courses) => {
+          const matched = courses.find((c) => c.id === room.courseId);
+          if (matched?.myGroup) {
+            setGroup(matched.myGroup);
+          }
+        })
+        .catch(() => {});
     }
-  }, [room?.status, roomId, showError]);
+  }, [room?.courseId]);
+
+  useEffect(() => {
+    if (!room?.courseId) return;
+    let cancelled = false;
+
+    Promise.all([coursesApi.get(room.courseId), referenceApi.groupTypes()])
+      .then(([course, groupTypes]) => {
+        if (cancelled) return;
+        const matched = groupTypes.items.find((gt) => gt.id === course.groupTypeId);
+        if (matched) {
+          setCompositionRules({ courseId: room.courseId, groupType: matched });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [room?.courseId]);
+
+  const isLeader = room?.leaderId === student?.id;
+  const isMember = !!room?.members.some((m) => m.studentId === student?.id);
+  const active = room?.status === "Open" || room?.status === "Locked";
+
+  useEffect(() => {
+    if (isLeader) {
+      void loadApplies();
+      void loadPendingCount();
+    }
+  }, [isLeader, loadApplies, loadPendingCount]);
 
   const refresh = async () => {
     const updated = await loadRoom();
@@ -220,15 +240,14 @@ export function RoomDetailPage() {
             <div>
               <Link className="workspace-heading__back" to={`/student/courses/${room.courseId}`}>
                 <ArrowLeftOutlined aria-hidden="true" />
-                Quay lại Tìm nhóm
+                {t.roomDetail.backToFindTeam}
               </Link>
               <div className="workspace-heading__title-row">
                 <Typography.Title level={1}>{room.name || room.code}</Typography.Title>
                 <RoomStatusTag status={room.status} />
               </div>
               <p>
-                {room.code} · {room.courseCode} · {room.memberCount}
-                {maxMembers ? `/${maxMembers}` : ""} thành viên
+                {room.code} · {room.courseCode} · {t.roomDetail.membersMeta(room.memberCount, maxMembers)}
               </p>
             </div>
 
@@ -241,7 +260,7 @@ export function RoomDetailPage() {
                     if (await join(roomId)) await refresh();
                   }}
                 >
-                  Vào phòng
+                  {t.roomDetail.joinRoom}
                 </Button>
               )}
 
@@ -253,14 +272,14 @@ export function RoomDetailPage() {
                     setApplyOpen(true);
                   }}
                 >
-                  Gửi đơn xin vào
+                  {t.roomDetail.applyToJoin}
                 </Button>
               )}
 
               {active && isLeader && (
                 <>
-                  <Button onClick={() => setEditOpen(true)}>Sửa thông tin tuyển</Button>
-                  <Tooltip title={room.members.length < 2 ? "Cần ít nhất 2 thành viên để chuyển quyền" : ""}>
+                  <Button onClick={() => setEditOpen(true)}>{t.roomDetail.editRecruitment}</Button>
+                  <Tooltip title={room.members.length < 2 ? t.roomDetail.transferLeaderTooltip : ""}>
                     <Button
                       disabled={room.members.length < 2}
                       onClick={() => {
@@ -268,22 +287,16 @@ export function RoomDetailPage() {
                         setLeaderOpen(true);
                       }}
                     >
-                      Chuyển trưởng phòng
+                      {t.roomDetail.transferLeader}
                     </Button>
                   </Tooltip>
-                  <Tooltip
-                    title={
-                      completeDisabled
-                        ? "Cần đạt đủ tất cả tiêu chí ở mục Cơ cấu nhóm trước khi hoàn tất."
-                        : ""
-                    }
-                  >
+                  <Tooltip title={completeDisabled ? t.roomDetail.completeDisabledTooltip : ""}>
                     <span>
                       <Popconfirm
-                        title="Hoàn tất phòng thành nhóm chính thức?"
-                        description="Sau khi hoàn tất, thành viên không thể rời phòng và các đơn chờ duyệt sẽ tự hủy."
-                        okText="Hoàn tất"
-                        cancelText="Hủy"
+                        title={t.roomDetail.completeConfirmTitle}
+                        description={t.roomDetail.completeConfirmDesc}
+                        okText={t.roomDetail.completeConfirmOk}
+                        cancelText={t.common.cancel}
                         disabled={completeDisabled}
                         onConfirm={async () => {
                           const result = await complete(roomId);
@@ -291,7 +304,7 @@ export function RoomDetailPage() {
                         }}
                       >
                         <Button type="primary" disabled={completeDisabled} loading={completing}>
-                          Hoàn tất thành nhóm
+                          {t.roomDetail.completeButton}
                         </Button>
                       </Popconfirm>
                     </span>
@@ -300,24 +313,20 @@ export function RoomDetailPage() {
               )}
 
               {active && isMember && (
-                <Tooltip
-                  title={
-                    leaveBlocked ? "Bạn cần chuyển quyền trưởng phòng cho thành viên khác trước khi rời." : ""
-                  }
-                >
+                <Tooltip title={leaveBlocked ? t.roomDetail.leaveBlockedTooltip : ""}>
                   <span>
                     <Popconfirm
-                      title="Rời phòng này?"
-                      description="Bạn có thể tham gia phòng khác trong học phần sau khi rời."
-                      okText="Rời phòng"
-                      cancelText="Hủy"
+                      title={t.roomDetail.leaveConfirmTitle}
+                      description={t.roomDetail.leaveConfirmDesc}
+                      okText={t.roomDetail.leaveConfirmOk}
+                      cancelText={t.common.cancel}
                       disabled={leaveBlocked}
                       onConfirm={async () => {
                         if (await leave(roomId)) navigate("/student/courses");
                       }}
                     >
                       <Button danger loading={leaving} disabled={leaveBlocked}>
-                        Rời phòng
+                        {t.roomDetail.leaveRoom}
                       </Button>
                     </Popconfirm>
                   </span>
@@ -338,14 +347,18 @@ export function RoomDetailPage() {
               type="success"
               message={
                 <Space wrap>
-                  <span>Phòng đã hoàn tất và chuyển thành nhóm chính thức.</span>
+                  <span>
+                    {language === "en"
+                      ? "Room has been finalized and converted into an official team."
+                      : "Phòng đã hoàn tất và chuyển thành nhóm chính thức."}
+                  </span>
                   {group && (
                     <Button
                       type="primary"
                       size="small"
                       onClick={() => navigate(`/student/groups/${group.id}`)}
                     >
-                      Xem nhóm {group.code}
+                      {language === "en" ? `View Team ${group.code}` : `Xem nhóm ${group.code}`}
                     </Button>
                   )}
                 </Space>
@@ -356,15 +369,23 @@ export function RoomDetailPage() {
           {active && !isMember && room.status === "Open" && gpaTooLowForJoin && (
             <Alert
               type="warning"
-              message={`Phòng yêu cầu GPA tối thiểu ${formatDecimal(room.requiredGpa)}`}
+              message={
+                language === "en"
+                  ? `Room requires minimum GPA ${formatDecimal(room.requiredGpa)}`
+                  : `Phòng yêu cầu GPA tối thiểu ${formatDecimal(room.requiredGpa)}`
+              }
               description={
                 student?.gpa == null
-                  ? "Bạn chưa khai báo GPA trong hồ sơ nên chưa thể vào trực tiếp phòng này."
-                  : `GPA hiện tại của bạn (${formatDecimal(student.gpa)}) thấp hơn yêu cầu nên không thể vào trực tiếp.`
+                  ? language === "en"
+                    ? "You haven't updated your GPA in your profile yet, so you cannot join directly."
+                    : "Bạn chưa khai báo GPA trong hồ sơ nên chưa thể vào trực tiếp phòng này."
+                  : language === "en"
+                    ? `Your current GPA (${formatDecimal(student.gpa)}) is lower than required so you cannot join directly.`
+                    : `GPA hiện tại của bạn (${formatDecimal(student.gpa)}) thấp hơn yêu cầu nên không thể vào trực tiếp.`
               }
               action={
                 <Button size="small" onClick={() => navigate("/student/profile")}>
-                  Cập nhật hồ sơ
+                  {t.appLayout.onboardingUpdateBtn}
                 </Button>
               }
             />
@@ -373,15 +394,23 @@ export function RoomDetailPage() {
           {active && isLeader && pendingTotal > 0 && (
             <Alert
               type="info"
-              message={`Bạn có ${pendingTotal} đơn xin vào phòng đang chờ duyệt`}
-              description="Xem hồ sơ GPA, ngành và vai trò của ứng viên để quyết định chấp nhận hoặc từ chối."
+              message={
+                language === "en"
+                  ? `You have ${pendingTotal} room application${pendingTotal > 1 ? "s" : ""} pending review`
+                  : `Bạn có ${pendingTotal} đơn xin vào phòng đang chờ duyệt`
+              }
+              description={
+                language === "en"
+                  ? "Review applicant GPA, major, and role to accept or reject candidates."
+                  : "Xem hồ sơ GPA, ngành và vai trò của ứng viên để quyết định chấp nhận hoặc từ chối."
+              }
               action={
                 <Button
                   type="primary"
                   size="small"
                   onClick={() => appliesSectionRef.current?.scrollIntoView({ behavior: "smooth" })}
                 >
-                  Xem đơn chờ duyệt
+                  {language === "en" ? "View Pending Applications" : "Xem đơn chờ duyệt"}
                 </Button>
               }
             />
@@ -389,21 +418,38 @@ export function RoomDetailPage() {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} xl={15}>
-              <Card title="Thông tin tuyển và dự án" extra={<RoomStatusTag status={room.status} />}>
+              <Card
+                title={language === "en" ? "Recruitment & Project Details" : "Thông tin tuyển và dự án"}
+                extra={<RoomStatusTag status={room.status} />}
+              >
                 <dl className="workspace-facts">
                   {[
-                    ["Dự án", room.projectName || "Chưa có"],
                     [
-                      "GPA yêu cầu",
-                      room.requiredGpa != null ? formatDecimal(room.requiredGpa) : "Không yêu cầu",
+                      language === "en" ? "Project" : "Dự án",
+                      room.projectName || (language === "en" ? "None" : "Chưa có"),
                     ],
                     [
-                      "Điểm mục tiêu",
-                      room.targetGrade != null ? formatDecimal(room.targetGrade) : "Chưa đặt",
+                      language === "en" ? "Required GPA" : "GPA yêu cầu",
+                      room.requiredGpa != null
+                        ? formatDecimal(room.requiredGpa)
+                        : language === "en"
+                          ? "None"
+                          : "Không yêu cầu",
                     ],
-                    ["Trưởng phòng", room.leaderName],
-                    ["Học phần", room.courseCode],
-                    ["Số thành viên", maxMembers ? `${room.memberCount}/${maxMembers}` : room.memberCount],
+                    [
+                      language === "en" ? "Target Grade" : "Điểm mục tiêu",
+                      room.targetGrade != null
+                        ? formatDecimal(room.targetGrade)
+                        : language === "en"
+                          ? "Not set"
+                          : "Chưa đặt",
+                    ],
+                    [language === "en" ? "Leader" : "Trưởng phòng", room.leaderName],
+                    [language === "en" ? "Course" : "Học phần", room.courseCode],
+                    [
+                      language === "en" ? "Member Count" : "Số thành viên",
+                      maxMembers ? `${room.memberCount}/${maxMembers}` : room.memberCount,
+                    ],
                   ].map(([label, value]) => (
                     <div className="workspace-fact" key={String(label)}>
                       <dt>{label}</dt>
@@ -413,46 +459,63 @@ export function RoomDetailPage() {
                 </dl>
 
                 <div className="workspace-section">
-                  <strong>Mô tả ý tưởng</strong>
+                  <strong>{language === "en" ? "Idea description" : "Mô tả ý tưởng"}</strong>
                   <div className="workspace-room-description">
-                    {room.ideaDescription || "Chưa có mô tả ý tưởng."}
+                    {room.ideaDescription ||
+                      (language === "en" ? "No idea description provided." : "Chưa có mô tả ý tưởng.")}
                   </div>
                 </div>
 
                 <div className="workspace-section">
-                  <strong>Vai trò cần tuyển: </strong>
+                  <strong>{language === "en" ? "Roles recruiting: " : "Vai trò cần tuyển: "}</strong>
                   {room.neededRoles.length
                     ? room.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
-                    : "Chưa tuyển thêm"}
+                    : language === "en"
+                      ? "None"
+                      : "Chưa tuyển thêm"}
                 </div>
               </Card>
 
-              <Card title={`Thành viên hiện tại (${room.members.length})`} className="workspace-section">
+              <Card
+                title={
+                  language === "en"
+                    ? `Current Members (${room.members.length})`
+                    : `Thành viên hiện tại (${room.members.length})`
+                }
+                className="workspace-section"
+              >
                 <Table
                   scroll={{ x: 640 }}
                   rowKey="studentId"
                   pagination={false}
-                  locale={{ emptyText: <EmptyState title="Chưa có thành viên" /> }}
+                  locale={{
+                    emptyText: <EmptyState title={language === "en" ? "No members" : "Chưa có thành viên"} />,
+                  }}
                   dataSource={room.members}
                   columns={[
-                    { title: "Mã SV", dataIndex: "studentCode" },
+                    { title: language === "en" ? "Student ID" : "Mã SV", dataIndex: "studentCode" },
                     {
-                      title: "Họ tên",
+                      title: language === "en" ? "Full Name" : "Họ tên",
                       render: (_, m) => (
                         <Space size={6} wrap>
                           <span>{m.fullName}</span>
-                          {m.isLeader && <Tag color="orange">Trưởng phòng</Tag>}
+                          {m.isLeader && (
+                            <Tag color="orange">{language === "en" ? "Leader" : "Trưởng phòng"}</Tag>
+                          )}
                         </Space>
                       ),
                     },
-                    { title: "Ngành", dataIndex: "majorCode" },
+                    { title: language === "en" ? "Major" : "Ngành", dataIndex: "majorCode" },
                     { title: "GPA", render: (_, m) => formatDecimal(m.gpa) },
                     {
-                      title: "Vai trò",
+                      title: language === "en" ? "Role" : "Vai trò",
                       render: (_, m) =>
                         m.roles.length ? m.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
                     },
-                    { title: "Ngày vào", render: (_, m) => formatDateTime(m.joinedAt) },
+                    {
+                      title: language === "en" ? "Joined Date" : "Ngày vào",
+                      render: (_, m) => formatDateTime(m.joinedAt),
+                    },
                   ]}
                 />
               </Card>
@@ -460,7 +523,7 @@ export function RoomDetailPage() {
 
             <Col xs={24} xl={9}>
               <Card
-                title="Cơ cấu nhóm"
+                title={t.roomDetail.compositionTitle}
                 className="workspace-room-preview"
                 extra={
                   <Button
@@ -469,7 +532,7 @@ export function RoomDetailPage() {
                     loading={compositionLoading}
                     onClick={() => void loadComposition(true)}
                   >
-                    Làm mới
+                    {language === "en" ? "Refresh" : "Làm mới"}
                   </Button>
                 }
               >
@@ -478,7 +541,11 @@ export function RoomDetailPage() {
                 ) : unavailable ? (
                   <Alert
                     type="warning"
-                    message="Tạm thời chưa kiểm tra được cơ cấu nhóm. Hãy thử bấm Làm mới."
+                    message={
+                      language === "en"
+                        ? "Temporary error checking team composition. Please click Refresh."
+                        : "Tạm thời chưa kiểm tra được cơ cấu nhóm. Hãy thử bấm Làm mới."
+                    }
                   />
                 ) : composition ? (
                   <RoomCompositionSummary
@@ -489,7 +556,7 @@ export function RoomDetailPage() {
                     majorCounts={room.majors}
                   />
                 ) : (
-                  <EmptyState title="Chưa có dữ liệu cơ cấu" />
+                  <EmptyState title={language === "en" ? "No composition data" : "Chưa có dữ liệu cơ cấu"} />
                 )}
               </Card>
             </Col>
@@ -501,22 +568,26 @@ export function RoomDetailPage() {
                 className="workspace-section"
                 title={
                   <Space wrap>
-                    <span>Đơn xin vào phòng</span>
-                    {pendingTotal > 0 && <Tag color="gold">{pendingTotal} chờ duyệt</Tag>}
+                    <span>{language === "en" ? "Room Applications" : "Đơn xin vào phòng"}</span>
+                    {pendingTotal > 0 && (
+                      <Tag color="gold">
+                        {language === "en" ? `${pendingTotal} pending` : `${pendingTotal} chờ duyệt`}
+                      </Tag>
+                    )}
                   </Space>
                 }
                 extra={
                   <Select
                     allowClear
-                    aria-label="Lọc theo trạng thái đơn"
-                    placeholder="Tất cả trạng thái"
+                    aria-label={t.roomDetail.appliesFilterStatus}
+                    placeholder={language === "en" ? "All statuses" : "Tất cả trạng thái"}
                     style={{ width: 180 }}
                     value={status}
                     onChange={(v) => {
                       setStatus(v);
                       setPage(1);
                     }}
-                    options={Object.entries(applyStatusLabel).map(([value, label]) => ({
+                    options={Object.entries(getApplyStatusLabels(language)).map(([value, label]) => ({
                       value,
                       label: label.text,
                     }))}
@@ -529,15 +600,19 @@ export function RoomDetailPage() {
                     rows={4}
                     pagination={{ current: page, pageSize: size, total }}
                     columns={[
-                      { title: "Người xin", kind: "text" },
-                      { title: "Mã SV", kind: "code" },
-                      { title: "Ngành", kind: "code" },
+                      { title: language === "en" ? "Applicant" : "Người xin", kind: "text" },
+                      { title: language === "en" ? "Student ID" : "Mã SV", kind: "code" },
+                      { title: language === "en" ? "Major" : "Ngành", kind: "code" },
                       { title: "GPA", kind: "number" },
-                      { title: "Vai trò", kind: "tags" },
-                      { title: "Lời nhắn", kind: "longText" },
-                      { title: "Ngày gửi", kind: "date" },
-                      { title: "Trạng thái", kind: "tag" },
-                      { title: "Thao tác", kind: "actions", actionWidths: [92, 74] },
+                      { title: language === "en" ? "Role" : "Vai trò", kind: "tags" },
+                      { title: language === "en" ? "Message" : "Lời nhắn", kind: "longText" },
+                      { title: language === "en" ? "Date" : "Ngày gửi", kind: "date" },
+                      { title: language === "en" ? "Status" : "Trạng thái", kind: "tag" },
+                      {
+                        title: language === "en" ? "Actions" : "Thao tác",
+                        kind: "actions",
+                        actionWidths: [92, 74],
+                      },
                     ]}
                   />
                 ) : (
@@ -548,11 +623,17 @@ export function RoomDetailPage() {
                     locale={{
                       emptyText: (
                         <EmptyState
-                          title="Chưa có đơn xin vào phòng nào"
+                          title={
+                            language === "en" ? "No room applications yet" : "Chưa có đơn xin vào phòng nào"
+                          }
                           description={
                             status === "Pending"
-                              ? "Hiện không còn đơn nào đang chờ duyệt."
-                              : "Không có đơn nào khớp với bộ lọc hiện tại."
+                              ? language === "en"
+                                ? "No applications are currently awaiting review."
+                                : "Hiện không còn đơn nào đang chờ duyệt."
+                              : language === "en"
+                                ? "No applications match your active filter."
+                                : "Không có đơn nào khớp với bộ lọc hiện tại."
                           }
                         />
                       ),
@@ -568,9 +649,9 @@ export function RoomDetailPage() {
                       },
                     }}
                     columns={[
-                      { title: "Người xin", dataIndex: "fullName" },
-                      { title: "Mã SV", dataIndex: "studentCode" },
-                      { title: "Ngành", dataIndex: "majorCode" },
+                      { title: language === "en" ? "Applicant" : "Người xin", dataIndex: "fullName" },
+                      { title: language === "en" ? "Student ID" : "Mã SV", dataIndex: "studentCode" },
+                      { title: language === "en" ? "Major" : "Ngành", dataIndex: "majorCode" },
                       {
                         title: "GPA",
                         render: (_, a) => {
@@ -579,21 +660,35 @@ export function RoomDetailPage() {
                           return (
                             <Space direction="vertical" size={2}>
                               <span>{formatDecimal(a.gpa)}</span>
-                              {belowReq && <Tag color="warning">Thấp hơn yêu cầu</Tag>}
+                              {belowReq && (
+                                <Tag color="warning">
+                                  {language === "en" ? "Below requirement" : "Thấp hơn yêu cầu"}
+                                </Tag>
+                              )}
                             </Space>
                           );
                         },
                       },
                       {
-                        title: "Vai trò",
+                        title: language === "en" ? "Role" : "Vai trò",
                         render: (_, a) =>
                           a.roles.length ? a.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
                       },
-                      { title: "Lời nhắn", dataIndex: "message", render: (v: string) => v || "—" },
-                      { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
-                      { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },
                       {
-                        title: "Thao tác",
+                        title: t.roomDetail.colMessage,
+                        dataIndex: "message",
+                        render: (v: string) => v || "—",
+                      },
+                      {
+                        title: t.roomDetail.colSubmittedAt,
+                        render: (_, a) => formatDateTime(a.createdAt),
+                      },
+                      {
+                        title: t.common.status,
+                        render: (_, a) => <ApplyStatusTag status={a.status} />,
+                      },
+                      {
+                        title: t.common.actions,
                         render: (_, a) =>
                           active &&
                           a.status === "Pending" && (
@@ -611,7 +706,7 @@ export function RoomDetailPage() {
                                   }
                                 }}
                               >
-                                Chấp nhận
+                                {t.roomDetail.approve}
                               </Button>
                               <Button
                                 danger
@@ -626,7 +721,7 @@ export function RoomDetailPage() {
                                   }
                                 }}
                               >
-                                Từ chối
+                                {t.roomDetail.reject}
                               </Button>
                             </Space>
                           ),
@@ -639,12 +734,12 @@ export function RoomDetailPage() {
           )}
 
           <Modal
-            title="Gửi đơn xin vào phòng"
+            title={t.courseRooms.applyModalTitle}
             open={applyOpen}
             confirmLoading={applying}
             destroyOnHidden
-            okText="Gửi đơn"
-            cancelText="Hủy"
+            okText={t.courseRooms.applyModalOk}
+            cancelText={t.common.cancel}
             onCancel={() => setApplyOpen(false)}
             onOk={async () => {
               if (await apply(roomId, message)) {
@@ -654,7 +749,7 @@ export function RoomDetailPage() {
             }}
           >
             <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-              Giới thiệu ngắn gọn về kỹ năng, vai trò bạn đảm nhận để trưởng phòng cân nhắc duyệt.
+              {t.roomDetail.applyModalHint}
             </Typography.Paragraph>
             <Input.TextArea
               value={message}
@@ -662,18 +757,18 @@ export function RoomDetailPage() {
               maxLength={500}
               showCount
               rows={4}
-              aria-label="Lời nhắn gửi trưởng phòng"
-              placeholder="Nhập lời nhắn gửi trưởng phòng..."
+              aria-label={t.courseRooms.applyMessageAria}
+              placeholder={t.courseRooms.applyMessagePlaceholder}
             />
           </Modal>
 
           <Modal
-            title="Chuyển quyền trưởng phòng"
+            title={t.roomDetail.changeLeaderTitle}
             open={leaderOpen}
             confirmLoading={changing}
             destroyOnHidden
-            okText="Chuyển quyền"
-            cancelText="Hủy"
+            okText={t.roomDetail.changeLeaderOk}
+            cancelText={t.common.cancel}
             okButtonProps={{ disabled: !leaderId }}
             onCancel={() => setLeaderOpen(false)}
             onOk={async () => {
@@ -684,12 +779,12 @@ export function RoomDetailPage() {
             }}
           >
             <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-              Trưởng phòng mới sẽ có quyền chỉnh sửa thông tin tuyển, duyệt đơn và hoàn tất nhóm.
+              {t.roomDetail.changeLeaderHint}
             </Typography.Paragraph>
             <Select
               style={{ width: "100%" }}
-              aria-label="Chọn trưởng phòng mới"
-              placeholder="Chọn thành viên trong phòng"
+              aria-label={t.roomDetail.changeLeaderSelectAria}
+              placeholder={t.roomDetail.changeLeaderPlaceholder}
               value={leaderId}
               onChange={setLeaderId}
               options={room.members
@@ -701,11 +796,11 @@ export function RoomDetailPage() {
       ) : (
         <Card>
           <EmptyState
-            title="Không tìm thấy phòng"
-            description="Phòng này không tồn tại hoặc đã bị hủy."
+            title={t.roomDetail.notFoundTitle}
+            description={t.roomDetail.notFoundDesc}
             action={
               <Button type="primary" onClick={() => navigate("/student/courses")}>
-                Về Học phần của tôi
+                {t.common.goToMyCourses}
               </Button>
             }
           />
