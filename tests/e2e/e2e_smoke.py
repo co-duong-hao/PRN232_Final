@@ -243,17 +243,23 @@ def main():
     return 0 if all(results) else 1
 
 
-def room_leave_workflow(rooms_path, tokens):
+def create_locked_room(rooms_path, tokens):
     leader, member, third = (tokens[number] for number in (1, 2, 6))
     status, room = call("POST", rooms_path, leader)
-    check("QT04 create room fixture", status, 201, room)
+    check("create workflow room fixture", status, 201, room)
     room_path = f"/api/rooms/{room['id']}"
     status, body = call("POST", room_path + "/join", member)
-    check("QT04 second student joins", status, 200, body)
+    check("second student joins workflow room", status, 200, body)
     status, body = call("POST", room_path + "/join", third)
-    check("QT04 room locks at three", status, 200, body,
+    check("workflow room locks at three", status, 200, body,
           matches=isinstance(body, dict) and body.get("status") == "Locked" and body.get("memberCount") == 3)
 
+    return room_path
+
+
+def room_leave_workflow(rooms_path, tokens):
+    leader, member, third = (tokens[number] for number in (1, 2, 6))
+    room_path = create_locked_room(rooms_path, tokens)
     status, body = call("POST", room_path + "/leave", leader)
     check("BR13 leader must transfer before leaving", status, 409, body, "BR13")
     status, body = call("POST", room_path + "/leave", third)
@@ -273,10 +279,44 @@ def room_leave_workflow(rooms_path, tokens):
           matches=isinstance(page, dict) and page.get("totalItems") == 0)
 
 
+def application_workflow(rooms_path, tokens):
+    room_path = create_locked_room(rooms_path, tokens)
+    leader, other_member, first_applicant, second_applicant = (tokens[n] for n in (1, 2, 8, 9))
+    applies_path = room_path + "/applies"
+    status, rejected = call("POST", applies_path, first_applicant, {"message": "UI/UX"})
+    check("QT03 first applicant submits", status, 201, rejected)
+    reject_path = f"/api/room-applies/{rejected['id']}"
+    status, body = call("POST", reject_path + "/reject", other_member)
+    check("BR09 non-leader cannot reject", status, 403, body, "NOT_ROOM_LEADER")
+    status, body = call("POST", reject_path + "/reject", leader)
+    check("QT03 leader rejects pending application", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Rejected")
+    status, body = call("POST", reject_path + "/approve", leader)
+    check("QT03 rejected application cannot be approved", status, 409, body, "APPLY_NOT_PENDING")
+
+    status, cancelled = call("POST", applies_path, second_applicant, {"message": "Frontend"})
+    check("QT03 second applicant submits", status, 201, cancelled)
+    cancel_path = f"/api/room-applies/{cancelled['id']}/cancel"
+    status, body = call("POST", cancel_path, leader)
+    check("QT03 only the sender can cancel", status, 403, body, "FORBIDDEN")
+    status, body = call("POST", cancel_path, second_applicant)
+    check("QT03 sender cancels pending application", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Cancelled")
+    status, page = call("GET", f"/api/me/applies?status=Cancelled&courseId={WORKFLOW_COURSE}", second_applicant)
+    items = page.get("items", []) if isinstance(page, dict) else []
+    check("QT03 cancelled application remains visible to sender", status, 200, page,
+          matches=any(item["id"] == cancelled["id"] and item["status"] == "Cancelled" for item in items))
+    status, body = call("GET", room_path, leader)
+    check("QT03 rejected and cancelled applicants are not members", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Locked" and body.get("memberCount") == 3)
+    return room_path
+
+
 def workflows():
     rooms_path = f"/api/courses/{WORKFLOW_COURSE}/rooms"
-    tokens = {number: login(f"student{number:02d}@exe.local") for number in (1, 2, 6)}
+    tokens = {number: login(f"student{number:02d}@exe.local") for number in (1, 2, 6, 8, 9)}
     room_leave_workflow(rooms_path, tokens)
+    application_workflow(rooms_path, tokens)
     print(f"\n{sum(results)}/{len(results)} workflow checks passed")
     return 0
 
