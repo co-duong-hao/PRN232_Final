@@ -33,17 +33,19 @@ import type {
 import { useAuth } from "@/auth/AuthContext";
 import { EmptyState } from "@/components/EmptyState";
 import { formatDateTime, formatDecimal } from "@/components/format";
-import { roomStatusLabel } from "@/components/labels";
+import { getRoomStatusLabels } from "@/components/labels";
 import { MajorCounts, RoomStatusTag } from "@/components/StatusTag";
 import { useApiAction, useShowError } from "@/components/useApiAction";
 import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 import { PageHeadingSkeleton, RoomListSkeleton, RoomPreviewSkeleton } from "@/features/WorkspaceSkeletons";
+import { useI18n } from "@/i18n";
 
 export function CourseRoomsPage() {
   const { courseId = "" } = useParams();
   const navigate = useNavigate();
   const { student } = useAuth();
+  const { t, language } = useI18n();
   const showError = useShowError();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -111,19 +113,21 @@ export function CourseRoomsPage() {
     } catch (e) {
       if (e instanceof ApiError && e.code === "BR19") {
         Modal.confirm({
-          title: "Chưa đủ GPA để vào trực tiếp",
+          title: t.roomDetail.br19ModalTitle,
           content:
-            "Phòng này yêu cầu GPA cao hơn mức hiện tại của bạn. Bạn có thể cập nhật hồ sơ hoặc gửi đơn nếu phòng đang ở trạng thái Đã khóa.",
-          okText: "Cập nhật hồ sơ",
-          cancelText: "Đóng",
+            language === "en"
+              ? "This room requires a higher GPA than your current profile. You can update your profile or submit an application if the room is locked."
+              : "Phòng này yêu cầu GPA cao hơn mức hiện tại của bạn. Bạn có thể cập nhật hồ sơ hoặc gửi đơn nếu phòng đang ở trạng thái Đã khóa.",
+          okText: t.appLayout.onboardingUpdateBtn,
+          cancelText: t.common.close,
           onOk: () => navigate("/student/profile"),
         });
         return undefined;
       }
       throw e;
     }
-  });
-  const [apply, applying] = useApiAction(roomsApi.apply, "Đã gửi đơn xin vào phòng");
+  }, t.courseRooms.joinSuccess);
+  const [apply, applying] = useApiAction(roomsApi.apply, t.courseRooms.applySuccess);
 
   const selectRoom = useCallback(
     async (roomId: string, focusOnMobile = false) => {
@@ -255,7 +259,7 @@ export function CourseRoomsPage() {
             if (result) navigate(`/student/rooms/${result.id}`);
           }}
         >
-          Vào phòng
+          {t.courseRooms.btnJoin}
         </Button>
       )}
       {canAct && state === "Locked" && (
@@ -267,7 +271,7 @@ export function CourseRoomsPage() {
             setApplyRoom(id);
           }}
         >
-          Gửi đơn xin vào
+          {t.courseRooms.btnApply}
         </Button>
       )}
       <Button
@@ -276,7 +280,7 @@ export function CourseRoomsPage() {
           navigate(`/student/rooms/${id}`);
         }}
       >
-        Xem trang phòng
+        {t.courseRooms.btnViewDetail}
       </Button>
     </Space>
   );
@@ -294,14 +298,20 @@ export function CourseRoomsPage() {
             <div>
               <Link className="workspace-heading__back" to="/student/courses">
                 <ArrowLeftOutlined aria-hidden="true" />
-                Quay lại Học phần của tôi
+                {t.courseRooms.backToCourses}
               </Link>
-              <Typography.Title level={1}>Tìm nhóm — {course?.code}</Typography.Title>
-              <p>Chọn phòng để xem chi tiết thành viên, tiêu chí tuyển và tham gia ngay.</p>
+              <Typography.Title level={1}>
+                {language === "en" ? "Find Team" : "Tìm nhóm"} — {course?.code}
+              </Typography.Title>
+              <p>
+                {language === "en"
+                  ? "Select a room to view member details, recruitment criteria, and join immediately."
+                  : "Chọn phòng để xem chi tiết thành viên, tiêu chí tuyển và tham gia ngay."}
+              </p>
             </div>
             {canAct && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-                Tạo nhóm mới
+                {t.courseRooms.createRoomBtn}
               </Button>
             )}
           </header>
@@ -309,17 +319,18 @@ export function CourseRoomsPage() {
           {course && (
             <div className="workspace-rule-strip">
               <span className="workspace-rule-strip__item">
-                Loại nhóm: <strong>{course.groupTypeName}</strong>
+                {t.myCourses.cardGroupType}: <strong>{course.groupTypeName}</strong>
               </span>
               <span className="workspace-rule-strip__item">
-                Hạn ghép nhóm: <strong>{formatDateTime(course.deadline)}</strong>
+                {t.courseRooms.deadlineLabel}: <strong>{formatDateTime(course.deadline)}</strong>
               </span>
               {type && (
                 <span className="workspace-rule-strip__item">
-                  Quy định:{" "}
+                  {language === "en" ? "Rules: " : "Quy định: "}
                   <strong>
-                    {type.minMemberCount}–{type.maxMemberCount} thành viên · tối thiểu {type.minMajorCount}{" "}
-                    ngành
+                    {type.minMemberCount}–{type.maxMemberCount} {t.composition.memberUnit} ·{" "}
+                    {language === "en" ? "minimum" : "tối thiểu"} {type.minMajorCount}{" "}
+                    {t.composition.majorUnit}
                     {type.majors.map((m) => ` · ${m.majorCode}: ${m.minQuantity}–${m.maxQuantity}`)}
                   </strong>
                 </span>
@@ -335,15 +346,16 @@ export function CourseRoomsPage() {
           message={
             <Space wrap>
               <span>
-                Bạn đang ở phòng <strong>{mine.myRoom.name || mine.myRoom.code}</strong> ({mine.myRoom.code}).
-                Rời phòng hiện tại nếu muốn chuyển sang phòng khác.
+                {language === "en"
+                  ? `You are currently in room ${mine.myRoom.name || mine.myRoom.code} (${mine.myRoom.code}). Leave your current room if you wish to join another.`
+                  : `Bạn đang ở phòng ${mine.myRoom.name || mine.myRoom.code} (${mine.myRoom.code}). Rời phòng hiện tại nếu muốn chuyển sang phòng khác.`}
               </span>
               <Button
                 size="small"
                 type="primary"
                 onClick={() => navigate(`/student/rooms/${mine.myRoom!.id}`)}
               >
-                Về phòng của tôi
+                {language === "en" ? "Go to My Room" : "Về phòng của tôi"}
               </Button>
             </Space>
           }
@@ -356,14 +368,16 @@ export function CourseRoomsPage() {
           message={
             <Space wrap>
               <span>
-                Bạn đã có nhóm chính thức <strong>{mine.myGroup.name || mine.myGroup.code}</strong>.
+                {language === "en"
+                  ? `You are in official team ${mine.myGroup.name || mine.myGroup.code}.`
+                  : `Bạn đã có nhóm chính thức ${mine.myGroup.name || mine.myGroup.code}.`}
               </span>
               <Button
                 size="small"
                 type="primary"
                 onClick={() => navigate(`/student/groups/${mine.myGroup!.id}`)}
               >
-                Xem nhóm
+                {language === "en" ? "View Team" : "Xem nhóm"}
               </Button>
             </Space>
           }
@@ -375,9 +389,26 @@ export function CourseRoomsPage() {
       {/* Gợi ý phù hợp cho bạn */}
       {canAct && (
         <>
-          {unavailable && <Alert type="warning" message="Dịch vụ gợi ý phòng tạm thời không phản hồi." />}
+          {unavailable && (
+            <Alert
+              type="warning"
+              message={
+                language === "en"
+                  ? "Room recommendation service is temporarily unavailable."
+                  : "Dịch vụ gợi ý phòng tạm thời không phản hồi."
+              }
+            />
+          )}
           {!recommendationsLoading && recommendations.length > 0 && (
-            <Card size="small" title="Gợi ý phòng phù hợp với ngành của bạn" style={{ marginBottom: 16 }}>
+            <Card
+              size="small"
+              title={
+                language === "en"
+                  ? "Rooms recommended for your profile"
+                  : "Gợi ý phòng phù hợp với ngành của bạn"
+              }
+              style={{ marginBottom: 16 }}
+            >
               <div className="workspace-rec-grid">
                 {recommendations.map((r) => {
                   const detail = recommendedDetails[r.roomId];
@@ -421,11 +452,11 @@ export function CourseRoomsPage() {
       <Card className="workspace-filter-bar" size="small">
         <div className="workspace-filter-grid">
           <div className="workspace-filter-item">
-            <label htmlFor="room-search">Tìm kiếm phòng</label>
+            <label htmlFor="room-search">{language === "en" ? "Search rooms" : "Tìm kiếm phòng"}</label>
             <Input
               id="room-search"
               prefix={<SearchOutlined />}
-              placeholder="Tên nhóm, dự án hoặc mã phòng..."
+              placeholder={t.courseRooms.filterSearchPlaceholder}
               allowClear
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -437,13 +468,15 @@ export function CourseRoomsPage() {
           </div>
 
           <div className="workspace-filter-item">
-            <label htmlFor="room-filter-roles">Vai trò đang tuyển</label>
+            <label htmlFor="room-filter-roles">
+              {language === "en" ? "Recruiting roles" : "Vai trò đang tuyển"}
+            </label>
             <Select
               id="room-filter-roles"
               mode="multiple"
               maxTagCount="responsive"
               loading={rolesLoading}
-              placeholder="Tất cả vai trò"
+              placeholder={language === "en" ? "All roles" : "Tất cả vai trò"}
               style={{ width: "100%" }}
               value={roleIds}
               options={roles.map((r) => ({ value: r.id, label: r.name }))}
@@ -455,29 +488,36 @@ export function CourseRoomsPage() {
           </div>
 
           <div className="workspace-filter-item">
-            <label htmlFor="room-filter-status">Trạng thái phòng</label>
+            <label htmlFor="room-filter-status">
+              {language === "en" ? "Room status" : "Trạng thái phòng"}
+            </label>
             <Select
               id="room-filter-status"
               allowClear
-              placeholder="Tất cả trạng thái"
+              placeholder={t.courseRooms.filterStatusPlaceholder}
               style={{ width: "100%" }}
               value={status}
               onChange={(v) => {
                 setStatus(v);
                 setPage(1);
               }}
-              options={Object.entries(roomStatusLabel)
+              options={Object.entries(getRoomStatusLabels(language))
                 .filter(([value]) => value !== "Cancelled")
-                .map(([value, label]) => ({ value, label: label.text }))}
+                .map(([value, label]) => ({
+                  value,
+                  label: label.text,
+                }))}
             />
           </div>
 
           <div className="workspace-filter-item">
-            <label htmlFor="room-filter-gpa">Lọc theo mức GPA</label>
+            <label htmlFor="room-filter-gpa">
+              {language === "en" ? "Filter by GPA" : "Lọc theo mức GPA"}
+            </label>
             <div className="workspace-gpa-filter">
               <div className="workspace-gpa-filter__toggle">
                 <Switch
-                  aria-label="Chỉ hiện phòng tôi đủ GPA vào thẳng"
+                  aria-label={t.courseRooms.filterEligibleOnly}
                   checked={eligibleOnly}
                   disabled={gpa == null}
                   onChange={(v) => {
@@ -485,7 +525,7 @@ export function CourseRoomsPage() {
                     setPage(1);
                   }}
                 />
-                <span>Chỉ phòng đủ GPA</span>
+                <span>{language === "en" ? "GPA eligible only" : "Chỉ phòng đủ GPA"}</span>
               </div>
               <InputNumber<number>
                 id="room-filter-gpa"
@@ -494,7 +534,13 @@ export function CourseRoomsPage() {
                 step={0.01}
                 precision={2}
                 disabled={!eligibleOnly}
-                placeholder={student?.gpa != null ? formatDecimal(student.gpa) : "Tối đa 4.00"}
+                placeholder={
+                  student?.gpa != null
+                    ? formatDecimal(student.gpa)
+                    : language === "en"
+                      ? "Max 4.00"
+                      : "Tối đa 4.00"
+                }
                 value={gpa}
                 onChange={(v) => {
                   setGpa(v);
@@ -511,10 +557,12 @@ export function CourseRoomsPage() {
             style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}
           >
             <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-              Đang lọc danh sách ({total} kết quả)
+              {language === "en"
+                ? `Filtered list (${total} results)`
+                : `Đang lọc danh sách (${total} kết quả)`}
             </Typography.Text>
             <Button size="small" type="link" onClick={resetFilters}>
-              Xóa bộ lọc
+              {language === "en" ? "Clear filters" : "Xóa bộ lọc"}
             </Button>
           </div>
         )}
@@ -528,18 +576,22 @@ export function CourseRoomsPage() {
           ) : rooms.length === 0 ? (
             <Card>
               <EmptyState
-                title="Không tìm thấy phòng phù hợp"
+                title={hasFilters ? t.courseRooms.emptyFilterTitle : t.courseRooms.emptyRoomsTitle}
                 description={
                   hasFilters
-                    ? "Hãy thử nới lỏng điều kiện lọc hoặc xóa bộ lọc để xem toàn bộ phòng."
-                    : "Chưa có phòng nào được tạo trong học phần này."
+                    ? language === "en"
+                      ? "Try relaxing filter conditions or clearing filters to see all rooms."
+                      : "Hãy thử nới lỏng điều kiện lọc hoặc xóa bộ lọc để xem toàn bộ phòng."
+                    : t.courseRooms.emptyRoomsDesc
                 }
                 action={
                   hasFilters ? (
-                    <Button onClick={resetFilters}>Xóa bộ lọc</Button>
+                    <Button onClick={resetFilters}>
+                      {language === "en" ? "Clear filters" : "Xóa bộ lọc"}
+                    </Button>
                   ) : canAct ? (
                     <Button type="primary" onClick={() => setCreateOpen(true)}>
-                      Tạo nhóm đầu tiên
+                      {language === "en" ? "Create First Room" : "Tạo nhóm đầu tiên"}
                     </Button>
                   ) : undefined
                 }
@@ -575,29 +627,44 @@ export function CourseRoomsPage() {
                       </Button>
                       <Space size={4} wrap>
                         <RoomStatusTag status={r.status} />
-                        {isRecruiting && <Tag color="orange">Đang tuyển</Tag>}
+                        {isRecruiting && (
+                          <Tag color="orange">{language === "en" ? "Recruiting" : "Đang tuyển"}</Tag>
+                        )}
                       </Space>
                     </div>
 
                     <div className="workspace-room-card__sub">
                       {r.code}
-                      {r.projectName ? ` · Dự án: ${r.projectName}` : ""}
+                      {r.projectName
+                        ? ` · ${language === "en" ? "Project: " : "Dự án: "}${r.projectName}`
+                        : ""}
                     </div>
 
                     <div className="workspace-room-card__meta">
-                      <span>Trưởng phòng: {r.leaderName}</span>
                       <span>
-                        Thành viên: {r.memberCount}/{type?.maxMemberCount ?? "—"}
+                        {language === "en" ? "Leader: " : "Trưởng phòng: "}
+                        {r.leaderName}
                       </span>
                       <span>
-                        GPA yêu cầu: {r.requiredGpa != null ? formatDecimal(r.requiredGpa) : "Không yêu cầu"}
+                        {language === "en" ? "Members: " : "Thành viên: "}
+                        {r.memberCount}/{type?.maxMemberCount ?? "—"}
+                      </span>
+                      <span>
+                        {language === "en" ? "Required GPA: " : "GPA yêu cầu: "}
+                        {r.requiredGpa != null
+                          ? formatDecimal(r.requiredGpa)
+                          : language === "en"
+                            ? "None"
+                            : "Không yêu cầu"}
                       </span>
                     </div>
 
                     {gpaWarning && canAct && (
                       <div style={{ marginTop: 6 }}>
                         <Tag color="warning">
-                          GPA của bạn chưa đạt mức yêu cầu ({formatDecimal(r.requiredGpa)})
+                          {language === "en"
+                            ? `Your GPA does not meet requirement (${formatDecimal(r.requiredGpa)})`
+                            : `GPA của bạn chưa đạt mức yêu cầu (${formatDecimal(r.requiredGpa)})`}
                         </Tag>
                       </div>
                     )}
@@ -606,12 +673,14 @@ export function CourseRoomsPage() {
                       {r.neededRoles.length > 0 ? (
                         r.neededRoles.map((role) => (
                           <Tag key={role.id} color="default">
-                            Tuyển: {role.name}
+                            {language === "en" ? `Hiring: ${role.name}` : `Tuyển: ${role.name}`}
                           </Tag>
                         ))
                       ) : (
                         <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-                          Chưa ghi nhận vai trò cần tuyển
+                          {language === "en"
+                            ? "No specific roles recruited"
+                            : "Chưa ghi nhận vai trò cần tuyển"}
                         </Typography.Text>
                       )}
                       {r.majors.length > 0 && <MajorCounts majors={r.majors} />}
@@ -642,7 +711,7 @@ export function CourseRoomsPage() {
           <section
             className="workspace-room-preview"
             id="room-preview"
-            aria-label="Chi tiết phòng"
+            aria-label={language === "en" ? "Room preview" : "Chi tiết phòng"}
             tabIndex={-1}
             ref={roomPreview}
             aria-busy={detailLoading}
@@ -667,7 +736,8 @@ export function CourseRoomsPage() {
                         <RoomStatusTag status={selected.status} />
                       </Space>
                       <Typography.Text type="secondary" style={{ display: "block", marginTop: 4 }}>
-                        {selected.code} · {selected.memberCount}/{type?.maxMemberCount ?? "—"} thành viên
+                        {selected.code} ·{" "}
+                        {t.roomDetail.membersMeta(selected.memberCount, type?.maxMemberCount)}
                       </Typography.Text>
                     </div>
                     {renderActions(selected.id, selected.status)}
@@ -676,11 +746,19 @@ export function CourseRoomsPage() {
                   {canAct && selected.status === "Open" && isGpaInsufficient(selected.requiredGpa) && (
                     <Alert
                       type="warning"
-                      message={`Phòng yêu cầu GPA tối thiểu ${formatDecimal(selected.requiredGpa)}`}
+                      message={
+                        language === "en"
+                          ? `Room requires minimum GPA ${formatDecimal(selected.requiredGpa)}`
+                          : `Phòng yêu cầu GPA tối thiểu ${formatDecimal(selected.requiredGpa)}`
+                      }
                       description={
                         student?.gpa == null
-                          ? "Hồ sơ của bạn chưa có GPA nên chưa thể vào trực tiếp phòng này. Hãy cập nhật hồ sơ trước."
-                          : `GPA hiện tại của bạn (${formatDecimal(student.gpa)}) thấp hơn yêu cầu nên chưa thể vào trực tiếp.`
+                          ? language === "en"
+                            ? "Your profile has no GPA yet so you cannot join directly. Please update your profile first."
+                            : "Hồ sơ của bạn chưa có GPA nên chưa thể vào trực tiếp phòng này. Hãy cập nhật hồ sơ trước."
+                          : language === "en"
+                            ? `Your current GPA (${formatDecimal(student.gpa)}) is lower than required, so direct join is unavailable.`
+                            : `GPA hiện tại của bạn (${formatDecimal(student.gpa)}) thấp hơn yêu cầu nên chưa thể vào trực tiếp.`
                       }
                     />
                   )}
@@ -688,79 +766,104 @@ export function CourseRoomsPage() {
                   {canAct && selected.status === "Locked" && (
                     <Alert
                       type="info"
-                      message="Phòng đang ở trạng thái Đã khóa"
-                      description="Bạn cần gửi đơn kèm lời nhắn để trưởng phòng xem xét duyệt vào phòng."
+                      message={
+                        language === "en" ? "Room is currently Locked" : "Phòng đang ở trạng thái Đã khóa"
+                      }
+                      description={
+                        language === "en"
+                          ? "You need to submit an application with a message for the room leader to review."
+                          : "Bạn cần gửi đơn kèm lời nhắn để trưởng phòng xem xét duyệt vào phòng."
+                      }
                     />
                   )}
 
                   <dl className="workspace-facts">
                     <div className="workspace-fact">
-                      <dt>Dự án</dt>
-                      <dd>{selected.projectName || "Chưa có"}</dd>
+                      <dt>{language === "en" ? "Project" : "Dự án"}</dt>
+                      <dd>{selected.projectName || (language === "en" ? "None" : "Chưa có")}</dd>
                     </div>
                     <div className="workspace-fact">
-                      <dt>GPA yêu cầu</dt>
+                      <dt>{language === "en" ? "Required GPA" : "GPA yêu cầu"}</dt>
                       <dd>
-                        {selected.requiredGpa != null ? formatDecimal(selected.requiredGpa) : "Không yêu cầu"}
+                        {selected.requiredGpa != null
+                          ? formatDecimal(selected.requiredGpa)
+                          : language === "en"
+                            ? "None"
+                            : "Không yêu cầu"}
                       </dd>
                     </div>
                     <div className="workspace-fact">
-                      <dt>Điểm mục tiêu</dt>
+                      <dt>{language === "en" ? "Target Grade" : "Điểm mục tiêu"}</dt>
                       <dd>
-                        {selected.targetGrade != null ? formatDecimal(selected.targetGrade) : "Chưa đặt"}
+                        {selected.targetGrade != null
+                          ? formatDecimal(selected.targetGrade)
+                          : language === "en"
+                            ? "Not set"
+                            : "Chưa đặt"}
                       </dd>
                     </div>
                     <div className="workspace-fact">
-                      <dt>Trưởng phòng</dt>
+                      <dt>{language === "en" ? "Leader" : "Trưởng phòng"}</dt>
                       <dd>{selected.leaderName}</dd>
                     </div>
                   </dl>
 
                   <div>
-                    <strong>Mô tả ý tưởng</strong>
+                    <strong>{language === "en" ? "Idea description" : "Mô tả ý tưởng"}</strong>
                     <div className="workspace-room-description">
-                      {selected.ideaDescription || "Chưa có mô tả ý tưởng."}
+                      {selected.ideaDescription ||
+                        (language === "en" ? "No idea description provided." : "Chưa có mô tả ý tưởng.")}
                     </div>
                   </div>
 
                   <div>
-                    <strong>Vai trò đang tuyển: </strong>
+                    <strong>{language === "en" ? "Roles recruiting: " : "Vai trò đang tuyển: "}</strong>
                     {selected.neededRoles.length
                       ? selected.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
-                      : "Chưa tuyển thêm"}
+                      : language === "en"
+                        ? "None"
+                        : "Chưa tuyển thêm"}
                   </div>
 
                   <div>
-                    <strong>Phân bố ngành: </strong>
+                    <strong>{language === "en" ? "Major mix: " : "Phân bố ngành: "}</strong>
                     <MajorCounts majors={selected.majors} />
                   </div>
 
                   <div>
                     <strong style={{ display: "block", marginBottom: 8 }}>
-                      Thành viên hiện tại ({selected.members.length})
+                      {language === "en"
+                        ? `Current Members (${selected.members.length})`
+                        : `Thành viên hiện tại (${selected.members.length})`}
                     </strong>
                     <Table
                       size="small"
                       rowKey="studentId"
                       pagination={false}
                       scroll={{ x: 500 }}
-                      locale={{ emptyText: <EmptyState title="Chưa có thành viên" /> }}
+                      locale={{
+                        emptyText: (
+                          <EmptyState title={language === "en" ? "No members" : "Chưa có thành viên"} />
+                        ),
+                      }}
                       dataSource={selected.members}
                       columns={[
                         {
-                          title: "Họ tên",
+                          title: language === "en" ? "Full Name" : "Họ tên",
                           render: (_, m) => (
                             <Space size={6} wrap>
                               <span>{m.fullName}</span>
-                              {m.isLeader && <Tag color="orange">Trưởng phòng</Tag>}
+                              {m.isLeader && (
+                                <Tag color="orange">{language === "en" ? "Leader" : "Trưởng phòng"}</Tag>
+                              )}
                             </Space>
                           ),
                         },
-                        { title: "Mã SV", dataIndex: "studentCode" },
-                        { title: "Ngành", dataIndex: "majorCode" },
+                        { title: language === "en" ? "Student ID" : "Mã SV", dataIndex: "studentCode" },
+                        { title: language === "en" ? "Major" : "Ngành", dataIndex: "majorCode" },
                         { title: "GPA", render: (_, m) => formatDecimal(m.gpa) },
                         {
-                          title: "Vai trò",
+                          title: language === "en" ? "Role" : "Vai trò",
                           render: (_, m) =>
                             m.roles.length ? m.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
                         },
@@ -770,8 +873,14 @@ export function CourseRoomsPage() {
                 </Space>
               ) : (
                 <EmptyState
-                  title="Chọn một phòng để xem chi tiết"
-                  description="Bấm vào một phòng ở danh sách bên trái hoặc trong mục gợi ý để xem thành viên và thông tin tuyển."
+                  title={
+                    language === "en" ? "Select a room to view details" : "Chọn một phòng để xem chi tiết"
+                  }
+                  description={
+                    language === "en"
+                      ? "Click a room from the left list or recommendations to inspect members and recruitment info."
+                      : "Bấm vào một phòng ở danh sách bên trái hoặc trong mục gợi ý để xem thành viên và thông tin tuyển."
+                  }
                 />
               )}
             </Card>
@@ -780,12 +889,12 @@ export function CourseRoomsPage() {
       </Row>
 
       <Modal
-        title="Gửi đơn xin vào phòng"
+        title={t.courseRooms.applyModalTitle}
         open={!!applyRoom}
         confirmLoading={applying}
         destroyOnHidden
-        okText="Gửi đơn"
-        cancelText="Hủy"
+        okText={t.courseRooms.applyModalOk}
+        cancelText={t.common.cancel}
         onCancel={() => setApplyRoom(undefined)}
         onOk={async () => {
           if (applyRoom && (await apply(applyRoom, message))) {
@@ -795,7 +904,9 @@ export function CourseRoomsPage() {
         }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Hãy giới thiệu ngắn gọn kỹ năng, vai trò bạn muốn đảm nhận và lý do muốn tham gia phòng.
+          {language === "en"
+            ? "Briefly introduce your skills, desired role, and why you wish to join this room."
+            : "Hãy giới thiệu ngắn gọn kỹ năng, vai trò bạn muốn đảm nhận và lý do muốn tham gia phòng."}
         </Typography.Paragraph>
         <Input.TextArea
           maxLength={500}
@@ -803,8 +914,8 @@ export function CourseRoomsPage() {
           rows={4}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          aria-label="Lời nhắn gửi trưởng phòng"
-          placeholder="Nhập lời nhắn gửi trưởng phòng..."
+          aria-label={t.courseRooms.applyMessageAria}
+          placeholder={t.courseRooms.applyMessagePlaceholder}
         />
       </Modal>
     </div>
