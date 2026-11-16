@@ -326,14 +326,24 @@ def application_workflow(rooms_path, tokens):
     room_path = create_locked_room(rooms_path, tokens)
     leader, other_member, first_applicant, second_applicant = (tokens[n] for n in (1, 2, 8, 9))
     applies_path = room_path + "/applies"
+    prior_message_ids = {message["ID"] for message in mailpit_messages()}
     status, rejected = call("POST", applies_path, first_applicant, {"message": "UI/UX"})
     check("QT03 first applicant submits", status, 201, rejected)
+    room_code = rejected["roomCode"]
+    wait_for_notification(f"[EXE] Đơn xin vào phòng {room_code}", (1,), prior_message_ids)
+    results.append(True)
+    print("[OK ] RoomApplyCreated email delivered to room leader")
+
     reject_path = f"/api/room-applies/{rejected['id']}"
     status, body = call("POST", reject_path + "/reject", other_member)
     check("BR09 non-leader cannot reject", status, 403, body, "NOT_ROOM_LEADER")
+    prior_message_ids = {message["ID"] for message in mailpit_messages()}
     status, body = call("POST", reject_path + "/reject", leader)
     check("QT03 leader rejects pending application", status, 200, body,
           matches=isinstance(body, dict) and body.get("status") == "Rejected")
+    wait_for_notification(f"[EXE] Đơn vào phòng {room_code}: bị từ chối", (8,), prior_message_ids)
+    results.append(True)
+    print("[OK ] RoomApplyDecided email delivered to rejected applicant")
     status, body = call("POST", reject_path + "/approve", leader)
     check("QT03 rejected application cannot be approved", status, 409, body, "APPLY_NOT_PENDING")
 
