@@ -17,9 +17,9 @@ public class TeamDbTests
         await TeamDbSeeder.SeedAsync(db);
         await TeamDbSeeder.SeedAsync(db);
         Assert.Equal(12, await db.Students.CountAsync());
-        Assert.Equal(12, await db.StudentInCourses.CountAsync());
+        Assert.Equal(24, await db.StudentInCourses.CountAsync());
         Assert.Equal(CourseStatus.Forming, (await db.Courses.SingleAsync(x => x.Code == "FA26-EXE101")).Status);
-        Assert.Equal(CourseStatus.Planned, (await db.Courses.SingleAsync(x => x.Code == "FA26-EXE201")).Status);
+        Assert.Equal(CourseStatus.Forming, (await db.Courses.SingleAsync(x => x.Code == "FA26-EXE201")).Status);
         Assert.Equal(2, await db.Courses.CountAsync());
     }
 

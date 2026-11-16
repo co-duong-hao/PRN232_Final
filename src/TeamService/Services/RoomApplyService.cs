@@ -14,12 +14,12 @@ public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEvent
     private static ApplyDto Map(RoomApply apply)
     {
         return new ApplyDto(apply.Id, apply.RoomId, apply.Room.Code, apply.StudentId, apply.Student.StudentCode,
-            apply.Student.FullName, apply.Student.Major.Code, apply.Message, apply.Status.ToString(), apply.DecidedAt, apply.CreatedAt);
+            apply.Student.FullName, apply.Student.Major.Code, apply.Message, apply.Status.ToString(), apply.DecidedAt, apply.CreatedAt) { Gpa = apply.Student.Gpa, Roles = RoomService.RoleDtos(apply.Student) };
     }
 
     private async Task<RoomApply> LoadAsync(Guid id, CancellationToken ct)
     {
-        return await db.RoomApplies.Include(x => x.Student).ThenInclude(x => x.Major).Include(x => x.Room)
+        return await db.RoomApplies.Include(x => x.Student).ThenInclude(x => x.Major).Include(x => x.Student).ThenInclude(x => x.Roles).ThenInclude(x => x.TeamRole).Include(x => x.Room)
             .SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("Không tìm thấy đơn xin vào phòng.");
     }
 

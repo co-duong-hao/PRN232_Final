@@ -202,16 +202,36 @@ namespace Exe.TeamService.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("IdeaDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<Guid>("LeaderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("MemberCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ProjectName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("RequiredGpa")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("decimal(3,2)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("TargetGrade")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
 
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
@@ -273,6 +293,21 @@ namespace Exe.TeamService.Data.Migrations
                     b.ToTable("RoomApplies");
                 });
 
+            modelBuilder.Entity("Exe.TeamService.Domain.RoomNeededRole", b =>
+                {
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TeamRoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("RoomId", "TeamRoleId");
+
+                    b.HasIndex("TeamRoleId");
+
+                    b.ToTable("RoomNeededRoles");
+                });
+
             modelBuilder.Entity("Exe.TeamService.Domain.Semester", b =>
                 {
                     b.Property<Guid>("Id")
@@ -318,6 +353,10 @@ namespace Exe.TeamService.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("Gpa")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("decimal(3,2)");
 
                     b.Property<Guid>("MajorId")
                         .HasColumnType("uniqueidentifier");
@@ -403,6 +442,21 @@ namespace Exe.TeamService.Data.Migrations
                     b.ToTable("StudentInRooms");
                 });
 
+            modelBuilder.Entity("Exe.TeamService.Domain.StudentTeamRole", b =>
+                {
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TeamRoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("StudentId", "TeamRoleId");
+
+                    b.HasIndex("TeamRoleId");
+
+                    b.ToTable("StudentTeamRoles");
+                });
+
             modelBuilder.Entity("Exe.TeamService.Domain.Subject", b =>
                 {
                     b.Property<Guid>("Id")
@@ -425,6 +479,30 @@ namespace Exe.TeamService.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Subjects");
+                });
+
+            modelBuilder.Entity("Exe.TeamService.Domain.TeamRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("TeamRoles");
                 });
 
             modelBuilder.Entity("Exe.TeamService.Domain.Course", b =>
@@ -545,6 +623,25 @@ namespace Exe.TeamService.Data.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("Exe.TeamService.Domain.RoomNeededRole", b =>
+                {
+                    b.HasOne("Exe.TeamService.Domain.Room", "Room")
+                        .WithMany("NeededRoles")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Exe.TeamService.Domain.TeamRole", "TeamRole")
+                        .WithMany()
+                        .HasForeignKey("TeamRoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Room");
+
+                    b.Navigation("TeamRole");
+                });
+
             modelBuilder.Entity("Exe.TeamService.Domain.Student", b =>
                 {
                     b.HasOne("Exe.TeamService.Domain.Major", "Major")
@@ -621,6 +718,25 @@ namespace Exe.TeamService.Data.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("Exe.TeamService.Domain.StudentTeamRole", b =>
+                {
+                    b.HasOne("Exe.TeamService.Domain.Student", "Student")
+                        .WithMany("Roles")
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Exe.TeamService.Domain.TeamRole", "TeamRole")
+                        .WithMany()
+                        .HasForeignKey("TeamRoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+
+                    b.Navigation("TeamRole");
+                });
+
             modelBuilder.Entity("Exe.TeamService.Domain.Group", b =>
                 {
                     b.Navigation("Members");
@@ -634,6 +750,13 @@ namespace Exe.TeamService.Data.Migrations
             modelBuilder.Entity("Exe.TeamService.Domain.Room", b =>
                 {
                     b.Navigation("Members");
+
+                    b.Navigation("NeededRoles");
+                });
+
+            modelBuilder.Entity("Exe.TeamService.Domain.Student", b =>
+                {
+                    b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618
         }

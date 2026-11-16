@@ -3,6 +3,7 @@ using Exe.TeamService.Dtos;
 using Exe.TeamService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Exe.TeamService.Controllers;
 
@@ -15,11 +16,15 @@ public sealed class RoomsController(IRoomService rooms, IRoomApplyService applie
 
     [HttpPost("api/courses/{courseId:guid}/rooms")]
     [Authorize(Roles = Roles.Student)]
-    public async Task<IActionResult> Create(Guid courseId, CancellationToken ct)
+    public async Task<IActionResult> Create(Guid courseId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] RoomProfileRequest? profile, CancellationToken ct)
     {
-        var room = await rooms.CreateAsync(courseId, ct);
+        var room = await rooms.CreateAsync(courseId, profile, ct);
         return CreatedAtAction(nameof(Get), new { id = room.Id }, room);
     }
+
+    [HttpPut("api/rooms/{id:guid}/profile")]
+    [Authorize(Roles = Roles.Student)]
+    public async Task<IActionResult> Profile(Guid id, RoomProfileRequest profile, CancellationToken ct) => Ok(await rooms.UpdateProfileAsync(id, profile, ct));
 
     [HttpPost("api/rooms/{id:guid}/join")]
     [Authorize(Roles = Roles.Student)]
