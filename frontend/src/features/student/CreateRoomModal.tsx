@@ -5,11 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { coursesApi, referenceApi, roomsApi } from "@/api";
 import type { Lookup, MyCourse, Room, RoomProfileRequest, TeamRole } from "@/api";
 import { useApiAction, useShowError } from "@/components/useApiAction";
+import { useI18n } from "@/i18n";
 import { loadAllMyCourses } from "./loadMyCourses";
 
 type Props = { open: boolean; onClose: () => void; course?: MyCourse; room?: Room; onSaved?: () => void };
 
 export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props) {
+  const { t, language } = useI18n();
   const [form] = Form.useForm<RoomProfileRequest & { semesterId: string; courseId: string }>();
   const [courses, setCourses] = useState<MyCourse[]>([]);
   const [semesters, setSemesters] = useState<Lookup[]>([]);
@@ -18,8 +20,8 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
   const semesterId = Form.useWatch("semesterId", form);
   const navigate = useNavigate();
   const showError = useShowError();
-  const [create, creating] = useApiAction(coursesApi.createRoom, "Đã tạo nhóm mới");
-  const [update, updating] = useApiAction(roomsApi.updateProfile, "Đã cập nhật thông tin tuyển");
+  const [create, creating] = useApiAction(coursesApi.createRoom, t.createRoom.successCreate);
+  const [update, updating] = useApiAction(roomsApi.updateProfile, t.createRoom.successUpdate);
 
   useEffect(() => {
     if (!open) return;
@@ -81,14 +83,14 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
 
   return (
     <Modal
-      title={room ? "Cập nhật thông tin tuyển" : "Tạo nhóm mới"}
+      title={room ? t.createRoom.titleUpdate : t.createRoom.titleCreate}
       open={open}
       className="workspace-room-form"
       width={660}
       destroyOnHidden
       onCancel={onClose}
-      okText={room ? "Lưu thay đổi" : "Tạo nhóm"}
-      cancelText="Hủy"
+      okText={room ? t.createRoom.btnSave : t.createRoom.btnCreate}
+      cancelText={t.common.cancel}
       okButtonProps={{ disabled: noEligibleCourse }}
       confirmLoading={creating || updating}
       onOk={() =>
@@ -113,15 +115,21 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
     >
       <p className="workspace-room-form__subtitle">
         {room
-          ? "Chỉnh sửa tên nhóm, dự án, yêu cầu GPA và vai trò đang cần tuyển."
-          : "Thiết lập hồ sơ nhóm và yêu cầu thành viên cho học phần đang mở ghép nhóm."}
+          ? language === "en"
+            ? "Edit room name, project, GPA requirement, and needed roles."
+            : "Chỉnh sửa tên nhóm, dự án, yêu cầu GPA và vai trò đang cần tuyển."
+          : language === "en"
+            ? "Set up room profile and member requirements for active team matching."
+            : "Thiết lập hồ sơ nhóm và yêu cầu thành viên cho học phần đang mở ghép nhóm."}
       </p>
 
       {noEligibleCourse && (
         <Alert
           type="info"
-          message="Không có học phần khả dụng để tạo nhóm"
-          description="Bạn đã tham gia phòng hoặc nhóm ở tất cả học phần đang mở, hoặc hiện chưa có học phần nào mở ghép nhóm."
+          message={
+            language === "en" ? "No eligible courses available" : "Không có học phần khả dụng để tạo nhóm"
+          }
+          description={t.createRoom.noEligibleCourseAlert}
           style={{ marginBottom: 16 }}
         />
       )}
@@ -132,12 +140,12 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
             <Col xs={24} sm={12}>
               <Form.Item
                 name="semesterId"
-                label="Học kỳ"
-                rules={[{ required: true, message: "Vui lòng chọn học kỳ" }]}
+                label={t.createRoom.semesterLabel}
+                rules={[{ required: true, message: t.createRoom.semesterRequired }]}
               >
                 <Select
                   disabled={!!course}
-                  placeholder="Chọn học kỳ"
+                  placeholder={t.createRoom.semesterPlaceholder}
                   options={eligibleSemesters.map((s) => ({ value: s.id, label: `${s.code} - ${s.name}` }))}
                   onChange={(nextSemester) => {
                     const nextCourses = eligible.filter((c) => c.semesterId === nextSemester);
@@ -149,12 +157,12 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
             <Col xs={24} sm={12}>
               <Form.Item
                 name="courseId"
-                label="Học phần"
-                rules={[{ required: true, message: "Vui lòng chọn học phần" }]}
+                label={t.createRoom.courseLabel}
+                rules={[{ required: true, message: t.createRoom.courseRequired }]}
               >
                 <Select
                   disabled={!!course}
-                  placeholder="Chọn học phần"
+                  placeholder={t.createRoom.coursePlaceholder}
                   options={coursesInSemester.map((c) => ({ value: c.id, label: c.code }))}
                 />
               </Form.Item>
@@ -163,13 +171,13 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
         )}
         <Row gutter={16}>
           <Col xs={24} sm={12}>
-            <Form.Item name="name" label="Tên nhóm">
-              <Input maxLength={100} placeholder="Ví dụ: Nhóm Khởi nghiệp 01" />
+            <Form.Item name="name" label={t.createRoom.nameLabel}>
+              <Input maxLength={100} placeholder={t.createRoom.namePlaceholder} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
-            <Form.Item name="projectName" label="Tên dự án">
-              <Input maxLength={200} placeholder="Không bắt buộc" />
+            <Form.Item name="projectName" label={t.createRoom.projectNameLabel}>
+              <Input maxLength={200} placeholder={t.createRoom.projectNamePlaceholder} />
             </Form.Item>
           </Col>
         </Row>
@@ -177,47 +185,47 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
           <Col xs={24} sm={12}>
             <Form.Item
               name="requiredGpa"
-              label="GPA yêu cầu (thang 4.00)"
-              extra="Sinh viên có GPA thấp hơn mức này cần gửi đơn để trưởng phòng duyệt."
+              label={t.createRoom.requiredGpaLabel}
+              extra={t.createRoom.requiredGpaHelp}
             >
               <InputNumber<number>
                 min={0}
                 max={4}
                 step={0.01}
                 precision={2}
-                placeholder="Ví dụ: 2.50 (bỏ trống nếu không yêu cầu)"
+                placeholder={t.createRoom.requiredGpaPlaceholder}
                 style={{ width: "100%" }}
               />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
-            <Form.Item name="targetGrade" label="Điểm mục tiêu (thang 10.00)">
+            <Form.Item name="targetGrade" label={t.createRoom.targetGradeLabel}>
               <InputNumber<number>
                 min={0}
                 max={10}
                 step={0.1}
                 precision={2}
-                placeholder="Ví dụ: 8.00"
+                placeholder={t.createRoom.targetGradePlaceholder}
                 style={{ width: "100%" }}
               />
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="neededRoleIds" label="Vai trò cần tuyển (tối đa 5)">
+        <Form.Item name="neededRoleIds" label={t.createRoom.neededRolesLabel}>
           <Select
             mode="multiple"
             maxCount={5}
-            placeholder="Chọn các vai trò nhóm đang thiếu"
+            placeholder={t.createRoom.neededRolesPlaceholder}
             optionFilterProp="label"
             options={roles.map((r) => ({ value: r.id, label: r.name }))}
           />
         </Form.Item>
-        <Form.Item name="ideaDescription" label="Mô tả ý tưởng">
+        <Form.Item name="ideaDescription" label={t.createRoom.ideaDescLabel}>
           <Input.TextArea
             maxLength={1000}
             showCount
             autoSize={{ minRows: 3, maxRows: 6 }}
-            placeholder="Mô tả ngắn gọn ý tưởng dự án, công nghệ dự kiến hoặc tiêu chí tìm bạn đồng hành"
+            placeholder={t.createRoom.ideaDescPlaceholder}
           />
         </Form.Item>
       </Form>

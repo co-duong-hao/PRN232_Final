@@ -1,5 +1,6 @@
 import { Alert, List, Progress, Tag, Typography } from "antd";
 import type { CompositionAnalysis, GroupType, MajorCount } from "@/api";
+import { useI18n } from "@/i18n";
 
 type Criterion = {
   label: string;
@@ -11,6 +12,7 @@ type Criterion = {
 };
 
 function CompositionCriterion({ label, unit, current, minimum, maximum, missingMessage }: Criterion) {
+  const { t } = useI18n();
   const excess = maximum === undefined ? 0 : current - maximum;
   const missing = minimum === undefined ? 0 : minimum - current;
   const exceeded = excess > 0;
@@ -18,9 +20,9 @@ function CompositionCriterion({ label, unit, current, minimum, maximum, missingM
   const target = exceeded ? maximum : minimum;
   const percent = exceeded || met ? 100 : Math.round((current / (target || 1)) * 100);
   const detail = [
-    `Hiện có ${current} ${unit}`,
-    minimum !== undefined && minimum > 0 && `Tối thiểu ${minimum}`,
-    maximum !== undefined && `Tối đa ${maximum}`,
+    t.composition.currentCount(current, unit),
+    minimum !== undefined && minimum > 0 && t.composition.minLimit(minimum),
+    maximum !== undefined && t.composition.maxLimit(maximum),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -31,11 +33,11 @@ function CompositionCriterion({ label, unit, current, minimum, maximum, missingM
         <div style={{ display: "flex", gap: "4px 10px", alignItems: "center", flexWrap: "wrap" }}>
           <Typography.Text strong>{label}</Typography.Text>
           {exceeded ? (
-            <Tag color="error">Vượt giới hạn</Tag>
+            <Tag color="error">{t.composition.exceededTag}</Tag>
           ) : met ? (
-            <Tag color="success">Đã đạt</Tag>
+            <Tag color="success">{t.composition.metTag}</Tag>
           ) : (
-            <Tag color="warning">Còn thiếu</Tag>
+            <Tag color="warning">{t.composition.missingTag}</Tag>
           )}
         </div>
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
@@ -53,7 +55,7 @@ function CompositionCriterion({ label, unit, current, minimum, maximum, missingM
         )}
         {!met && (
           <Typography.Text style={{ fontSize: 13 }}>
-            {exceeded ? `Đang dư ${excess} ${unit}` : missingMessage(missing)}
+            {exceeded ? t.composition.surplusMsg(excess, unit) : missingMessage(missing)}
           </Typography.Text>
         )}
       </div>
@@ -70,6 +72,7 @@ export function RoomCompositionSummary({
   groupType?: GroupType;
   majorCounts: MajorCount[];
 }) {
+  const { t, language } = useI18n();
   const {
     memberCount,
     missingMemberCount,
@@ -85,21 +88,21 @@ export function RoomCompositionSummary({
   const exceededMemberLimit = violations.map((violation) => memberLimitPattern.exec(violation)).find(Boolean);
   if (groupType || missingMemberCount > 0 || exceededMemberLimit) {
     criteria.push({
-      label: "Số thành viên",
-      unit: "thành viên",
+      label: t.composition.memberCountLabel,
+      unit: t.composition.memberUnit,
       current: memberCount,
       minimum: missingMemberCount > 0 ? memberCount + missingMemberCount : groupType?.minMemberCount,
       maximum: exceededMemberLimit ? Number(exceededMemberLimit[1]) : groupType?.maxMemberCount,
-      missingMessage: (count) => `Cần thêm ${count} thành viên`,
+      missingMessage: (count) => t.composition.missingMembersMsg(count),
     });
   }
   if (groupType || missingMajorCount > 0) {
     criteria.push({
-      label: "Số ngành khác nhau",
-      unit: "ngành",
+      label: t.composition.distinctMajorsLabel,
+      unit: t.composition.majorUnit,
       current: distinctMajorCount,
       minimum: missingMajorCount > 0 ? distinctMajorCount + missingMajorCount : groupType?.minMajorCount,
-      missingMessage: (count) => `Cần thêm sinh viên từ ${count} ngành chưa có trong nhóm`,
+      missingMessage: (count) => t.composition.missingMajorsMsg(count),
     });
   }
 
@@ -107,12 +110,12 @@ export function RoomCompositionSummary({
   const majorCriteria = new Map<string, Criterion>();
   for (const { majorCode, minQuantity, maxQuantity } of groupType?.majors ?? []) {
     majorCriteria.set(majorCode.toUpperCase(), {
-      label: `Ngành ${majorCode}`,
-      unit: "sinh viên",
+      label: t.composition.majorRequirementLabel(majorCode),
+      unit: t.composition.studentUnit,
       current: countsByMajor.get(majorCode.toUpperCase()) ?? 0,
       minimum: minQuantity,
       maximum: maxQuantity,
-      missingMessage: (count) => `Cần thêm ${count} sinh viên ngành ${majorCode}`,
+      missingMessage: (count) => t.composition.missingSpecificMajorMsg(majorCode, count),
     });
   }
   for (const gap of [...missingMajors, ...exceedingMajors]) {
@@ -120,12 +123,12 @@ export function RoomCompositionSummary({
     const saved = majorCriteria.get(code);
     const belowMinimum = gap.current < gap.required;
     majorCriteria.set(code, {
-      label: `Ngành ${gap.majorCode}`,
-      unit: "sinh viên",
+      label: t.composition.majorRequirementLabel(gap.majorCode),
+      unit: t.composition.studentUnit,
       current: gap.current,
       minimum: belowMinimum ? gap.required : saved?.minimum,
       maximum: belowMinimum ? saved?.maximum : gap.required,
-      missingMessage: (count) => `Cần thêm ${count} sinh viên ngành ${gap.majorCode}`,
+      missingMessage: (count) => t.composition.missingSpecificMajorMsg(gap.majorCode, count),
     });
   }
   criteria.push(...majorCriteria.values());
@@ -141,7 +144,15 @@ export function RoomCompositionSummary({
     <>
       <Alert
         type={composition.satisfied ? "success" : "warning"}
-        message={composition.satisfied ? "Đã đạt đủ yêu cầu cơ cấu nhóm" : "Nhóm chưa đủ điều kiện cơ cấu"}
+        message={
+          composition.satisfied
+            ? language === "en"
+              ? "Team composition requirements satisfied"
+              : "Đã đạt đủ yêu cầu cơ cấu nhóm"
+            : language === "en"
+              ? "Team composition criteria not yet met"
+              : "Nhóm chưa đủ điều kiện cơ cấu"
+        }
       />
       {criteria.length > 0 && (
         <List
