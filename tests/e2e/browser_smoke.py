@@ -67,6 +67,46 @@ def check_staff_pages(browser: Browser, password: str) -> None:
         print("[OK] Lecturer can inspect both course states without a close action")
 
 
+def check_head_course_actions(browser: Browser, password: str) -> None:
+    with browser.new_context() as context:
+        context.set_default_timeout(8000)
+        page = context.new_page()
+        login(page, "hod", password, "/staff/courses")
+        page.goto(f"{WEB}/staff/courses/{EXE101}")
+        close_button = page.get_by_role("button", name="Đóng ghép nhóm", exact=True)
+        expect(close_button).to_be_visible()
+        page.goto(f"{WEB}/staff/courses/{EXE201}")
+        expect(page.get_by_role("heading", name="FA26-EXE201 Đã đóng")).to_be_visible()
+        expect(close_button).to_have_count(0)
+        print("[OK] Head of department sees the close action only while the course is forming")
+
+
+def check_admin_session(browser: Browser, password: str) -> None:
+    with browser.new_context() as context:
+        context.set_default_timeout(8000)
+        page = context.new_page()
+        login(page, "admin", password, "/staff/courses")
+        page.get_by_role("menuitem", name="Tài khoản").click()
+        expect(page.get_by_role("heading", name="Tài khoản", exact=True)).to_be_visible()
+        email = "student09@exe.local"
+        search = page.get_by_placeholder("Tìm email hoặc họ tên")
+        search.fill(email)
+        search.press("Enter")
+        expect(page.get_by_role("cell", name=email, exact=True)).to_be_visible()
+        expect(page.get_by_role("cell", name="student08@exe.local", exact=True)).to_have_count(0)
+        print("[OK] Admin can search for a single user by email")
+
+        page.reload()
+        expect(page.get_by_role("heading", name="Tài khoản", exact=True)).to_be_visible()
+        print("[OK] Admin is still signed in after reload")
+        page.get_by_role("banner").get_by_role("button", name="Admin").hover()
+        page.get_by_role("menuitem", name="Đăng xuất").click()
+        expect(page).to_have_url(f"{WEB}/login")
+        page.goto(f"{WEB}/admin/users")
+        expect(page).to_have_url(f"{WEB}/login")
+        print("[OK] Signed-out admin cannot return to the account page")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("env_file", type=Path)
@@ -86,6 +126,8 @@ def main() -> None:
             check_student_pages(browser, password)
             check_cancelled_application(browser, password)
             check_staff_pages(browser, password)
+            check_head_course_actions(browser, password)
+            check_admin_session(browser, password)
         finally:
             browser.close()
 

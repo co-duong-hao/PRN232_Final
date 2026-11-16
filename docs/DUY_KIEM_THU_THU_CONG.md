@@ -53,6 +53,6 @@ python -X utf8 tests/e2e/browser_smoke.py .env
 
 Lệnh cuối cần Playwright cho Python cùng Chromium đã cài. Nó đọc các trạng thái do hai lệnh API tạo ra và dùng phiên trình duyệt riêng cho từng tài khoản.
 
-- EXE101 đạt 29/29 kiểm tra. EXE201 đạt 38/38, bao gồm mở lại phòng sau khi thành viên rời, quyền từ chối hoặc hủy đơn, quyền đóng Course và email đóng gửi đến ba thành viên.
-- Chromium xác nhận luồng chuyển về đăng nhập, chặn sinh viên vào trang staff, xem nhóm EXE101, hiển thị đơn EXE201 đã hủy và phân biệt trạng thái Course trong phiên giảng viên.
+- EXE101 đạt 29/29 kiểm tra. EXE201 đạt 52/52. Bộ kiểm tra bao gồm phân trang, tìm phòng theo tên, kết hợp GPA với nhiều vai trò, mở lại phòng sau khi thành viên rời, quyền xử lý đơn, email gửi đơn và từ chối đơn, quyền đóng Course và email gửi ba thành viên khi đóng.
+- Chromium đạt 9/9. Các ca kiểm tra chuyển về đăng nhập, chặn sinh viên vào trang staff, xem nhóm EXE101, hiển thị đơn đã hủy, quyền đóng Course của trưởng bộ môn và phiên Admin khi tìm tài khoản, tải lại trang và đăng xuất.
 - Chạy lại `--workflows` trên EXE201 đã đóng trả mã 2. Dùng seed mới để chạy lại toàn bộ kịch bản.
