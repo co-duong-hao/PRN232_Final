@@ -1,20 +1,22 @@
 import { App } from "antd";
 import { useCallback, useState } from "react";
 import { ApiError } from "@/api/client";
+import { useI18n } from "@/i18n";
 
 /** Shows a backend error as a toast, with the rule code when there is one (e.g. "BR05"). */
 export function useShowError() {
   const { message } = App.useApp();
+  const { t } = useI18n();
   return useCallback(
     (error: unknown) => {
       if (error instanceof ApiError) {
         const showCode = /^BR\d+$/.test(error.code);
         message.error(showCode ? `[${error.code}] ${error.message}` : error.message, 5);
       } else {
-        message.error("Đã có lỗi xảy ra. Vui lòng thử lại.");
+        message.error(t.common.genericError);
       }
     },
-    [message],
+    [message, t],
   );
 }
 

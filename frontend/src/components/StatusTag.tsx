@@ -1,19 +1,23 @@
 import { Tag } from "antd";
 import type { ApplyStatus, CourseStatus, RoomStatus } from "@/api/types";
-import { applyStatusLabel, courseStatusLabel, roomStatusLabel } from "./labels";
+import { useI18n } from "@/i18n";
+import { getApplyStatusLabels, getCourseStatusLabels, getRoomStatusLabels } from "./labels";
 
 export function RoomStatusTag({ status }: { status: RoomStatus }) {
-  const s = roomStatusLabel[status];
+  const { language } = useI18n();
+  const s = getRoomStatusLabels(language)[status];
   return <Tag color={s.color}>{s.text}</Tag>;
 }
 
 export function ApplyStatusTag({ status }: { status: ApplyStatus }) {
-  const s = applyStatusLabel[status];
+  const { language } = useI18n();
+  const s = getApplyStatusLabels(language)[status];
   return <Tag color={s.color}>{s.text}</Tag>;
 }
 
 export function CourseStatusTag({ status }: { status: CourseStatus }) {
-  const s = courseStatusLabel[status];
+  const { language } = useI18n();
+  const s = getCourseStatusLabels(language)[status];
   return <Tag color={s.color}>{s.text}</Tag>;
 }
 

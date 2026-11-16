@@ -1,4 +1,5 @@
 import type { ApplyStatus, CourseStatus, Role, RoomStatus } from "@/api/types";
+import { translations, type Language } from "@/i18n";
 
 export const roleLabel: Record<Role, string> = {
   Admin: "Quản trị viên",
@@ -26,3 +27,48 @@ export const courseStatusLabel: Record<CourseStatus, { text: string; color: stri
   Forming: { text: "Đang ghép nhóm", color: "orange" },
   Closed: { text: "Đã đóng", color: "red" },
 };
+
+export function getRoleLabels(lang: Language = "vi"): Record<Role, string> {
+  const t = translations[lang].roles;
+  return {
+    Admin: t.Admin,
+    HeadOfDepartment: t.HeadOfDepartment,
+    Lecturer: t.Lecturer,
+    Student: t.Student,
+  };
+}
+
+export function getRoomStatusLabels(
+  lang: Language = "vi",
+): Record<RoomStatus, { text: string; color: string }> {
+  const t = translations[lang].roomStatus;
+  return {
+    Open: { text: t.Open, color: "green" },
+    Locked: { text: t.Locked, color: "orange" },
+    Completed: { text: t.Completed, color: "geekblue" },
+    Cancelled: { text: t.Cancelled, color: "default" },
+  };
+}
+
+export function getApplyStatusLabels(
+  lang: Language = "vi",
+): Record<ApplyStatus, { text: string; color: string }> {
+  const t = translations[lang].applyStatus;
+  return {
+    Pending: { text: t.Pending, color: "gold" },
+    Approved: { text: t.Approved, color: "green" },
+    Rejected: { text: t.Rejected, color: "red" },
+    Cancelled: { text: t.Cancelled, color: "default" },
+  };
+}
+
+export function getCourseStatusLabels(
+  lang: Language = "vi",
+): Record<CourseStatus, { text: string; color: string }> {
+  const t = translations[lang].courseStatus;
+  return {
+    Planned: { text: t.Planned, color: "default" },
+    Forming: { text: t.Forming, color: "orange" },
+    Closed: { text: t.Closed, color: "red" },
+  };
+}

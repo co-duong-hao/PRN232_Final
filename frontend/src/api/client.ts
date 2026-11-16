@@ -1,3 +1,5 @@
+import { getStoredLanguage, translations } from "@/i18n";
+
 // Thin fetch wrapper. Every call goes to /api on the same origin; Vite (dev) or Nginx (Docker)
 // forwards it to the API Gateway.
 
@@ -75,7 +77,8 @@ async function request<T>(
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
   } catch {
-    throw new ApiError(0, "NETWORK_ERROR", "Không kết nối được máy chủ. Kiểm tra backend đã chạy chưa.");
+    const lang = getStoredLanguage();
+    throw new ApiError(0, "NETWORK_ERROR", translations[lang].apiErrors.networkError);
   }
 
   if (response.status === 401 && path !== "/auth/login") {
@@ -106,10 +109,12 @@ function safeJson(text: string): unknown {
 }
 
 function defaultMessage(status: number): string {
-  if (status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
-  if (status === 403) return "Bạn không có quyền thực hiện thao tác này.";
-  if (status === 404) return "Không tìm thấy dữ liệu.";
-  return "Đã có lỗi xảy ra. Vui lòng thử lại.";
+  const lang = getStoredLanguage();
+  const t = translations[lang].apiErrors;
+  if (status === 401) return t.unauthorized;
+  if (status === 403) return t.forbidden;
+  if (status === 404) return t.notFound;
+  return t.fallback;
 }
 
 export const http = {
