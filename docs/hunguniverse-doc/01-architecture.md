@@ -39,6 +39,7 @@ flowchart LR
 | 02 | [Docker Compose](02-compose.md) |
 | 03 | [Build và image Docker](03-build-images.md) |
 | 04 | [Pipeline CI/CD](04-ci-cd.md) |
+| 05 | [Vận hành bản chạy local](05-operations.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
