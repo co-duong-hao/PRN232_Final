@@ -1,3 +1,5 @@
+using Exe.AuthService;
+using Exe.Shared.Web.Observability;
 using Exe.Shared.Web.Json;
 using System.Text.Json.Serialization;
 using Exe.AuthService.Data;
@@ -25,6 +27,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<AuthDbSeeder>();
+builder.Services.AddExeMetrics("auth-service", "Exe.AuthService");
+builder.Services.AddSingleton<AuthMetrics>();
+
 var app = builder.Build();
 app.UseExeErrorHandling();
 app.UseSwagger();
@@ -33,6 +38,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapExeMetrics();
 if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();

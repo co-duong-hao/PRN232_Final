@@ -2,11 +2,11 @@ using System.Text.Json;
 using Exe.Contracts.Events;
 using Exe.NotiService.Email;
 namespace Exe.NotiService.Workers;
-public enum ProcessingStatus { Success, TemporaryFailure, PermanentFailure }
+public enum ProcessingStatus { Success, TemporaryFailure, PermanentFailure, Skipped }
 
 public sealed record ProcessingResult(ProcessingStatus Status, string? Error = null, Guid? EventId = null);
 
-public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer renderer, ILogger<EventProcessor> logger)
+public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer renderer, ILogger<EventProcessor> logger, NotiMetrics metrics)
 {
     public async Task<ProcessingResult> ProcessAsync(string payload, CancellationToken cancellationToken)
     {
@@ -25,14 +25,20 @@ public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer re
         if (!EventTypes.All.Contains(envelope.Type, StringComparer.Ordinal))
         {
             logger.LogWarning("Bỏ qua loại sự kiện không xác định {EventType}.", envelope.Type);
-            return new(ProcessingStatus.Success, EventId: envelope.EventId);
+            return new(ProcessingStatus.Skipped, EventId: envelope.EventId);
         }
         try
         {
             foreach (var recipient in envelope.Recipients)
             {
                 var email = renderer.Render(envelope, recipient)!;
-                await sender.SendAsync(recipient, email, cancellationToken);
+                try
+                {
+                    await sender.SendAsync(recipient, email, cancellationToken);
+                    metrics.Email("ok");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch { metrics.Email("failed"); throw; }
             }
             return new(ProcessingStatus.Success, EventId: envelope.EventId);
         }

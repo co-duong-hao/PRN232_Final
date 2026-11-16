@@ -1,3 +1,5 @@
+using Exe.MatchingService;
+using Exe.Shared.Web.Observability;
 using Exe.MatchingService.Services;
 
 // gRPC only, no database. Kestrel listens on two endpoints (see appsettings.json):
@@ -7,10 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
 
+builder.Services.AddExeMetrics("matching-service", "Exe.MatchingService");
+builder.Services.AddSingleton<MatchingMetrics>();
+
 var app = builder.Build();
 
 app.MapGrpcService<MatchingGrpcService>();
 app.MapHealthChecks("/health");
+app.MapExeMetrics();
 
 app.Run();
 

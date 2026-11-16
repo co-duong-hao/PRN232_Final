@@ -3,7 +3,7 @@ using Grpc.Core;
 
 namespace Exe.MatchingService.Services;
 
-public sealed class MatchingGrpcService : Matching.MatchingBase
+public sealed class MatchingGrpcService(MatchingMetrics metrics) : Matching.MatchingBase
 {
     private static GroupRule Map(GroupTypeRule r) => new(
         r.MinMemberCount,
@@ -13,10 +13,12 @@ public sealed class MatchingGrpcService : Matching.MatchingBase
 
     public override Task<AnalyzeCompositionReply> AnalyzeComposition(AnalyzeCompositionRequest request, ServerCallContext context)
     {
+        metrics.Request("AnalyzeComposition");
         if (request.Rule is null)
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Thiếu quy tắc nhóm."));
 
         var r = new CompositionAnalyzer().Analyze(Map(request.Rule), request.MemberMajorCodes);
+        metrics.Composition(r.Satisfied);
         var reply = new AnalyzeCompositionReply
         {
             Satisfied = r.Satisfied,
@@ -43,6 +45,7 @@ public sealed class MatchingGrpcService : Matching.MatchingBase
 
     public override Task<RecommendRoomsReply> RecommendRooms(RecommendRoomsRequest request, ServerCallContext context)
     {
+        metrics.Request("RecommendRooms");
         if (request.Rule is null || string.IsNullOrWhiteSpace(request.StudentMajorCode))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Thiếu quy tắc nhóm hoặc ngành sinh viên."));
 

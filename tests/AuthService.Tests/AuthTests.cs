@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Exe.AuthService.Data;
 using Exe.AuthService.Domain;
 using Exe.AuthService.Dtos;
@@ -51,7 +52,17 @@ public sealed class AuthTests : IDisposable
     }
 
 
-    private AuthService.Services.AuthService Auth() => new(repo, hasher, new TokenService(Options.Create(new JwtOptions { Issuer = "issuer", Audience = "audience", Key = "12345678901234567890123456789012" })), current.Object);
+    private AuthService.Services.AuthService Auth(AuthMetrics? metrics = null) => new(repo, hasher, new TokenService(Options.Create(new JwtOptions { Issuer = "issuer", Audience = "audience", Key = "12345678901234567890123456789012" })), current.Object, metrics ?? new AuthMetrics(new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
+    [Fact]
+    public async Task Login_RecordsSuccessAndFailure()
+    {
+        using var capture = new MetricCapture("Exe.AuthService");
+        var auth = Auth(new AuthMetrics(capture.Factory));
+        await auth.LoginAsync(new() { Email = "student@example.com", Password = "password123" }, default);
+        await Assert.ThrowsAsync<UnauthorizedAppException>(() => auth.LoginAsync(new() { Email = "student@example.com", Password = "wrong" }, default));
+        Assert.Equal(1, capture.Count("exe.logins", "success"));
+        Assert.Equal(1, capture.Count("exe.logins", "failed"));
+    }
     [Fact]
 
     public async Task Login_Valid_ContainsClaims()

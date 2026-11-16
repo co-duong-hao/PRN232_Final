@@ -1,3 +1,4 @@
+using Exe.Shared.Web.Observability;
 using Exe.Shared.Web.Auth;
 
 // Single entry point. Validates the JWT, then forwards the request (Authorization header included)
@@ -8,12 +9,15 @@ builder.Services.AddExeJwtAuth(builder.Configuration);
 builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 builder.Services.AddHealthChecks();
 
+builder.Services.AddExeMetrics("gateway");
+
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
+app.MapExeMetrics();
 app.MapReverseProxy();
 
 app.Run();

@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Shared\Contracts\Exe.Contracts.csproj" />
+    <ProjectReference Include="..\Shared\Web\Exe.Shared.Web.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Exe.MatchingService.Tests" />

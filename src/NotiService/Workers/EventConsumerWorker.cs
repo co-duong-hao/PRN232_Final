@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Exe.Contracts.Events;
 using Confluent.Kafka;
 using Exe.NotiService.Options;
 using Microsoft.Extensions.Options;
@@ -8,7 +11,7 @@ public sealed class EventConsumerWorker(
     IOptions<KafkaOptions> options,
     EventProcessor processor,
     IDeadLetterPublisher deadLetterPublisher,
-    ILogger<EventConsumerWorker> logger) : BackgroundService
+    ILogger<EventConsumerWorker> logger, NotiMetrics metrics) : BackgroundService
 {
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
         Task.Run(() => ConsumeAsync(stoppingToken), stoppingToken);
@@ -36,16 +39,17 @@ public sealed class EventConsumerWorker(
                         if (record is null) continue;
                         // Keep the current record until both processing and commit succeed.
                         var processed = false;
+                        (string Type, string Result) outcome = ("unknown", "skipped");
                         while (!ct.IsCancellationRequested)
                         {
                             try
                             {
                                 if (!processed)
                                 {
-                                    await ProcessMessageAsync(record.Message, ct);
+                                    outcome = await ProcessMessageAsync(record.Message, ct);
                                     processed = true;
                                 }
-                                consumer.Commit(record);
+                                CommitAndRecord(() => consumer.Commit(record), outcome);
                                 break;
                             }
                             catch (KafkaException ex)
@@ -76,22 +80,39 @@ public sealed class EventConsumerWorker(
         }
     }
 
-    internal async Task ProcessMessageAsync(Message<string, string> message, CancellationToken ct,
+    internal void CommitAndRecord(Action commit, (string Type, string Result) outcome)
+    {
+        commit();
+        metrics.Consumed(outcome.Type, outcome.Result);
+    }
+
+    internal async Task<(string Type, string Result)> ProcessMessageAsync(Message<string, string> message, CancellationToken ct,
         Func<TimeSpan, CancellationToken, Task>? delay = null)
     {
-        delay ??= Task.Delay;
-        var attempts = Math.Max(1, options.Value.MaxAttempts);
-        ProcessingResult result = new(ProcessingStatus.PermanentFailure, "Payload rỗng.");
-        for (var attempt = 1; attempt <= attempts; attempt++)
+        var started = Stopwatch.GetTimestamp();
+        var type = "unknown";
+        try { var value = message.Value is null ? null : EventEnvelope.FromJson(message.Value); if (value?.Type is { } t && EventTypes.All.Contains(t, StringComparer.Ordinal)) type = t; }
+        catch (JsonException) { }
+        try
         {
-            result = message.Value is null
-                ? new(ProcessingStatus.PermanentFailure, "Payload rỗng.")
-                : await processor.ProcessAsync(message.Value, ct);
-            if (result.Status == ProcessingStatus.Success) return;
-            if (result.Status == ProcessingStatus.PermanentFailure || attempt == attempts) break;
-            await delay(TimeSpan.FromSeconds(Math.Pow(2, Math.Min(attempt - 1, 2))), ct);
+            delay ??= Task.Delay;
+            var attempts = Math.Max(1, options.Value.MaxAttempts);
+            ProcessingResult result = new(ProcessingStatus.PermanentFailure, "Payload rỗng.");
+            for (var attempt = 1; attempt <= attempts; attempt++)
+            {
+                result = message.Value is null
+                    ? new(ProcessingStatus.PermanentFailure, "Payload rỗng.")
+                    : await processor.ProcessAsync(message.Value, ct);
+                if (result.Status == ProcessingStatus.Success) return (type, "processed");
+                if (result.Status == ProcessingStatus.Skipped) return (type, "skipped");
+                if (result.Status == ProcessingStatus.PermanentFailure || attempt == attempts) break;
+                metrics.Retry(type);
+                await delay(TimeSpan.FromSeconds(Math.Pow(2, Math.Min(attempt - 1, 2))), ct);
+            }
+            logger.LogError("Không xử lý được sự kiện {EventId}: {Error}", result.EventId, result.Error);
+            await deadLetterPublisher.PublishAsync(message, result.Error ?? "Lỗi xử lý sự kiện.", ct);
+            return (type, "dead_lettered");
         }
-        logger.LogError("Không xử lý được sự kiện {EventId}: {Error}", result.EventId, result.Error);
-        await deadLetterPublisher.PublishAsync(message, result.Error ?? "Lỗi xử lý sự kiện.", ct);
+        finally { metrics.Duration(type, Stopwatch.GetElapsedTime(started).TotalSeconds); }
     }
 }

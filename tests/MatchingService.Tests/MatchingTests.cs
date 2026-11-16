@@ -1,6 +1,16 @@
 using Exe.MatchingService.Services;
 namespace Exe.MatchingService.Tests;
 public class MatchingTests {
+ [Fact] public async Task AnalyzeComposition_RecordsValidity() {
+  using var capture = new MetricCapture("Exe.MatchingService");
+  var service = new MatchingGrpcService(new MatchingMetrics(capture.Factory));
+  var valid = new Exe.Contracts.Grpc.AnalyzeCompositionRequest { Rule = new() { MinMemberCount = 1, MaxMemberCount = 3, MinMajorCount = 1 } }; valid.MemberMajorCodes.Add("SE");
+  var invalid = new Exe.Contracts.Grpc.AnalyzeCompositionRequest { Rule = new() { MinMemberCount = 1, MaxMemberCount = 3, MinMajorCount = 1 } };
+  await service.AnalyzeComposition(valid, null!); await service.AnalyzeComposition(invalid, null!);
+  Assert.Equal(1, capture.Count("exe.composition.checks", "valid"));
+  Assert.Equal(1, capture.Count("exe.composition.checks", "invalid"));
+ }
+
  private static readonly GroupRule Rule=new(4,6,3,[new("SE",2,3)]);
  [Theory]
  [InlineData("SE,SE,GD,MKT",true,0)] [InlineData("SE,SE,GD",false,2)] [InlineData("SE,GD,MKT,AI",false,1)] [InlineData("SE,SE,SE,SE,GD,MKT",false,1)]

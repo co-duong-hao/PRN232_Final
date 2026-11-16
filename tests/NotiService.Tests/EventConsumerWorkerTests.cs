@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Confluent.Kafka;
 using Exe.Contracts.Events;
 using Exe.NotiService.Email;
@@ -11,6 +12,34 @@ namespace Exe.NotiService.Tests;
 
 public sealed class EventConsumerWorkerTests
 {
+    private static NotiMetrics Metrics() => new(new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>());
+    [Fact]
+    public async Task ProcessMessage_RecordsRetriesEmailsAndOutcome()
+    {
+        using var capture = new MetricCapture("Exe.NotiService");
+        var metrics = new NotiMetrics(capture.Factory);
+        var sender = new Mock<IEmailSender>();
+        sender.Setup(x => x.SendAsync(It.IsAny<EventRecipient>(), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>())).ThrowsAsync(new IOException("smtp"));
+        var dlq = new Mock<IDeadLetterPublisher>();
+        var worker = new EventConsumerWorker(Microsoft.Extensions.Options.Options.Create(new KafkaOptions { MaxAttempts = 4 }),
+            new EventProcessor(sender.Object, new EmailTemplateRenderer(), NullLogger<EventProcessor>.Instance, metrics),
+            dlq.Object, NullLogger<EventConsumerWorker>.Instance, metrics);
+        var outcome = await worker.ProcessMessageAsync(ValidMessage(), default, (_, _) => Task.CompletedTask);
+        Assert.Equal("dead_lettered", outcome.Result);
+        Assert.Throws<IOException>(() => worker.CommitAndRecord(() => throw new IOException(), outcome));
+        Assert.Equal(0, capture.Count("exe.kafka.events.consumed"));
+        worker.CommitAndRecord(() => { }, outcome);
+        Assert.Equal(1, capture.Count("exe.kafka.events.consumed", "dead_lettered"));
+        Assert.Equal(3, capture.Count("exe.kafka.event.retries"));
+        Assert.Equal(4, capture.Count("exe.emails.sent", "failed"));
+        sender.Setup(x => x.SendAsync(It.IsAny<EventRecipient>(), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        outcome = await worker.ProcessMessageAsync(ValidMessage(), default);
+        Assert.Equal("processed", outcome.Result);
+        worker.CommitAndRecord(() => { }, outcome);
+        Assert.Equal(1, capture.Count("exe.kafka.events.consumed", "processed"));
+        Assert.Equal(1, capture.Count("exe.emails.sent", "ok"));
+    }
+
     [Fact]
     public async Task ProcessMessage_TemporaryFailures_RetriesMaxAttemptsThenPublishesOriginal()
     {
@@ -53,8 +82,8 @@ public sealed class EventConsumerWorkerTests
 
     private static EventConsumerWorker CreateWorker(Mock<IEmailSender> sender, Mock<IDeadLetterPublisher> dlq, int attempts) =>
         new(Microsoft.Extensions.Options.Options.Create(new KafkaOptions { MaxAttempts = attempts }),
-            new EventProcessor(sender.Object, new EmailTemplateRenderer(), NullLogger<EventProcessor>.Instance),
-            dlq.Object, NullLogger<EventConsumerWorker>.Instance);
+            new EventProcessor(sender.Object, new EmailTemplateRenderer(), NullLogger<EventProcessor>.Instance, Metrics()),
+            dlq.Object, NullLogger<EventConsumerWorker>.Instance, Metrics());
 
     private static Message<string, string> ValidMessage() => new()
     {

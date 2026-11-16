@@ -12,14 +12,18 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Exe.AuthService.Services;
 
-public sealed class AuthService(IUserRepository repository, IPasswordHasher<User> hasher, ITokenService tokens, ICurrentUser current) : IAuthService
+public sealed class AuthService(IUserRepository repository, IPasswordHasher<User> hasher, ITokenService tokens, ICurrentUser current, AuthMetrics metrics) : IAuthService
 {
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct)
     {
         var u = await repository.FindEmailAsync(request.Email.Trim().ToLowerInvariant(), ct);
         if (u is null || u.Status != UserStatus.Active || hasher.VerifyHashedPassword(u, u.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
+        {
+            metrics.Record("failed");
             throw new UnauthorizedAppException("Email hoặc mật khẩu không hợp lệ.", "INVALID_CREDENTIALS");
+        }
         var (token, expires) = tokens.Create(u);
+        metrics.Record("success");
         return new(token, "Bearer", expires, new(u.Id, u.Email, u.FullName, u.UserRoles.Select(x => x.Role.Code).ToArray()));
     }
 
