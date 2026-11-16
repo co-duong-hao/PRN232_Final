@@ -1,4 +1,4 @@
-import { Button, Modal, Spin } from "antd";
+import { Button, Modal, Space, Spin } from "antd";
 import { useCallback, useState, type ReactNode } from "react";
 import { roomsApi, type GroupType, type Room, type RoomSummary } from "@/api";
 import { RoomCompositionSummary } from "@/features/student/RoomCompositionSummary";
@@ -20,6 +20,11 @@ export function StaffRoomDetails({
   const loadComposition = useCallback(() => roomsApi.composition(room.id), [room.id]);
   const details = useStaffQuery(loadDetails);
   const composition = useStaffQuery(showComposition ? loadComposition : null);
+  const currentRoom = details.data ?? room;
+  const refreshComposition = () => {
+    details.reload();
+    composition.reload();
+  };
 
   return (
     <>
@@ -44,19 +49,30 @@ export function StaffRoomDetails({
       ) : details.data ? (
         renderMembers(details.data.members)
       ) : null}
-      <Button onClick={() => setShowComposition(true)} style={{ marginTop: 8 }}>
+      <Button
+        onClick={() => {
+          details.reload();
+          setShowComposition(true);
+        }}
+        style={{ marginTop: 8 }}
+      >
         Kiểm tra cơ cấu phòng
       </Button>
       <Modal
-        title={`Kiểm tra cơ cấu: ${room.name || room.code}`}
+        title={`Kiểm tra cơ cấu: ${currentRoom.name || currentRoom.code}`}
         open={showComposition}
         width={560}
         destroyOnHidden
         onCancel={() => setShowComposition(false)}
         footer={
-          <Button type="primary" onClick={() => setShowComposition(false)}>
-            Đóng
-          </Button>
+          <Space wrap>
+            <Button onClick={refreshComposition} disabled={composition.loading}>
+              Kiểm tra lại
+            </Button>
+            <Button type="primary" onClick={() => setShowComposition(false)}>
+              Đóng
+            </Button>
+          </Space>
         }
       >
         {composition.loading && <Spin aria-label="Đang kiểm tra cơ cấu" />}
@@ -64,14 +80,14 @@ export function StaffRoomDetails({
           <StaffLoadError
             title="Không kiểm tra được cơ cấu"
             error={composition.failure.error}
-            onRetry={composition.reload}
+            onRetry={refreshComposition}
           />
         )}
         {composition.data && (
           <RoomCompositionSummary
             composition={composition.data}
             groupType={groupType}
-            majorCounts={room.majors}
+            majorCounts={currentRoom.majors}
           />
         )}
       </Modal>
