@@ -1,17 +1,51 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, Card, Empty, Input, Modal, Select, Space, Spin, Table, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, coursesApi, referenceApi, roomsApi } from "@/api";
-import type { Course, GroupType, MyCourse, RoomRecommendation, RoomStatus, RoomSummary } from "@/api";
+import type {
+  Course,
+  GroupType,
+  MyCourse,
+  RoomRecommendation,
+  RoomStatus,
+  RoomSummary,
+  TeamRole,
+} from "@/api";
 import { MajorCounts, RoomStatusTag } from "@/components/StatusTag";
 import { roomStatusLabel } from "@/components/labels";
 import { formatDateTime } from "@/components/format";
 import { useApiAction, useShowError } from "@/components/useApiAction";
+import { useAuth } from "@/auth/AuthContext";
+import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 
 export function CourseRoomsPage() {
   const { courseId = "" } = useParams();
   const navigate = useNavigate();
+  const { student } = useAuth();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [gpa, setGpa] = useState<number | null>(student?.gpa ?? null);
+  const [eligibleOnly, setEligibleOnly] = useState(false);
+  const [roles, setRoles] = useState<TeamRole[]>([]);
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  useEffect(() => {
+    setGpa(student?.gpa ?? null);
+  }, [student?.gpa]);
   const showError = useShowError();
   const [course, setCourse] = useState<Course>();
   const [type, setType] = useState<GroupType>();
@@ -31,8 +65,26 @@ export function CourseRoomsPage() {
   const [loading, setLoading] = useState(false);
   const [applyRoom, setApplyRoom] = useState<string>();
   const [message, setMessage] = useState("");
-  const [create, creating] = useApiAction(coursesApi.createRoom, "Đã tạo phòng");
-  const [join, joining] = useApiAction(roomsApi.join, "Đã vào phòng");
+  const [join, joining] = useApiAction(async (id: string) => {
+    try {
+      return await roomsApi.join(id);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "BR19") {
+        Modal.confirm({
+          title: "Không thể vào phòng trực tiếp",
+          content: "GPA của bạn thấp hơn yêu cầu của phòng. Hãy gửi đơn để trưởng phòng xét.",
+          okText: "Gửi đơn",
+          cancelText: "Đóng",
+          onOk: () => {
+            setMessage("");
+            setApplyRoom(id);
+          },
+        });
+        return undefined;
+      }
+      throw e;
+    }
+  });
   const [apply, applying] = useApiAction(roomsApi.apply, "Đã gửi đơn");
   const loadBase = useCallback(async () => {
     try {
@@ -53,7 +105,16 @@ export function CourseRoomsPage() {
   const loadRooms = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await coursesApi.rooms(courseId, { page, pageSize: size, status, q, sortBy, sortDir });
+      const data = await coursesApi.rooms(courseId, {
+        page,
+        pageSize: size,
+        status,
+        q,
+        sortBy,
+        sortDir,
+        gpa: eligibleOnly ? (gpa ?? undefined) : undefined,
+        roleIds,
+      });
       setRooms(data.items);
       setTotal(data.totalItems);
     } catch (e) {
@@ -61,7 +122,7 @@ export function CourseRoomsPage() {
     } finally {
       setLoading(false);
     }
-  }, [courseId, page, size, status, q, sortBy, sortDir, showError]);
+  }, [courseId, page, size, status, q, sortBy, sortDir, gpa, eligibleOnly, roleIds, showError]);
   const loadRecommendations = useCallback(async () => {
     try {
       const results = await coursesApi.recommendations(courseId, 3);
@@ -76,9 +137,13 @@ export function CourseRoomsPage() {
     }
   }, [courseId, showError]);
   useEffect(() => {
+    referenceApi
+      .teamRoles()
+      .then((r) => setRoles(r.items))
+      .catch(showError);
     void loadBase();
     void loadRecommendations();
-  }, [loadBase, loadRecommendations]);
+  }, [loadBase, loadRecommendations, showError]);
   useEffect(() => {
     void loadRooms();
   }, [loadRooms]);
@@ -147,18 +212,11 @@ export function CourseRoomsPage() {
         />
       )}
       {canAct && (
-        <Button
-          type="primary"
-          loading={creating}
-          style={{ margin: "16px 0" }}
-          onClick={async () => {
-            const result = await create(courseId);
-            if (result) navigate(`/student/rooms/${result.id}`);
-          }}
-        >
-          Tạo phòng
+        <Button type="primary" style={{ margin: "16px 0" }} onClick={() => setCreateOpen(true)}>
+          + Tạo nhóm
         </Button>
       )}
+      <CreateRoomModal open={createOpen} course={mine} onClose={() => setCreateOpen(false)} />
       {unavailable && <Alert type="warning" message="Dịch vụ gợi ý tạm thời không phản hồi" />}
       {recommendations.length > 0 && (
         <Card title="Gợi ý cho bạn" style={{ margin: "16px 0" }}>
@@ -177,10 +235,44 @@ export function CourseRoomsPage() {
       <Typography.Title level={3}>Danh sách phòng</Typography.Title>
       <Space wrap>
         <Input.Search
-          placeholder="Tìm theo mã phòng"
+          placeholder="Tìm tên nhóm, dự án, mã phòng"
           allowClear
           onSearch={(v) => {
             setQ(v);
+            setPage(1);
+          }}
+        />
+        <InputNumber
+          min={0}
+          max={4}
+          step={0.01}
+          precision={2}
+          value={gpa}
+          onChange={(v) => {
+            setGpa(v);
+            setPage(1);
+          }}
+          placeholder="GPA của bạn (tối đa 4)"
+        />
+        <span>
+          Chỉ phòng tôi vào được{" "}
+          <Switch
+            checked={eligibleOnly}
+            disabled={gpa == null}
+            onChange={(v) => {
+              setEligibleOnly(v);
+              setPage(1);
+            }}
+          />
+        </span>
+        <Select
+          mode="multiple"
+          placeholder="Tất cả vai trò"
+          style={{ minWidth: 200 }}
+          value={roleIds}
+          options={roles.map((r) => ({ value: r.id, label: r.name }))}
+          onChange={(v) => {
+            setRoleIds(v);
             setPage(1);
           }}
         />
@@ -193,7 +285,9 @@ export function CourseRoomsPage() {
             setStatus(v);
             setPage(1);
           }}
-          options={Object.entries(roomStatusLabel).map(([value, label]) => ({ value, label: label.text }))}
+          options={Object.entries(roomStatusLabel)
+            .filter(([value]) => value !== "Cancelled")
+            .map(([value, label]) => ({ value, label: label.text }))}
         />
       </Space>
       <Table
@@ -210,7 +304,18 @@ export function CourseRoomsPage() {
           setSortDir(s.order === "ascend" ? "asc" : s.order === "descend" ? "desc" : undefined);
         }}
         columns={[
+          { title: "Tên nhóm", render: (_, r) => r.name || r.code },
           { title: "Mã phòng", dataIndex: "code", sorter: true },
+          { title: "Dự án", render: (_, r) => r.projectName || "—" },
+          { title: "GPA yêu cầu", render: (_, r) => r.requiredGpa ?? "—" },
+          { title: "Điểm mục tiêu", render: (_, r) => r.targetGrade ?? "—" },
+          {
+            title: "Vai trò cần tuyển",
+            render: (_, r) =>
+              r.neededRoles.length
+                ? r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>)
+                : "Chưa tuyển thêm",
+          },
           { title: "Trạng thái", render: (_, r) => <RoomStatusTag status={r.status} /> },
           {
             title: "Số người",
