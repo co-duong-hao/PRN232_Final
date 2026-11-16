@@ -16,7 +16,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   coursesApi,
@@ -58,6 +58,14 @@ function CourseDetail({ courseId }: { courseId: string }) {
   const [gp, setGp] = useState<PageParams>({ page: 1, pageSize: 20 });
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
+  const [settledStudentSearch, setSettledStudentSearch] = useState("");
+  const searchingStudents = studentSearch.trim() !== settledStudentSearch;
+
+  useEffect(() => {
+    if (!enrollOpen || !searchingStudents) return;
+    const timer = window.setTimeout(() => setSettledStudentSearch(studentSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [enrollOpen, searchingStudents, studentSearch]);
   const [selected, setSelected] = useState<string[]>([]);
 
   const loadCourse = useCallback(() => coursesApi.get(courseId), [courseId]);
@@ -78,10 +86,10 @@ function CourseDetail({ courseId }: { courseId: string }) {
   const majors = useStaffQuery(course && tab === "students" ? referenceApi.majors : null);
   const groupTypes = useStaffQuery(course ? referenceApi.groupTypes : null);
   const searchStudents = useCallback(
-    () => referenceApi.students({ q: studentSearch, page: 1, pageSize: 100 }),
-    [studentSearch],
+    () => referenceApi.students({ q: settledStudentSearch, page: 1, pageSize: 100 }),
+    [settledStudentSearch],
   );
-  const choices = useStaffQuery(enrollOpen ? searchStudents : null);
+  const choices = useStaffQuery(enrollOpen && !searchingStudents ? searchStudents : null);
 
   const refresh = () => {
     courseQuery.reload();
@@ -300,6 +308,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
                         setSelected([]);
                         setEnrollOpen(true);
                         setStudentSearch("");
+                        setSettledStudentSearch("");
                       }}
                     >
                       Thêm sinh viên
@@ -618,7 +627,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
           value={selected}
           onChange={setSelected}
           onSearch={setStudentSearch}
-          loading={choices.loading}
+          loading={searchingStudents || choices.loading}
           options={choices.data?.items.map((s) => ({
             value: s.id,
             label: `${s.studentCode} - ${s.fullName}`,
