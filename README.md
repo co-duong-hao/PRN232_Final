@@ -111,6 +111,9 @@ docker-compose.yml
 
 ## Cài đặt và triển khai
 
+> Hướng dẫn chi tiết từng bước cho Windows (build từng image, reset dữ liệu trước demo, xử lý lỗi thường gặp):
+> [docs/HUONG_DAN_CHAY.md](docs/HUONG_DAN_CHAY.md).
+
 Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 10 container
 (5 service .NET, web app, SQL Server, Kafka, Redis, Mailpit) và chúng giao tiếp với nhau qua mạng nội bộ của Compose.
 
