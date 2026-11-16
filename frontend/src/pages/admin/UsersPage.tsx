@@ -6,13 +6,14 @@ import { usersApi, type Role, type User, type UserListParams, type UserStatus } 
 import { useAuth } from "@/auth/AuthContext";
 import { EmptyState } from "@/components/EmptyState";
 import { formatDateTime } from "@/components/format";
-import { roleLabel } from "@/components/labels";
+import { getRoleLabels } from "@/components/labels";
 import { useApiAction } from "@/components/useApiAction";
 import { StaffLoadError } from "@/features/staff/StaffLoadError";
 import { staffSortOrder } from "@/features/staff/staffTableSort";
 import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
+import { useI18n } from "@/i18n";
 
 type Values = {
   email: string;
@@ -25,6 +26,7 @@ type Values = {
 
 export function UsersPage() {
   const { user } = useAuth();
+  const { t, language } = useI18n();
   const [params, setParams] = useState<UserListParams>({ page: 1, pageSize: 20 });
   const [searchText, setSearchText] = useState("");
   const screens = Grid.useBreakpoint();
@@ -34,11 +36,13 @@ export function UsersPage() {
   const [form] = Form.useForm<Values>();
   const editingSelf = mode === "edit" && edit?.id === user?.id;
 
+  const roleLabels = getRoleLabels(language);
+
   const request = useCallback(() => usersApi.list(params), [params]);
   const { data, loading, failure, reload: load } = useStaffQuery(request);
   useStaffPageBounds(params.page, data?.totalPages, setParams);
   const roles = useStaffQuery(usersApi.roles);
-  const roleOptions = roles.data?.map((r) => ({ value: r.code, label: roleLabel[r.code] }));
+  const roleOptions = roles.data?.map((r) => ({ value: r.code, label: roleLabels[r.code] }));
 
   const [save, saving] = useApiAction(async (v: Values) => {
     if (mode === "create") {
@@ -49,12 +53,12 @@ export function UsersPage() {
     }
     await usersApi.resetPassword(edit!.id, v.password);
     return true;
-  }, "Đã lưu tài khoản");
+  }, t.usersPage.successSaved);
 
   const [deactivate] = useApiAction(async (id: string) => {
     await usersApi.deactivate(id);
     return true;
-  }, "Đã vô hiệu hóa tài khoản");
+  }, t.usersPage.successDeactivated);
 
   const show = (m: "create" | "edit" | "password", u?: User) => {
     setEdit(u ?? null);
@@ -69,27 +73,27 @@ export function UsersPage() {
     <div className="workspace-page staff-page">
       <header className="workspace-heading">
         <div>
-          <span className="workspace-heading__eyebrow">Quản trị viên</span>
-          <Typography.Title level={1}>Quản lý tài khoản</Typography.Title>
-          <p>Quản lý người dùng, phân quyền vai trò và trạng thái truy cập hệ thống.</p>
+          <span className="workspace-heading__eyebrow">{t.usersPage.eyebrow}</span>
+          <Typography.Title level={1}>{t.usersPage.title}</Typography.Title>
+          <p>{t.usersPage.subtitle}</p>
         </div>
         <Button type="primary" disabled={!roles.data} onClick={() => show("create")}>
-          Tạo tài khoản
+          {t.usersPage.btnCreateUser}
         </Button>
       </header>
 
       <Space wrap className="workspace-toolbar staff-filters">
         <Input.Search
-          aria-label="Tìm tài khoản"
-          placeholder="Tìm email hoặc họ tên..."
+          aria-label={t.usersPage.searchPlaceholder}
+          placeholder={t.usersPage.searchPlaceholder}
           allowClear
           value={searchText}
           onChange={(event) => setSearchText(event.target.value)}
           onSearch={(value) => filter({ q: value.trim() || undefined })}
         />
         <Select
-          aria-label="Lọc theo vai trò"
-          placeholder="Tất cả vai trò"
+          aria-label={t.usersPage.allRoles}
+          placeholder={t.usersPage.allRoles}
           allowClear
           style={{ width: 180 }}
           loading={roles.loading}
@@ -99,13 +103,13 @@ export function UsersPage() {
           onChange={(role) => filter({ role })}
         />
         <Select
-          aria-label="Lọc theo trạng thái tài khoản"
-          placeholder="Tất cả trạng thái"
+          aria-label={t.usersPage.allStatus}
+          placeholder={t.usersPage.allStatus}
           allowClear
           style={{ width: 170 }}
           options={[
-            { value: "Active", label: "Hoạt động" },
-            { value: "Inactive", label: "Vô hiệu hóa" },
+            { value: "Active", label: t.usersPage.statusActive },
+            { value: "Inactive", label: t.usersPage.statusInactive },
           ]}
           value={params.status}
           onChange={(status) => filter({ status })}
@@ -117,32 +121,36 @@ export function UsersPage() {
             filter({ q: undefined, role: undefined, status: undefined });
           }}
         >
-          Xóa bộ lọc
+          {language === "en" ? "Reset filters" : "Xóa bộ lọc"}
         </Button>
       </Space>
 
       {roles.failure && (
         <StaffLoadError
-          title="Không tải được vai trò tài khoản"
+          title={t.usersPage.errorLoadRoles}
           error={roles.failure.error}
           onRetry={roles.reload}
         />
       )}
 
       {failure ? (
-        <StaffLoadError title="Không tải được danh sách tài khoản" error={failure.error} onRetry={load} />
+        <StaffLoadError
+          title={language === "vi" ? "Không tải được danh sách tài khoản" : "Failed to load user accounts"}
+          error={failure.error}
+          onRetry={load}
+        />
       ) : loading ? (
         <TableSkeleton
-          scrollX={820}
+          scrollX={760}
           rows={5}
           pagination={{ current: params.page, pageSize: params.pageSize, total: data?.totalItems }}
           columns={[
-            { title: "Email", kind: "longText" },
-            { title: "Họ tên", kind: "text" },
-            { title: "Vai trò", kind: "tags" },
-            { title: "Trạng thái", kind: "tag" },
-            { title: "Ngày tạo", kind: "date" },
-            { title: "Thao tác", kind: "actions", actionWidths: [58, 134, 96] },
+            { title: t.usersPage.colEmail, kind: "text" },
+            { title: t.usersPage.colFullName, kind: "text" },
+            { title: t.usersPage.colRoles, kind: "tags" },
+            { title: t.usersPage.colStatus, kind: "tag" },
+            { title: t.usersPage.colCreatedAt, kind: "date" },
+            { title: t.common.actions, kind: "actions", actionWidths: [62, 116, 76] },
           ]}
         />
       ) : (
@@ -152,7 +160,20 @@ export function UsersPage() {
           size={screens.sm ? "middle" : "small"}
           rowKey="id"
           dataSource={data?.items ?? []}
-          locale={{ emptyText: <EmptyState title="Không tìm thấy tài khoản nào" /> }}
+          locale={{
+            emptyText: (
+              <EmptyState
+                title={t.usersPage.emptyTitle}
+                description={
+                  searchText || params.role || params.status
+                    ? language === "vi"
+                      ? "Không tìm thấy tài khoản phù hợp với bộ lọc."
+                      : "No accounts match the selected filters."
+                    : undefined
+                }
+              />
+            ),
+          }}
           pagination={{
             current: params.page,
             pageSize: params.pageSize,
@@ -174,44 +195,53 @@ export function UsersPage() {
             }));
           }}
           columns={[
-            { title: "Email", dataIndex: "email", sorter: true, sortOrder: staffSortOrder(params, "email") },
             {
-              title: "Họ tên",
+              title: t.usersPage.colEmail,
+              dataIndex: "email",
+              sorter: true,
+              sortOrder: staffSortOrder(params, "email"),
+            },
+            {
+              title: t.usersPage.colFullName,
               dataIndex: "fullName",
               sorter: true,
               sortOrder: staffSortOrder(params, "fullName"),
             },
             {
-              title: "Vai trò",
+              title: t.usersPage.colRoles,
               dataIndex: "roles",
-              render: (rs: Role[]) => rs.map((r) => <Tag key={r}>{roleLabel[r]}</Tag>),
+              render: (rs: Role[]) => rs.map((r) => <Tag key={r}>{roleLabels[r]}</Tag>),
             },
             {
-              title: "Trạng thái",
+              title: t.usersPage.colStatus,
               dataIndex: "status",
               render: (s: UserStatus) =>
-                s === "Active" ? <Tag color="green">Hoạt động</Tag> : <Tag>Vô hiệu hóa</Tag>,
+                s === "Active" ? (
+                  <Tag color="green">{t.usersPage.statusActive}</Tag>
+                ) : (
+                  <Tag>{t.usersPage.statusInactive}</Tag>
+                ),
             },
             {
-              title: "Ngày tạo",
+              title: t.usersPage.colCreatedAt,
               dataIndex: "createdAt",
               sorter: true,
               sortOrder: staffSortOrder(params, "createdAt"),
               render: formatDateTime,
             },
             {
-              title: "Thao tác",
+              title: t.common.actions,
               render: (_: unknown, u: User) => (
                 <Space wrap>
                   <Button disabled={!roles.data} onClick={() => show("edit", u)}>
-                    Sửa
+                    {t.usersPage.btnEdit}
                   </Button>
-                  <Button onClick={() => show("password", u)}>Đặt lại mật khẩu</Button>
+                  <Button onClick={() => show("password", u)}>{t.usersPage.btnResetPassword}</Button>
                   {u.status === "Active" && u.id !== user?.id && (
                     <Popconfirm
-                      title="Vô hiệu hóa tài khoản này?"
-                      okText="Vô hiệu hóa"
-                      cancelText="Hủy"
+                      title={t.usersPage.confirmDeactivateTitle}
+                      okText={t.usersPage.confirmDeactivateOk}
+                      cancelText={t.common.cancel}
                       onConfirm={async () => {
                         setBusyId(u.id);
                         try {
@@ -222,7 +252,7 @@ export function UsersPage() {
                       }}
                     >
                       <Button danger loading={busyId === u.id}>
-                        Vô hiệu hóa
+                        {t.usersPage.btnDeactivate}
                       </Button>
                     </Popconfirm>
                   )}
@@ -235,13 +265,17 @@ export function UsersPage() {
 
       <Modal
         title={
-          mode === "create" ? "Tạo tài khoản mới" : mode === "edit" ? "Sửa tài khoản" : "Đặt lại mật khẩu"
+          mode === "create"
+            ? t.usersPage.modalCreateTitle
+            : mode === "edit"
+              ? t.usersPage.modalEditTitle
+              : t.usersPage.modalResetPasswordTitle
         }
         open={mode !== null}
         onCancel={() => setMode(null)}
         onOk={() => form.submit()}
-        okText="Lưu"
-        cancelText="Hủy"
+        okText={t.common.save}
+        cancelText={t.common.cancel}
         confirmLoading={saving}
         destroyOnHidden
       >
@@ -258,32 +292,35 @@ export function UsersPage() {
           {mode === "create" && (
             <Form.Item
               name="email"
-              label="Email"
+              label={t.usersPage.fieldEmail}
               rules={[
-                { required: true, message: "Vui lòng nhập email" },
-                { type: "email", message: "Email không đúng định dạng" },
+                { required: true, message: t.usersPage.fieldEmailRequired },
+                {
+                  type: "email",
+                  message: language === "en" ? "Invalid email format" : "Email không đúng định dạng",
+                },
               ]}
             >
-              <Input placeholder="Nhập email người dùng" />
+              <Input placeholder={language === "en" ? "Enter user email" : "Nhập email người dùng"} />
             </Form.Item>
           )}
           {mode !== "password" && (
             <>
               <Form.Item
                 name="fullName"
-                label="Họ tên"
-                rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
+                label={t.usersPage.fieldFullName}
+                rules={[{ required: true, message: t.usersPage.fieldFullNameRequired }]}
               >
-                <Input placeholder="Nhập họ và tên" />
+                <Input placeholder={language === "en" ? "Enter full name" : "Nhập họ và tên"} />
               </Form.Item>
               <Form.Item
                 name="roles"
-                label="Vai trò"
-                rules={[{ required: true, message: "Vui lòng chọn ít nhất một vai trò" }]}
+                label={t.usersPage.fieldRoles}
+                rules={[{ required: true, message: t.usersPage.fieldRolesRequired }]}
               >
                 <Select
                   mode="multiple"
-                  placeholder="Chọn vai trò"
+                  placeholder={language === "en" ? "Select roles" : "Chọn vai trò"}
                   options={roleOptions?.map((option) => ({
                     ...option,
                     disabled: editingSelf && option.value === "Admin",
@@ -298,20 +335,27 @@ export function UsersPage() {
           )}
           {editingSelf && (
             <Typography.Paragraph type="secondary">
-              Tài khoản đang đăng nhập phải hoạt động và giữ vai trò quản trị viên.
+              {language === "en"
+                ? "The currently logged in account must stay active and keep the administrator role."
+                : "Tài khoản đang đăng nhập phải hoạt động và giữ vai trò quản trị viên."}
             </Typography.Paragraph>
           )}
           {mode === "edit" && (
             <Form.Item
               name="status"
-              label="Trạng thái"
-              rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
+              label={t.usersPage.fieldStatus}
+              rules={[
+                {
+                  required: true,
+                  message: language === "en" ? "Please select status" : "Vui lòng chọn trạng thái",
+                },
+              ]}
             >
               <Select
                 disabled={editingSelf}
                 options={[
-                  { value: "Active", label: "Hoạt động" },
-                  { value: "Inactive", label: "Vô hiệu hóa" },
+                  { value: "Active", label: t.usersPage.statusActive },
+                  { value: "Inactive", label: t.usersPage.statusInactive },
                 ]}
               />
             </Form.Item>
@@ -320,25 +364,42 @@ export function UsersPage() {
             <>
               <Form.Item
                 name="password"
-                label="Mật khẩu"
+                label={t.usersPage.fieldPassword}
                 rules={[
-                  { required: true, message: "Vui lòng nhập mật khẩu" },
-                  { min: 8, message: "Mật khẩu phải có ít nhất 8 ký tự" },
+                  { required: true, message: t.usersPage.fieldPasswordRequired },
+                  {
+                    min: 8,
+                    message:
+                      language === "en"
+                        ? "Password must be at least 8 characters"
+                        : "Mật khẩu phải có ít nhất 8 ký tự",
+                  },
                 ]}
               >
-                <Input.Password autoComplete="new-password" placeholder="Tối thiểu 8 ký tự" />
+                <Input.Password
+                  autoComplete="new-password"
+                  placeholder={language === "en" ? "Minimum 8 characters" : "Tối thiểu 8 ký tự"}
+                />
               </Form.Item>
               <Form.Item
                 name="confirmPassword"
-                label="Nhập lại mật khẩu"
+                label={language === "en" ? "Confirm password" : "Nhập lại mật khẩu"}
                 dependencies={["password"]}
                 rules={[
-                  { required: true, message: "Vui lòng nhập lại mật khẩu" },
+                  {
+                    required: true,
+                    message:
+                      language === "en" ? "Please confirm your password" : "Vui lòng nhập lại mật khẩu",
+                  },
                   ({ getFieldValue }) => ({
                     validator: (_, confirmation?: string) =>
                       !confirmation || confirmation === getFieldValue("password")
                         ? Promise.resolve()
-                        : Promise.reject(new Error("Hai mật khẩu không khớp")),
+                        : Promise.reject(
+                            new Error(
+                              language === "en" ? "Passwords do not match" : "Hai mật khẩu không khớp",
+                            ),
+                          ),
                   }),
                 ]}
               >

@@ -26,6 +26,7 @@ import {
   type Group,
   type PageParams,
   type RoomListParams,
+  type RoomStatus,
   type RoomSummary,
 } from "@/api";
 import { useAuth } from "@/auth/AuthContext";
@@ -41,6 +42,7 @@ import { StaffRoomDetails } from "@/features/staff/StaffRoomDetails";
 import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { CourseDetailSkeleton, CourseStatsSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
+import { translations, useI18n } from "@/i18n";
 
 export function CourseDetailPage() {
   const { courseId = "" } = useParams();
@@ -49,6 +51,7 @@ export function CourseDetailPage() {
 
 function CourseDetail({ courseId }: { courseId: string }) {
   const { hasRole } = useAuth();
+  const { t, language } = useI18n();
   const screens = Grid.useBreakpoint();
   const { message } = App.useApp();
 
@@ -101,14 +104,14 @@ function CourseDetail({ courseId }: { courseId: string }) {
 
   const [enroll, enrolling] = useApiAction(
     (ids: string[]) => coursesApi.enroll(courseId, ids),
-    "Đã cập nhật danh sách sinh viên",
+    t.staffCourseDetail.enrollSuccess,
   );
   const [remove, removing] = useApiAction(async (id: string) => {
     await coursesApi.removeStudent(courseId, id);
     return true;
-  }, "Đã gỡ sinh viên khỏi học phần");
+  }, t.staffCourseDetail.removeSuccess);
 
-  const type = groupTypes.data?.items.find((t) => t.id === course?.groupTypeId);
+  const type = groupTypes.data?.items.find((gt) => gt.id === course?.groupTypeId);
 
   const memberList = (
     members: {
@@ -124,16 +127,25 @@ function CourseDetail({ courseId }: { courseId: string }) {
       scroll={{ x: "max-content" }}
       rowKey="studentId"
       pagination={false}
-      locale={{ emptyText: <EmptyState title="Chưa có thành viên" /> }}
+      locale={{
+        emptyText: <EmptyState title={language === "en" ? "No members" : "Chưa có thành viên"} />,
+      }}
       dataSource={members}
       columns={[
-        { title: "Mã SV", dataIndex: "studentCode" },
-        { title: "Họ tên", dataIndex: "fullName" },
-        { title: "Ngành", dataIndex: "majorCode" },
+        { title: t.staffRoomDetails.colStudentCode, dataIndex: "studentCode" },
+        { title: t.staffRoomDetails.colFullName, dataIndex: "fullName" },
+        { title: t.staffRoomDetails.colMajor, dataIndex: "majorCode" },
         {
-          title: "Vai trò",
+          title: t.staffRoomDetails.colRole,
           dataIndex: "isLeader",
-          render: (v: boolean) => (v ? <Tag color="orange">Trưởng nhóm</Tag> : "Thành viên"),
+          render: (v: boolean) =>
+            v ? (
+              <Tag color="orange">{language === "en" ? "Leader" : "Trưởng nhóm"}</Tag>
+            ) : language === "en" ? (
+              "Member"
+            ) : (
+              "Thành viên"
+            ),
         },
       ]}
     />
@@ -152,14 +164,16 @@ function CourseDetail({ courseId }: { courseId: string }) {
           <div>
             <Link className="workspace-heading__back" to="/staff/courses">
               <ArrowLeftOutlined aria-hidden="true" />
-              Quay lại Quản lý học phần
+              {t.staffCourseDetail.backToCourses}
             </Link>
-            <Typography.Title level={1}>Chi tiết học phần</Typography.Title>
+            <Typography.Title level={1}>
+              {language === "en" ? "Course Details" : "Chi tiết học phần"}
+            </Typography.Title>
           </div>
         </header>
         {courseQuery.failure && (
           <StaffLoadError
-            title="Không tải được học phần"
+            title={language === "en" ? "Failed to load course" : "Không tải được học phần"}
             error={courseQuery.failure.error}
             onRetry={courseQuery.reload}
           />
@@ -174,13 +188,17 @@ function CourseDetail({ courseId }: { courseId: string }) {
         <div>
           <Link className="workspace-heading__back" to="/staff/courses">
             <ArrowLeftOutlined aria-hidden="true" />
-            Quay lại Quản lý học phần
+            {t.staffCourseDetail.backToCourses}
           </Link>
           <div className="workspace-heading__title-row">
             <Typography.Title level={1}>{course.code}</Typography.Title>
             <CourseStatusTag status={course.status} />
           </div>
-          <p>Theo dõi sĩ số, các phòng đang hoạt động và nhóm đã hoàn tất trong học phần.</p>
+          <p>
+            {language === "en"
+              ? "Monitor enrollments, active rooms, and formed groups in this course."
+              : "Theo dõi sĩ số, các phòng đang hoạt động và nhóm đã hoàn tất trong học phần."}
+          </p>
         </div>
         {hasRole("Admin", "HeadOfDepartment") && (
           <CourseActions course={course} onChanged={refresh} allowDelete={false} />
@@ -193,14 +211,19 @@ function CourseDetail({ courseId }: { courseId: string }) {
         size="small"
         className="workspace-course-description"
         items={[
-          { key: "type", label: "Loại nhóm", children: course.groupTypeName },
+          {
+            key: "type",
+            label: t.myCourses.cardGroupType,
+            children: course.groupTypeName,
+          },
           {
             key: "rule",
-            label: "Quy định cơ cấu",
+            label: language === "en" ? "Composition Rules" : "Quy định cơ cấu",
             children: type ? (
               <>
                 <div>
-                  {type.minMemberCount}–{type.maxMemberCount} thành viên, tối thiểu {type.minMajorCount} ngành
+                  {type.minMemberCount}–{type.maxMemberCount} {t.composition.memberUnit},{" "}
+                  {language === "en" ? "minimum" : "tối thiểu"} {type.minMajorCount} {t.composition.majorUnit}
                 </div>
                 {type.majors.length > 0 && (
                   <div>
@@ -209,19 +232,33 @@ function CourseDetail({ courseId }: { courseId: string }) {
                 )}
               </>
             ) : groupTypes.loading ? (
-              "Đang tải quy định..."
+              language === "en" ? (
+                "Loading rules..."
+              ) : (
+                "Đang tải quy định..."
+              )
+            ) : language === "en" ? (
+              "No rule information available"
             ) : (
               "Chưa có thông tin quy định"
             ),
           },
-          { key: "start", label: "Bắt đầu", children: formatDateTime(course.startTime) },
-          { key: "end", label: "Hạn ghép nhóm", children: formatDateTime(course.deadline) },
+          {
+            key: "start",
+            label: language === "en" ? "Start" : "Bắt đầu",
+            children: formatDateTime(course.startTime),
+          },
+          {
+            key: "end",
+            label: t.staffCourses.colDeadline,
+            children: formatDateTime(course.deadline),
+          },
         ]}
       />
 
       {groupTypes.failure && (
         <StaffLoadError
-          title="Không tải được quy định loại nhóm"
+          title={language === "en" ? "Failed to load group type rules" : "Không tải được quy định loại nhóm"}
           error={groupTypes.failure.error}
           onRetry={groupTypes.reload}
         />
@@ -234,10 +271,10 @@ function CourseDetail({ courseId }: { courseId: string }) {
         items={[
           {
             key: "stats",
-            label: "Thống kê",
+            label: t.staffCourseDetail.tabStats,
             children: stats.failure ? (
               <StaffLoadError
-                title="Không tải được thống kê"
+                title={language === "en" ? "Failed to load statistics" : "Không tải được thống kê"}
                 error={stats.failure.error}
                 onRetry={stats.reload}
               />
@@ -251,8 +288,8 @@ function CourseDetail({ courseId }: { courseId: string }) {
                   setSp({ page: 1, pageSize: sp.pageSize, hasRoom: false });
                   setTab("students");
                 }}
-                onShowRooms={(status) => {
-                  setRp({ page: 1, pageSize: rp.pageSize, status });
+                onShowRooms={(roomStatus) => {
+                  setRp({ page: 1, pageSize: rp.pageSize, status: roomStatus });
                   setTab("rooms");
                 }}
                 onShowGroups={() => {
@@ -266,21 +303,21 @@ function CourseDetail({ courseId }: { courseId: string }) {
           },
           {
             key: "students",
-            label: "Sinh viên",
+            label: t.staffCourseDetail.tabStudents,
             children: (
               <>
                 <Space wrap className="workspace-toolbar staff-filters">
                   <Input.Search
-                    aria-label="Tìm sinh viên"
-                    placeholder="Tìm mã SV, họ tên, email..."
+                    aria-label={t.staffCourseDetail.studentsSearchPlaceholder}
+                    placeholder={t.staffCourseDetail.studentsSearchPlaceholder}
                     key={sp.q ?? ""}
                     defaultValue={sp.q}
                     allowClear
                     onSearch={(q) => setSp((x) => ({ ...x, q, page: 1 }))}
                   />
                   <Select
-                    aria-label="Lọc theo ngành"
-                    placeholder="Tất cả ngành"
+                    aria-label={t.staffCourseDetail.studentsAllMajors}
+                    placeholder={t.staffCourseDetail.studentsAllMajors}
                     value={sp.majorId}
                     loading={majors.loading}
                     disabled={!!majors.failure}
@@ -290,14 +327,14 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     onChange={(majorId) => setSp((x) => ({ ...x, majorId, page: 1 }))}
                   />
                   <Select
-                    aria-label="Lọc theo tình trạng vào phòng"
-                    placeholder="Tình trạng phòng"
+                    aria-label={language === "en" ? "Filter by room status" : "Lọc theo tình trạng vào phòng"}
+                    placeholder={language === "en" ? "Room status" : "Tình trạng phòng"}
                     value={sp.hasRoom}
                     allowClear
                     style={{ width: 170 }}
                     options={[
-                      { value: true, label: "Đã có phòng" },
-                      { value: false, label: "Chưa có phòng" },
+                      { value: true, label: language === "en" ? "In room" : "Đã có phòng" },
+                      { value: false, label: language === "en" ? "No room" : "Chưa có phòng" },
                     ]}
                     onChange={(hasRoom) => setSp((x) => ({ ...x, hasRoom, page: 1 }))}
                   />
@@ -311,14 +348,14 @@ function CourseDetail({ courseId }: { courseId: string }) {
                         setSettledStudentSearch("");
                       }}
                     >
-                      Thêm sinh viên
+                      {t.staffCourseDetail.btnEnrollStudents}
                     </Button>
                   )}
                 </Space>
 
                 {majors.failure && (
                   <StaffLoadError
-                    title="Không tải được bộ lọc ngành"
+                    title={language === "en" ? "Failed to load major filters" : "Không tải được bộ lọc ngành"}
                     error={majors.failure.error}
                     onRetry={majors.reload}
                   />
@@ -326,7 +363,9 @@ function CourseDetail({ courseId }: { courseId: string }) {
 
                 {students.failure ? (
                   <StaffLoadError
-                    title="Không tải được danh sách sinh viên"
+                    title={
+                      language === "en" ? "Failed to load student list" : "Không tải được danh sách sinh viên"
+                    }
                     error={students.failure.error}
                     onRetry={students.reload}
                   />
@@ -336,15 +375,15 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     rows={5}
                     pagination={{ current: sp.page, pageSize: sp.pageSize }}
                     columns={[
-                      { title: "Mã SV", kind: "code" },
-                      { title: "Họ tên", kind: "text" },
+                      { title: t.staffCourseDetail.colStudentCode, kind: "code" },
+                      { title: t.staffCourseDetail.colFullName, kind: "text" },
                       { title: "Email", kind: "longText" },
-                      { title: "Ngành", kind: "code" },
+                      { title: t.staffCourseDetail.colMajor, kind: "code" },
                       { title: "GPA", kind: "number" },
-                      { title: "Vai trò", kind: "tags" },
-                      { title: "Trạng thái phòng", kind: "tag" },
+                      { title: language === "en" ? "Role" : "Vai trò", kind: "tags" },
+                      { title: language === "en" ? "Room Status" : "Trạng thái phòng", kind: "tag" },
                       ...(hasRole("Admin")
-                        ? [{ title: "Thao tác", kind: "actions" as const, actionWidths: [52] }]
+                        ? [{ title: t.common.actions, kind: "actions" as const, actionWidths: [52] }]
                         : []),
                     ]}
                   />
@@ -355,7 +394,13 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     scroll={{ x: "max-content" }}
                     size={screens.sm ? "middle" : "small"}
                     dataSource={students.data?.items ?? []}
-                    locale={{ emptyText: <EmptyState title="Không có sinh viên nào" /> }}
+                    locale={{
+                      emptyText: (
+                        <EmptyState
+                          title={language === "en" ? "No students enrolled" : "Không có sinh viên nào"}
+                        />
+                      ),
+                    }}
                     pagination={{
                       current: sp.page,
                       pageSize: sp.pageSize,
@@ -366,41 +411,45 @@ function CourseDetail({ courseId }: { courseId: string }) {
                       onChange: (page, pageSize) => setSp((x) => ({ ...x, page, pageSize })),
                     }}
                     columns={[
-                      { title: "Mã SV", dataIndex: "studentCode" },
-                      { title: "Họ tên", dataIndex: "fullName" },
+                      { title: t.staffCourseDetail.colStudentCode, dataIndex: "studentCode" },
+                      { title: t.staffCourseDetail.colFullName, dataIndex: "fullName" },
                       { title: "Email", dataIndex: "email" },
-                      { title: "Ngành", dataIndex: "majorCode" },
+                      { title: t.staffCourseDetail.colMajor, dataIndex: "majorCode" },
                       {
                         title: "GPA",
                         dataIndex: "gpa",
                         render: (v: number | null) => formatDecimal(v),
                       },
                       {
-                        title: "Vai trò",
+                        title: language === "en" ? "Role" : "Vai trò",
                         render: (_: unknown, s: CourseStudent) =>
                           s.roles.length ? s.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
                       },
                       {
-                        title: "Trạng thái phòng",
+                        title: language === "en" ? "Room Status" : "Trạng thái phòng",
                         dataIndex: "hasRoom",
                         render: (v: boolean) =>
-                          v ? <Tag color="green">Đã có phòng</Tag> : <Tag>Chưa có phòng</Tag>,
+                          v ? (
+                            <Tag color="green">{language === "en" ? "In room" : "Đã có phòng"}</Tag>
+                          ) : (
+                            <Tag>{language === "en" ? "No room" : "Chưa có phòng"}</Tag>
+                          ),
                       },
                       ...(hasRole("Admin")
                         ? [
                             {
-                              title: "Thao tác",
+                              title: t.common.actions,
                               render: (_: unknown, s: CourseStudent) => (
                                 <Popconfirm
-                                  title="Gỡ sinh viên khỏi học phần này?"
-                                  okText="Gỡ"
-                                  cancelText="Hủy"
+                                  title={t.staffCourseDetail.confirmRemoveStudent}
+                                  okText={t.staffCourseDetail.btnRemoveStudent}
+                                  cancelText={t.common.cancel}
                                   onConfirm={async () => {
                                     if (await remove(s.id)) refresh();
                                   }}
                                 >
                                   <Button danger loading={removing}>
-                                    Gỡ
+                                    {t.staffCourseDetail.btnRemoveStudent}
                                   </Button>
                                 </Popconfirm>
                               ),
@@ -415,34 +464,37 @@ function CourseDetail({ courseId }: { courseId: string }) {
           },
           {
             key: "rooms",
-            label: "Phòng",
+            label: t.staffCourseDetail.tabRooms,
             children: (
               <>
                 <Space wrap className="workspace-toolbar staff-filters">
                   <Input.Search
-                    aria-label="Tìm phòng"
-                    placeholder="Tìm tên nhóm, dự án, mã phòng..."
+                    aria-label={t.staffCourseDetail.roomsSearchPlaceholder}
+                    placeholder={t.staffCourseDetail.roomsSearchPlaceholder}
                     key={rp.q ?? ""}
                     defaultValue={rp.q}
                     allowClear
                     onSearch={(q) => setRp((x) => ({ ...x, q, page: 1 }))}
                   />
                   <Select
-                    aria-label="Lọc theo trạng thái phòng"
-                    placeholder="Tất cả trạng thái"
+                    aria-label={language === "en" ? "Filter by room status" : "Lọc theo trạng thái phòng"}
+                    placeholder={t.staffCourses.allStatus}
                     value={rp.status}
                     allowClear
                     style={{ width: 170 }}
                     options={Object.entries(roomStatusLabel)
                       .filter(([value]) => value !== "Cancelled" || hasRole("Admin"))
-                      .map(([value, v]) => ({ value, label: v.text }))}
-                    onChange={(status) => setRp((x) => ({ ...x, status, page: 1 }))}
+                      .map(([value, v]) => ({
+                        value,
+                        label: translations[language].roomStatus[value as RoomStatus] ?? v.text,
+                      }))}
+                    onChange={(roomStatus) => setRp((x) => ({ ...x, status: roomStatus, page: 1 }))}
                   />
                 </Space>
 
                 {rooms.failure ? (
                   <StaffLoadError
-                    title="Không tải được danh sách phòng"
+                    title={language === "en" ? "Failed to load room list" : "Không tải được danh sách phòng"}
                     error={rooms.failure.error}
                     onRetry={rooms.reload}
                   />
@@ -453,15 +505,15 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     showExpandColumn
                     pagination={{ current: rp.page, pageSize: rp.pageSize }}
                     columns={[
-                      { title: "Mã phòng", kind: "code" },
-                      { title: "Tên nhóm", kind: "text" },
-                      { title: "GPA yêu cầu", kind: "number" },
-                      { title: "Vai trò cần tuyển", kind: "tags" },
-                      { title: "Trạng thái", kind: "tag" },
-                      { title: "Số người", kind: "number" },
-                      { title: "Phân bố ngành", kind: "tags" },
-                      { title: "Trưởng phòng", kind: "text" },
-                      { title: "Ngày tạo", kind: "date" },
+                      { title: t.staffCourseDetail.colRoomCode, kind: "code" },
+                      { title: t.staffCourseDetail.colRoomName, kind: "text" },
+                      { title: language === "en" ? "Required GPA" : "GPA yêu cầu", kind: "number" },
+                      { title: language === "en" ? "Needed Roles" : "Vai trò cần tuyển", kind: "tags" },
+                      { title: t.staffCourseDetail.colRoomStatus, kind: "tag" },
+                      { title: t.staffCourseDetail.colMemberCount, kind: "number" },
+                      { title: language === "en" ? "Major Mix" : "Phân bố ngành", kind: "tags" },
+                      { title: t.staffCourseDetail.colLeader, kind: "text" },
+                      { title: language === "en" ? "Created At" : "Ngày tạo", kind: "date" },
                     ]}
                   />
                 ) : (
@@ -471,7 +523,11 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     scroll={{ x: "max-content" }}
                     size={screens.sm ? "middle" : "small"}
                     dataSource={rooms.data?.items ?? []}
-                    locale={{ emptyText: <EmptyState title="Không có phòng nào" /> }}
+                    locale={{
+                      emptyText: (
+                        <EmptyState title={language === "en" ? "No rooms found" : "Không có phòng nào"} />
+                      ),
+                    }}
                     pagination={{
                       current: rp.page,
                       pageSize: rp.pageSize,
@@ -488,37 +544,48 @@ function CourseDetail({ courseId }: { courseId: string }) {
                         ) : null,
                     }}
                     columns={[
-                      { title: "Mã phòng", dataIndex: "code" },
-                      { title: "Tên nhóm", render: (_: unknown, r: RoomSummary) => r.name || r.code },
+                      { title: t.staffCourseDetail.colRoomCode, dataIndex: "code" },
                       {
-                        title: "GPA yêu cầu",
-                        render: (_: unknown, r: RoomSummary) =>
-                          r.requiredGpa != null ? formatDecimal(r.requiredGpa) : "Không yêu cầu",
+                        title: t.staffCourseDetail.colRoomName,
+                        render: (_: unknown, r: RoomSummary) => r.name || r.code,
                       },
                       {
-                        title: "Vai trò cần tuyển",
+                        title: language === "en" ? "Required GPA" : "GPA yêu cầu",
+                        render: (_: unknown, r: RoomSummary) =>
+                          r.requiredGpa != null
+                            ? formatDecimal(r.requiredGpa)
+                            : language === "en"
+                              ? "None"
+                              : "Không yêu cầu",
+                      },
+                      {
+                        title: language === "en" ? "Needed Roles" : "Vai trò cần tuyển",
                         render: (_: unknown, r: RoomSummary) =>
                           r.neededRoles.length
                             ? r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>)
                             : "—",
                       },
                       {
-                        title: "Trạng thái",
+                        title: t.staffCourseDetail.colRoomStatus,
                         dataIndex: "status",
                         render: (s: RoomSummary["status"]) => <RoomStatusTag status={s} />,
                       },
                       {
-                        title: "Số người",
+                        title: t.staffCourseDetail.colMemberCount,
                         render: (_: unknown, r: RoomSummary) =>
                           type ? `${r.memberCount}/${type.maxMemberCount}` : r.memberCount,
                       },
                       {
-                        title: "Phân bố ngành",
+                        title: language === "en" ? "Major Mix" : "Phân bố ngành",
                         dataIndex: "majors",
                         render: (m: RoomSummary["majors"]) => <MajorCounts majors={m} />,
                       },
-                      { title: "Trưởng phòng", dataIndex: "leaderName" },
-                      { title: "Ngày tạo", dataIndex: "createdAt", render: formatDateTime },
+                      { title: t.staffCourseDetail.colLeader, dataIndex: "leaderName" },
+                      {
+                        title: language === "en" ? "Created At" : "Ngày tạo",
+                        dataIndex: "createdAt",
+                        render: formatDateTime,
+                      },
                     ]}
                   />
                 )}
@@ -527,12 +594,12 @@ function CourseDetail({ courseId }: { courseId: string }) {
           },
           {
             key: "groups",
-            label: "Nhóm chính thức",
+            label: t.staffCourseDetail.tabGroups,
             children: (
               <>
                 <Input.Search
-                  aria-label="Tìm mã nhóm"
-                  placeholder="Tìm mã nhóm..."
+                  aria-label={t.staffCourseDetail.groupsSearchPlaceholder}
+                  placeholder={t.staffCourseDetail.groupsSearchPlaceholder}
                   key={gp.q ?? ""}
                   defaultValue={gp.q}
                   allowClear
@@ -542,7 +609,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
 
                 {groups.failure ? (
                   <StaffLoadError
-                    title="Không tải được danh sách nhóm"
+                    title={language === "en" ? "Failed to load team list" : "Không tải được danh sách nhóm"}
                     error={groups.failure.error}
                     onRetry={groups.reload}
                   />
@@ -553,11 +620,11 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     showExpandColumn
                     pagination={{ current: gp.page, pageSize: gp.pageSize }}
                     columns={[
-                      { title: "Mã nhóm", kind: "code" },
-                      { title: "Tên nhóm", kind: "text" },
-                      { title: "Số thành viên", kind: "number" },
-                      { title: "Trưởng nhóm", kind: "text" },
-                      { title: "Ngày thành lập", kind: "date" },
+                      { title: t.staffCourseDetail.colGroupCode, kind: "code" },
+                      { title: t.staffCourseDetail.colGroupName, kind: "text" },
+                      { title: language === "en" ? "Members" : "Số thành viên", kind: "number" },
+                      { title: language === "en" ? "Leader" : "Trưởng nhóm", kind: "text" },
+                      { title: language === "en" ? "Created At" : "Ngày thành lập", kind: "date" },
                     ]}
                   />
                 ) : (
@@ -567,7 +634,17 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     scroll={{ x: "max-content" }}
                     size={screens.sm ? "middle" : "small"}
                     dataSource={groups.data?.items ?? []}
-                    locale={{ emptyText: <EmptyState title="Chưa có nhóm nào được hoàn tất" /> }}
+                    locale={{
+                      emptyText: (
+                        <EmptyState
+                          title={
+                            language === "en"
+                              ? "No official teams formed yet"
+                              : "Chưa có nhóm nào được hoàn tất"
+                          }
+                        />
+                      ),
+                    }}
                     pagination={{
                       current: gp.page,
                       pageSize: gp.pageSize,
@@ -579,14 +656,24 @@ function CourseDetail({ courseId }: { courseId: string }) {
                     }}
                     expandable={{ expandedRowRender: (g) => memberList(g.members) }}
                     columns={[
-                      { title: "Mã nhóm", dataIndex: "code" },
-                      { title: "Tên nhóm", render: (_: unknown, g: Group) => g.name || g.code },
-                      { title: "Số thành viên", render: (_: unknown, g: Group) => g.members.length },
+                      { title: t.staffCourseDetail.colGroupCode, dataIndex: "code" },
                       {
-                        title: "Trưởng nhóm",
+                        title: t.staffCourseDetail.colGroupName,
+                        render: (_: unknown, g: Group) => g.name || g.code,
+                      },
+                      {
+                        title: language === "en" ? "Members" : "Số thành viên",
+                        render: (_: unknown, g: Group) => g.members.length,
+                      },
+                      {
+                        title: language === "en" ? "Leader" : "Trưởng nhóm",
                         render: (_: unknown, g: Group) => g.members.find((m) => m.isLeader)?.fullName ?? "—",
                       },
-                      { title: "Ngày thành lập", dataIndex: "createdAt", render: formatDateTime },
+                      {
+                        title: language === "en" ? "Created At" : "Ngày thành lập",
+                        dataIndex: "createdAt",
+                        render: formatDateTime,
+                      },
                     ]}
                   />
                 )}
@@ -597,33 +684,39 @@ function CourseDetail({ courseId }: { courseId: string }) {
       />
 
       <Modal
-        title="Thêm sinh viên vào học phần"
+        title={t.staffCourseDetail.enrollModalTitle}
         open={enrollOpen}
         destroyOnHidden
-        okText="Thêm sinh viên"
-        cancelText="Hủy"
+        okText={t.staffCourseDetail.enrollModalOk}
+        cancelText={t.common.cancel}
         onCancel={() => setEnrollOpen(false)}
         confirmLoading={enrolling}
         okButtonProps={{ disabled: selected.length === 0 }}
         onOk={async () => {
           const result = await enroll(selected);
           if (result) {
-            message.info(`Đã thêm mới: ${result.added}; bỏ qua (đã có): ${result.skipped}`);
+            message.info(
+              language === "en"
+                ? `Enrolled: ${result.added}; skipped (already in course): ${result.skipped}`
+                : `Đã thêm mới: ${result.added}; bỏ qua (đã có): ${result.skipped}`,
+            );
             setEnrollOpen(false);
             refresh();
           }
         }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Tìm kiếm theo mã sinh viên, họ tên hoặc email để ghi danh vào học phần {course.code}.
+          {language === "en"
+            ? `Search by student ID, name, or email to enroll into course ${course.code}.`
+            : `Tìm kiếm theo mã sinh viên, họ tên hoặc email để ghi danh vào học phần ${course.code}.`}
         </Typography.Paragraph>
         <Select
           mode="multiple"
           showSearch
           filterOption={false}
           style={{ width: "100%" }}
-          aria-label="Tìm sinh viên"
-          placeholder="Nhập mã sinh viên hoặc họ tên..."
+          aria-label={t.staffCourseDetail.enrollModalSearchPlaceholder}
+          placeholder={t.staffCourseDetail.enrollModalSearchPlaceholder}
           value={selected}
           onChange={setSelected}
           onSearch={setStudentSearch}
@@ -635,7 +728,7 @@ function CourseDetail({ courseId }: { courseId: string }) {
         />
         {choices.failure && (
           <StaffLoadError
-            title="Không tìm được sinh viên"
+            title={language === "en" ? "Failed to find students" : "Không tìm được sinh viên"}
             error={choices.failure.error}
             onRetry={choices.reload}
           />
