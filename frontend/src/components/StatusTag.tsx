@@ -17,13 +17,14 @@ export function CourseStatusTag({ status }: { status: CourseStatus }) {
   return <Tag color={s.color}>{s.text}</Tag>;
 }
 
-/** "SE×2 AI×1" as compact tags. */
+/** "SE: 2", "AI: 1" as clean tags without special multiplication symbols. */
 export function MajorCounts({ majors }: { majors: { majorCode: string; count: number }[] }) {
+  if (majors.length === 0) return <span>—</span>;
   return (
     <>
       {majors.map((m) => (
         <Tag key={m.majorCode}>
-          {m.majorCode}×{m.count}
+          {m.majorCode}: {m.count}
         </Tag>
       ))}
     </>

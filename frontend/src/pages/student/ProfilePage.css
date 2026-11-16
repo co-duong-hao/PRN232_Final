@@ -22,30 +22,17 @@
 
 .student-profile .ant-card,
 .student-profile__footer {
-  border-color: #e0e5ec;
-  box-shadow: 0 2px 4px rgb(25 35 52 / 4%);
+  border-color: var(--exe-border, #e2e8f0);
+  box-shadow: var(--exe-shadow, 0 1px 3px rgb(15 23 42 / 6%));
 }
 
 .student-profile .ant-card-head {
-  min-height: 52px;
+  min-height: 50px;
 }
 
 .student-profile .ant-card-head-title {
   white-space: normal;
-}
-
-.student-profile h2 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.4;
-}
-
-.student-profile h2 .anticon {
-  color: #b5400b;
-  font-size: 1.125rem;
+  font-weight: 700;
 }
 
 .student-profile__student {
@@ -54,20 +41,21 @@
   gap: 14px;
   padding: 16px;
   border-radius: 8px;
-  background: #fff4ec;
-  color: #78340f;
+  background: var(--exe-accent-soft, #fff7ed);
+  border: 1px solid var(--exe-accent-border, #fed7aa);
+  color: #7c2d12;
 }
 
 .student-profile__student .ant-avatar {
   flex: 0 0 auto;
-  background: #ffd7ba;
-  color: #9a3412;
+  background: #fed7aa;
+  color: var(--exe-accent-hover, #9a3412);
 }
 
 .student-profile__student strong {
   display: block;
-  color: #381c10;
-  font-size: 1.125rem;
+  color: var(--exe-ink, #0f172a);
+  font-size: 1.1rem;
   overflow-wrap: anywhere;
 }
 
@@ -84,7 +72,7 @@
 
 .student-profile__details dt,
 .student-profile__status span {
-  color: #535d6c;
+  color: var(--exe-muted, #475569);
   font-size: 0.8125rem;
 }
 
@@ -105,11 +93,11 @@
 .student-profile .ant-form-item-extra {
   min-height: 0;
   margin-top: 6px;
-  color: #535d6c;
+  color: var(--exe-muted, #475569);
 }
 
 .student-profile .ant-input-number-group-wrapper {
-  width: min(100%, 240px);
+  width: min(100%, 260px);
 }
 
 .student-profile .ant-card-body > .ant-alert {
@@ -121,19 +109,20 @@
   z-index: 2;
   bottom: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 24px;
   margin-top: 20px;
   padding: 14px 18px;
-  border: 1px solid #e0e5ec;
-  border-radius: 8px;
+  border: 1px solid var(--exe-border, #e2e8f0);
+  border-radius: 10px;
   background: #fff;
 }
 
 .student-profile__progress {
   flex: 1;
-  min-width: 0;
+  min-width: 180px;
   max-width: 340px;
 }
 
@@ -146,14 +135,6 @@
 
 .student-profile__status strong {
   font-variant-numeric: tabular-nums;
-}
-
-.student-profile__footer .ant-btn-primary:not(:disabled) {
-  background: #c2410c;
-}
-
-.student-profile__footer .ant-btn-primary:not(:disabled):hover {
-  background: #9a3412;
 }
 
 @media (max-width: 740px) {

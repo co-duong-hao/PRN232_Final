@@ -1,7 +1,7 @@
 import type { ApplyStatus, CourseStatus, Role, RoomStatus } from "@/api/types";
 
 export const roleLabel: Record<Role, string> = {
-  Admin: "Admin",
+  Admin: "Quản trị viên",
   HeadOfDepartment: "Trưởng bộ môn",
   Lecturer: "Giảng viên",
   Student: "Sinh viên",
@@ -10,7 +10,7 @@ export const roleLabel: Record<Role, string> = {
 export const roomStatusLabel: Record<RoomStatus, { text: string; color: string }> = {
   Open: { text: "Đang mở", color: "green" },
   Locked: { text: "Đã khóa", color: "orange" },
-  Completed: { text: "Đã thành nhóm", color: "blue" },
+  Completed: { text: "Đã thành nhóm", color: "geekblue" },
   Cancelled: { text: "Đã hủy", color: "default" },
 };
 
@@ -23,6 +23,6 @@ export const applyStatusLabel: Record<ApplyStatus, { text: string; color: string
 
 export const courseStatusLabel: Record<CourseStatus, { text: string; color: string }> = {
   Planned: { text: "Chưa mở", color: "default" },
-  Forming: { text: "Đang ghép nhóm", color: "processing" },
+  Forming: { text: "Đang ghép nhóm", color: "orange" },
   Closed: { text: "Đã đóng", color: "red" },
 };

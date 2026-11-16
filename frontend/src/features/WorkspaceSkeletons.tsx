@@ -20,7 +20,7 @@ const TEXT_WIDTHS = [118, 102, 132, 94, 112];
 const LONG_TEXT_WIDTHS = [184, 152, 206, 168, 144];
 const TAG_WIDTH_SETS = [[54, 68], [62, 52, 70], [58, 74], [66], [52, 64]];
 
-/** Single shimmering bar matching a text line, pill, or container block. */
+/** Thanh skeleton đơn cho dòng chữ, nhãn hoặc nút. */
 export function SkeletonBar({
   width = "100%",
   height = 16,
@@ -46,12 +46,12 @@ export function SkeletonBar({
   );
 }
 
-/** Pill-shaped skeleton matching an Ant Design `Tag`. */
+/** Skeleton dạng Tag. */
 export function SkeletonTag({ width = 64 }: { width?: number }) {
   return <SkeletonBar inline width={width} height={22} radius={6} />;
 }
 
-/** Group of wrapping pill skeletons matching role or major-count tags. */
+/** Nhóm skeleton dạng Tag. */
 export function SkeletonTags({ widths = [56, 72] }: { widths?: number[] }) {
   return (
     <span className="workspace-skeleton-tags">
@@ -62,12 +62,12 @@ export function SkeletonTags({ widths = [56, 72] }: { widths?: number[] }) {
   );
 }
 
-/** Button-shaped skeleton matching Ant Design action buttons and `.workspace-action-link`. */
+/** Skeleton dạng nút bấm. */
 export function SkeletonBtn({ width = 104, height = 32 }: { width?: number; height?: number }) {
   return <SkeletonBar inline width={width} height={height} radius={8} />;
 }
 
-/** Header skeleton matching `.workspace-heading` (back link, h1 title, subtitle/tag, actions). */
+/** Skeleton tiêu đề đầu trang. */
 export function PageHeadingSkeleton({
   hasBackLink = false,
   hasSubtitle = false,
@@ -84,9 +84,9 @@ export function PageHeadingSkeleton({
   return (
     <header className="workspace-heading" aria-busy="true" aria-label="Đang tải tiêu đề">
       <div aria-hidden="true">
-        {hasBackLink && <SkeletonBar width={118} height={14} style={{ marginBottom: 10 }} />}
-        <SkeletonBar width={titleWidth} height={30} />
-        {hasSubtitle && <SkeletonBar width={144} height={16} style={{ marginTop: 8 }} />}
+        {hasBackLink && <SkeletonBar width={132} height={14} style={{ marginBottom: 10 }} />}
+        <SkeletonBar width={titleWidth} height={28} />
+        {hasSubtitle && <SkeletonBar width={180} height={15} style={{ marginTop: 8 }} />}
         {hasTag && (
           <div style={{ marginTop: 8 }}>
             <SkeletonTag width={110} />
@@ -104,19 +104,25 @@ export function PageHeadingSkeleton({
   );
 }
 
-/** Four-column metric grid skeleton matching `.workspace-metrics` and `.workspace-metric`. */
+/** Skeleton hàng 4 thẻ thống kê. */
 export function MetricsSkeleton({ count = 4, withCards = true }: { count?: number; withCards?: boolean }) {
   const items = Array.from({ length: count }, (_, index) => {
     const content = (
       <div className="workspace-metric" aria-hidden="true">
         <div className="workspace-skeleton-stack">
-          <SkeletonBar width={86} height={14} />
+          <SkeletonBar width={92} height={14} />
           <SkeletonBar width={48} height={28} />
         </div>
         {withCards && <Skeleton.Avatar active shape="square" size={36} style={{ borderRadius: 9 }} />}
       </div>
     );
-    return withCards ? <Card key={index}>{content}</Card> : <div key={index}>{content}</div>;
+    return withCards ? (
+      <Card key={index} className="workspace-metric-card">
+        {content}
+      </Card>
+    ) : (
+      <div key={index}>{content}</div>
+    );
   });
 
   return (
@@ -126,21 +132,17 @@ export function MetricsSkeleton({ count = 4, withCards = true }: { count?: numbe
   );
 }
 
-/** Course card grid skeleton matching `.workspace-course-grid` cards in `MyCoursesPage`. */
+/** Skeleton lưới học phần. */
 export function CourseGridSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <div className="workspace-course-grid" aria-busy="true" aria-label="Đang tải danh sách Course">
+    <div className="workspace-course-grid" aria-busy="true" aria-label="Đang tải danh sách học phần">
       {Array.from({ length: count }, (_, index) => (
-        <Card key={index} title={<SkeletonBar width={112} height={18} />} extra={<SkeletonTag width={104} />}>
+        <Card key={index} title={<SkeletonBar width={120} height={18} />} extra={<SkeletonTag width={104} />}>
           <Space direction="vertical" style={{ width: "100%" }} aria-hidden="true">
             <SkeletonBar width="74%" height={15} />
             <SkeletonBar width="84%" height={15} />
             <SkeletonBar width="48%" height={15} />
-            <div className="workspace-skeleton-inline">
-              <SkeletonBar inline width={128} height={15} />
-              {index % 2 === 1 && <SkeletonTag width={72} />}
-            </div>
-            <SkeletonBtn width={122} height={34} />
+            <SkeletonBar width="100%" height={68} radius={8} style={{ marginTop: 8 }} />
           </Space>
         </Card>
       ))}
@@ -148,7 +150,7 @@ export function CourseGridSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
-/** Key-value grid card skeleton matching `.workspace-facts` cards (Course, Room, Group details). */
+/** Skeleton lưới thông tin chi tiết. */
 export function FactsCardSkeleton({
   title,
   hasStatusTag = false,
@@ -202,38 +204,22 @@ export function FactsCardSkeleton({
   );
 }
 
-/** Recommendation card skeleton matching `Gợi ý cho bạn` rows in `CourseRoomsPage`. */
-export function RecommendationsSkeleton({ count = 2 }: { count?: number }) {
-  return (
-    <Card title="Gợi ý cho bạn" style={{ marginTop: 16 }} aria-busy="true" aria-label="Đang tải gợi ý">
-      <Space direction="vertical" size="middle" style={{ width: "100%" }} aria-hidden="true">
-        {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="workspace-skeleton-inline">
-            <SkeletonBar inline width={74} height={16} />
-            <SkeletonBar inline width={186} height={15} />
-            <SkeletonBar inline width={106} height={15} />
-            <SkeletonBtn width={88} />
-          </div>
-        ))}
-      </Space>
-    </Card>
-  );
-}
-
-/** Room summary card list skeleton matching `.workspace-room-list` in `CourseRoomsPage`. */
+/** Skeleton danh sách phòng. */
 export function RoomListSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="workspace-room-list" aria-busy="true" aria-label="Đang tải danh sách phòng">
       {Array.from({ length: count }, (_, index) => (
         <Card key={index} className="workspace-room-card">
           <div aria-hidden="true">
-            <SkeletonBar width={164} height={20} />
-            <SkeletonBar width={82} height={14} style={{ marginTop: 6 }} />
+            <div className="workspace-room-card__head">
+              <SkeletonBar width={164} height={20} />
+              <SkeletonTag width={74} />
+            </div>
+            <SkeletonBar width={112} height={14} style={{ marginTop: 6 }} />
             <SkeletonBar width="74%" height={15} style={{ marginTop: 10 }} />
             <div style={{ marginTop: 10 }}>
               <SkeletonTags widths={TAG_WIDTH_SETS[index % TAG_WIDTH_SETS.length]} />
             </div>
-            <SkeletonBar width="46%" height={15} style={{ marginTop: 10 }} />
           </div>
         </Card>
       ))}
@@ -241,7 +227,7 @@ export function RoomListSkeleton({ count = 4 }: { count?: number }) {
   );
 }
 
-/** Room preview pane skeleton matching `#room-preview` in `CourseRoomsPage`. */
+/** Skeleton khung xem chi tiết phòng. */
 export function RoomPreviewSkeleton() {
   return (
     <Space
@@ -253,32 +239,24 @@ export function RoomPreviewSkeleton() {
     >
       <SkeletonBar width={210} height={28} />
       <SkeletonTag width={80} />
-      <SkeletonBar width="56%" height={16} />
-      <div>
-        <SkeletonBar width={106} height={16} style={{ marginBottom: 8 }} />
-        <SkeletonBar width="94%" height={15} style={{ marginBottom: 6 }} />
-        <SkeletonBar width="72%" height={15} />
+      <div className="workspace-facts">
+        <div className="workspace-fact">
+          <SkeletonBar width={60} height={12} style={{ marginBottom: 6 }} />
+          <SkeletonBar width="80%" height={16} />
+        </div>
+        <div className="workspace-fact">
+          <SkeletonBar width={60} height={12} style={{ marginBottom: 6 }} />
+          <SkeletonBar width="50%" height={16} />
+        </div>
       </div>
-      <SkeletonBar width="46%" height={16} />
-      <SkeletonBar width="40%" height={16} />
-      <div className="workspace-skeleton-inline">
-        <SkeletonBar inline width={120} height={16} />
-        <SkeletonTags widths={[60, 76, 56]} />
-      </div>
-      <div className="workspace-skeleton-inline">
-        <SkeletonBar inline width={96} height={16} />
-        <SkeletonTags widths={[52, 52, 52]} />
-      </div>
+      <SkeletonBar width="94%" height={48} radius={8} />
+      <SkeletonTags widths={[60, 76, 56]} />
       <SkeletonBar width="76%" height={16} />
-      <Space wrap>
-        <SkeletonBar inline width={110} height={16} />
-        <SkeletonBtn width={102} />
-      </Space>
     </Space>
   );
 }
 
-/** Composition analysis skeleton matching `RoomCompositionSummary` (alert + criteria progress list). */
+/** Skeleton phân tích cơ cấu nhóm. */
 export function RoomCompositionSkeleton({ count = 3 }: { count?: number }) {
   const items = Array.from({ length: count }, (_, index) => index);
   return (
@@ -337,7 +315,7 @@ function renderCellSkeleton(column: SkeletonColumn, rowIndex: number): ReactNode
   }
 }
 
-/** Table skeleton keeping the exact real column headers, scroll width, expand column, and cell shapes. */
+/** Skeleton bảng dữ liệu giữ đúng tiêu đề cột. */
 export function TableSkeleton({
   columns,
   rows = 5,
@@ -349,7 +327,7 @@ export function TableSkeleton({
   columns: SkeletonColumn[];
   rows?: number;
   size?: "small" | "middle" | "large";
-  scrollX?: number | "max-content";
+  scrollX?: number;
   showExpandColumn?: boolean;
   pagination?: { current?: number; pageSize?: number; total?: number };
 }) {
@@ -398,7 +376,7 @@ export function TableSkeleton({
   );
 }
 
-/** Bordered descriptions skeleton matching `CourseDetailPage` metadata block. */
+/** Skeleton thông tin học phần cho trang giảng viên. */
 export function CourseDescriptionsSkeleton() {
   const items = [
     { key: "type", label: "Loại nhóm", children: <SkeletonBar width={116} height={16} /> },
@@ -418,7 +396,7 @@ export function CourseDescriptionsSkeleton() {
   );
 }
 
-/** Stats card skeleton matching `Tiến độ ghép nhóm` in `CourseDetailPage`. */
+/** Skeleton thống kê học phần. */
 export function CourseStatsSkeleton() {
   return (
     <Card
@@ -439,7 +417,7 @@ export function CourseStatsSkeleton() {
   );
 }
 
-/** Full initial page skeleton for `CourseDetailPage`. */
+/** Skeleton toàn trang chi tiết học phần (giảng viên/quản trị). */
 export function CourseDetailSkeleton({ canManage, isAdmin }: { canManage: boolean; isAdmin: boolean }) {
   const studentColumns: SkeletonColumn[] = [
     { title: "Mã SV", kind: "code" },
@@ -462,7 +440,7 @@ export function CourseDetailSkeleton({ canManage, isAdmin }: { canManage: boolea
       />
       <CourseDescriptionsSkeleton />
       <CourseStatsSkeleton />
-      <div className="workspace-section" aria-busy="true" aria-label="Đang tải danh sách trong Course">
+      <div className="workspace-section" aria-busy="true" aria-label="Đang tải danh sách trong học phần">
         <div className="workspace-skeleton-tabs" aria-hidden="true">
           <SkeletonBar inline width={74} height={18} />
           <SkeletonBar inline width={56} height={18} />
@@ -480,7 +458,7 @@ export function CourseDetailSkeleton({ canManage, isAdmin }: { canManage: boolea
   );
 }
 
-/** Full initial page skeleton for `RoomDetailPage`. */
+/** Skeleton trang chi tiết phòng. */
 export function RoomDetailSkeleton() {
   return (
     <>
@@ -506,7 +484,7 @@ export function RoomDetailSkeleton() {
   );
 }
 
-/** Full initial page skeleton for `GroupDetailPage`. */
+/** Skeleton trang chi tiết nhóm. */
 export function GroupDetailSkeleton() {
   return (
     <>

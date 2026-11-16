@@ -1,13 +1,8 @@
 import "@/features/workspace.css";
-import {
-  BarChartOutlined,
-  IdcardOutlined,
-  SaveOutlined,
-  TeamOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
-import { Alert, Avatar, Button, Card, Form, InputNumber, Progress, Select, Typography } from "antd";
+import { SaveOutlined, UserOutlined } from "@ant-design/icons";
+import { Alert, Avatar, Button, Card, Form, InputNumber, Progress, Select, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { meApi, referenceApi } from "@/api";
 import type { Student, StudentProfileRequest, TeamRole } from "@/api";
 import { useAuth } from "@/auth/AuthContext";
@@ -16,34 +11,40 @@ import { SkeletonTags } from "@/features/WorkspaceSkeletons";
 import "./ProfilePage.css";
 
 export function ProfilePage() {
-  const { student } = useAuth();
+  const { student, refreshStudent } = useAuth();
 
   return (
     <div className="workspace-page student-profile">
       <header className="workspace-heading student-profile__header">
-        <Typography.Title level={1}>Hồ sơ của tôi</Typography.Title>
-        <p>Cập nhật GPA và vai trò để tìm nhóm phù hợp với bạn.</p>
+        <div>
+          <span className="workspace-heading__eyebrow">Sinh viên</span>
+          <Typography.Title level={1}>Hồ sơ của tôi</Typography.Title>
+          <p>
+            Cập nhật GPA và vai trò mong muốn để lọc phòng phù hợp và giúp trưởng phòng xét đơn nhanh hơn.
+          </p>
+        </div>
       </header>
       {student ? (
-        <ProfileForm key={student.id} student={student} />
+        <ProfileForm key={student.id} student={student} onSaved={refreshStudent} />
       ) : (
         <Alert
-          showIcon
           type="error"
           message="Không tải được hồ sơ sinh viên."
-          action={<Button onClick={() => window.location.reload()}>Tải lại</Button>}
+          action={<Button onClick={() => void refreshStudent()}>Tải lại</Button>}
         />
       )}
     </div>
   );
 }
 
-function ProfileForm({ student }: { student: Student }) {
+function ProfileForm({ student, onSaved }: { student: Student; onSaved: () => Promise<Student | null> }) {
+  const navigate = useNavigate();
   const [form] = Form.useForm<StudentProfileRequest>();
   const [roles, setRoles] = useState<TeamRole[]>([]);
   const [rolesStatus, setRolesStatus] = useState<"loading" | "ready" | "error">("loading");
   const [roleRequest, setRoleRequest] = useState(0);
-  const [save, saving] = useApiAction(meApi.updateProfile, "Đã lưu hồ sơ");
+  const [save, saving] = useApiAction(meApi.updateProfile, "Đã lưu hồ sơ sinh viên");
+
   const savedRoleIds = student.roles.map((role) => role.id);
   const gpa = Form.useWatch("gpa", form);
   const selectedRoleIds = Form.useWatch("roleIds", form);
@@ -83,18 +84,12 @@ function ProfileForm({ student }: { student: Student }) {
       disabled={saving}
       onFinish={async (values) => {
         if (changed && !saving && (await save({ gpa: values.gpa ?? null, roleIds: values.roleIds }))) {
-          window.location.reload();
+          await onSaved();
         }
       }}
     >
       <div className="student-profile__grid">
-        <Card
-          title={
-            <h2>
-              <IdcardOutlined /> Thông tin cơ bản
-            </h2>
-          }
-        >
+        <Card title="Thông tin cơ bản">
           <div className="student-profile__student">
             <Avatar size={56} icon={<UserOutlined />} aria-hidden="true" />
             <div>
@@ -108,7 +103,7 @@ function ProfileForm({ student }: { student: Student }) {
               <dd>{student.studentCode}</dd>
             </div>
             <div>
-              <dt>Ngành</dt>
+              <dt>Ngành học</dt>
               <dd>{student.majorCode}</dd>
             </div>
             <div>
@@ -119,43 +114,29 @@ function ProfileForm({ student }: { student: Student }) {
         </Card>
 
         <div className="student-profile__fields">
-          <Card
-            title={
-              <h2>
-                <BarChartOutlined /> Học lực
-              </h2>
-            }
-          >
+          <Card title="Học lực (GPA)">
             <Form.Item
               name="gpa"
-              label="GPA tích lũy"
-              extra="Nhập điểm từ 0,00 đến 4,00. Có thể để trống."
-              rules={[{ type: "number", min: 0, max: 4, message: "GPA phải từ 0 đến 4." }]}
+              label="GPA tích lũy (thang 4.00)"
+              extra="Nhập điểm từ 0.00 đến 4.00. Có thể bỏ trống nếu chưa muốn công khai."
+              rules={[{ type: "number", min: 0, max: 4, message: "GPA phải từ 0.00 đến 4.00." }]}
             >
-              <InputNumber
+              <InputNumber<number>
                 min={0}
                 max={4}
                 precision={2}
                 step={0.01}
                 size="large"
-                decimalSeparator=","
-                addonAfter="/ 4,00"
-                placeholder="Ví dụ 3,40"
+                addonAfter="/ 4.00"
+                placeholder="Ví dụ: 3.40"
               />
             </Form.Item>
           </Card>
 
-          <Card
-            title={
-              <h2>
-                <TeamOutlined /> Vai trò muốn đảm nhận
-              </h2>
-            }
-          >
+          <Card title="Vai trò muốn đảm nhận">
             {rolesStatus === "error" && (
               <Alert
                 type="warning"
-                showIcon
                 message="Không tải được danh sách vai trò."
                 action={
                   <Button
@@ -186,10 +167,18 @@ function ProfileForm({ student }: { student: Student }) {
             )}
             <Form.Item
               name="roleIds"
-              label="Vai trò"
+              label="Vai trò (1–3 vai trò)"
               className={rolesStatus === "loading" ? "student-profile__role-hidden" : undefined}
-              extra="Chọn từ 1 đến 3 vai trò phù hợp với bạn."
-              rules={[{ required: true, type: "array", min: 1, max: 3, message: "Chọn từ 1 đến 3 vai trò." }]}
+              extra="Chọn từ 1 đến 3 vai trò bạn có thể đảm nhận trong nhóm khởi nghiệp."
+              rules={[
+                {
+                  required: true,
+                  type: "array",
+                  min: 1,
+                  max: 3,
+                  message: "Vui lòng chọn từ 1 đến 3 vai trò.",
+                },
+              ]}
             >
               <Select
                 mode="multiple"
@@ -197,17 +186,17 @@ function ProfileForm({ student }: { student: Student }) {
                 loading={rolesStatus === "loading"}
                 disabled={saving || rolesStatus !== "ready"}
                 maxCount={3}
-                placeholder={rolesStatus === "loading" ? "Đang tải vai trò…" : "Tìm và chọn vai trò"}
+                placeholder={rolesStatus === "loading" ? "Đang tải vai trò..." : "Tìm và chọn vai trò"}
                 optionFilterProp="label"
                 notFoundContent="Không tìm thấy vai trò phù hợp."
                 options={Array.from(roleOptions, ([value, label]) => ({ value, label }))}
               />
             </Form.Item>
           </Card>
-          {completion < 100 && (
+
+          {completion < 100 ? (
             <Alert
               type="info"
-              showIcon
               message={
                 completion === 0
                   ? "Hãy bổ sung GPA và vai trò trước khi tìm nhóm."
@@ -216,6 +205,19 @@ function ProfileForm({ student }: { student: Student }) {
                     : "Chọn ít nhất một vai trò bạn muốn đảm nhận."
               }
             />
+          ) : (
+            !changed && (
+              <Alert
+                type="success"
+                message="Hồ sơ của bạn đã đầy đủ"
+                description="Bạn đã sẵn sàng tìm nhóm theo GPA và vai trò mong muốn."
+                action={
+                  <Button type="primary" size="small" onClick={() => navigate("/student/courses")}>
+                    Tìm nhóm ngay
+                  </Button>
+                }
+              />
+            )
           )}
         </div>
       </div>
@@ -226,18 +228,21 @@ function ProfileForm({ student }: { student: Student }) {
             <strong>Hoàn thiện {completion}%</strong>
             {changed && <span>Có thay đổi chưa lưu</span>}
           </div>
-          <Progress percent={completion} showInfo={false} size="small" />
+          <Progress percent={completion} showInfo={false} size="small" strokeColor="#c2410c" />
         </div>
-        <Button
-          type="primary"
-          size="large"
-          htmlType="submit"
-          icon={<SaveOutlined />}
-          loading={saving}
-          disabled={!changed}
-        >
-          Lưu hồ sơ
-        </Button>
+        <Space>
+          <Button onClick={() => navigate("/student/courses")}>Về Học phần của tôi</Button>
+          <Button
+            type="primary"
+            size="large"
+            htmlType="submit"
+            icon={<SaveOutlined />}
+            loading={saving}
+            disabled={!changed}
+          >
+            Lưu hồ sơ
+          </Button>
+        </Space>
       </div>
     </Form>
   );

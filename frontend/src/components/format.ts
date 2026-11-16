@@ -10,3 +10,17 @@ export const formatDateTime = (iso?: string | null) => (iso ? parse(iso).format(
 
 /** 15/11/2026 (local time) */
 export const formatDate = (iso?: string | null) => (iso ? parse(iso).format("DD/MM/YYYY") : "—");
+
+/** 3.40 or "—" when unset */
+export const formatDecimal = (value?: number | null) => (value == null ? "—" : value.toFixed(2));
+
+/** Short Vietnamese deadline status label relative to now. */
+export function formatDeadlineRemaining(iso?: string | null): string | null {
+  if (!iso) return null;
+  const target = parse(iso);
+  const diffHours = target.diff(dayjs(), "hour");
+  if (diffHours < 0) return "Đã quá hạn";
+  if (diffHours < 24) return `Còn ${Math.max(1, diffHours)} giờ`;
+  const diffDays = target.diff(dayjs(), "day");
+  return `Còn ${diffDays} ngày`;
+}

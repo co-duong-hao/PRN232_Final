@@ -12,6 +12,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginUser>;
   logout: () => void;
+  refreshStudent: () => Promise<Student | null>;
   hasRole: (...roles: Role[]) => boolean;
 }
 
@@ -26,6 +27,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
     setStudent(u.roles.includes("Student") ? await meApi.student().catch(() => null) : null);
   }, []);
+
+  const refreshStudent = useCallback(async () => {
+    if (!user?.roles.includes("Student")) {
+      setStudent(null);
+      return null;
+    }
+    const next = await meApi.student().catch(() => null);
+    setStudent(next);
+    return next;
+  }, [user]);
 
   const logout = useCallback(() => {
     storeToken(null);
@@ -69,9 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      refreshStudent,
       hasRole: (...roles) => !!user && roles.some((r) => user.roles.includes(r)),
     }),
-    [user, student, loading, login, logout],
+    [user, student, loading, login, logout, refreshStudent],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,4 @@
-import { Button, Result } from "antd";
+import { Button, Typography } from "antd";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { homePathFor, useAuth } from "@/auth/AuthContext";
 import { RequireAuth } from "@/auth/RequireAuth";
@@ -14,7 +14,6 @@ import { MyCoursesPage } from "@/pages/student/MyCoursesPage";
 import { ProfilePage } from "@/pages/student/ProfilePage";
 import { RoomDetailPage } from "@/pages/student/RoomDetailPage";
 
-// Route table. Owned by the Manager: tasks F1 and F2 fill in the page components, not this file.
 export function App() {
   return (
     <Routes>
@@ -28,7 +27,7 @@ export function App() {
       >
         <Route index element={<HomeRedirect />} />
 
-        {/* Task F1: student */}
+        {/* Sinh viên */}
         <Route
           path="student/courses"
           element={
@@ -69,7 +68,6 @@ export function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="student/profile"
           element={
@@ -79,7 +77,7 @@ export function App() {
           }
         />
 
-        {/* Task F2: lecturer, head of department, admin */}
+        {/* Giảng viên, Trưởng bộ môn, Quản trị viên */}
         <Route
           path="staff/courses"
           element={
@@ -119,11 +117,19 @@ function HomeRedirect() {
 function NotFound() {
   const navigate = useNavigate();
   return (
-    <Result
-      status="404"
-      title="404"
-      subTitle="Không tìm thấy trang."
-      extra={<Button onClick={() => navigate("/")}>Về trang chủ</Button>}
-    />
+    <div className="app-status-page">
+      <div className="app-status-card">
+        <span className="app-status-card__code">404 · Không tìm thấy trang</span>
+        <Typography.Title level={3} style={{ margin: "0 0 8px" }}>
+          Trang không tồn tại
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 20 }}>
+          Đường dẫn bạn truy cập không hợp lệ hoặc đã được thay đổi.
+        </Typography.Paragraph>
+        <Button type="primary" onClick={() => navigate("/")}>
+          Về trang chính
+        </Button>
+      </div>
+    </div>
   );
 }

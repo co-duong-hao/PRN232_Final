@@ -12,6 +12,7 @@ type Values = {
   startTime: Dayjs;
   deadline: Dayjs;
 };
+
 export function CourseActions({
   course,
   onChanged,
@@ -26,9 +27,9 @@ export function CourseActions({
   const [semesters, setSemesters] = useState<Lookup[]>([]);
   const [subjects, setSubjects] = useState<Lookup[]>([]);
   const [types, setTypes] = useState<GroupType[]>([]);
-  const [optionsLoading, setOptionsLoading] = useState(false);
   const [form] = Form.useForm<Values>();
   const showError = useShowError();
+
   const [save, saving] = useApiAction(async (v: Values) => {
     const dates = {
       groupTypeId: v.groupTypeId,
@@ -38,47 +39,51 @@ export function CourseActions({
     return course
       ? coursesApi.update(course.id, dates)
       : coursesApi.create({ ...dates, semesterId: v.semesterId, subjectId: v.subjectId });
-  }, "Đã lưu Course");
+  }, "Đã lưu học phần");
+
   const [open, opening] = useApiAction(() => coursesApi.open(course!.id), "Đã mở ghép nhóm");
   const [close, closing] = useApiAction(() => coursesApi.close(course!.id), "Đã đóng ghép nhóm");
   const [remove, removing] = useApiAction(async () => {
     await coursesApi.remove(course!.id);
     return true;
-  }, "Đã xóa Course");
+  }, "Đã xóa học phần");
+
   useEffect(() => {
     if (!visible) return;
-    setOptionsLoading(true);
     Promise.all([referenceApi.semesters(), referenceApi.subjects(), referenceApi.groupTypes()])
       .then(([a, b, c]) => {
         setSemesters(a.items);
         setSubjects(b.items);
         setTypes(c.items);
       })
-      .catch(showError)
-      .finally(() => setOptionsLoading(false));
+      .catch(showError);
   }, [visible, showError]);
+
   const show = () => {
     form.resetFields();
-    if (course)
+    if (course) {
       form.setFieldsValue({
         groupTypeId: course.groupTypeId,
         startTime: dayjs(course.startTime),
         deadline: dayjs(course.deadline),
       });
+    }
     setVisible(true);
   };
+
   return (
     <>
       <Space wrap>
         {!course && hasRole("Admin") && (
           <Button type="primary" onClick={show}>
-            Tạo Course
+            Tạo học phần
           </Button>
         )}
         {course && hasRole("Admin", "HeadOfDepartment") && (
           <>
             {course.status === "Planned" && (
               <Button
+                type="primary"
                 loading={opening}
                 onClick={async () => {
                   if (await open()) onChanged();
@@ -89,7 +94,9 @@ export function CourseActions({
             )}
             {course.status === "Forming" && (
               <Popconfirm
-                title="Đóng ghép nhóm Course này?"
+                title="Đóng ghép nhóm học phần này?"
+                okText="Đóng ghép nhóm"
+                cancelText="Hủy"
                 onConfirm={async () => {
                   if (await close()) onChanged();
                 }}
@@ -100,7 +107,9 @@ export function CourseActions({
             <Button onClick={show}>Sửa</Button>
             {allowDelete && course.status === "Planned" && hasRole("Admin") && (
               <Popconfirm
-                title="Xóa Course này?"
+                title="Xóa học phần này?"
+                okText="Xóa"
+                cancelText="Hủy"
                 onConfirm={async () => {
                   if (await remove()) onChanged();
                 }}
@@ -113,13 +122,16 @@ export function CourseActions({
           </>
         )}
       </Space>
+
       <Modal
-        title={course ? "Sửa Course" : "Tạo Course"}
+        title={course ? "Cập nhật học phần" : "Tạo học phần mới"}
         open={visible}
         onCancel={() => setVisible(false)}
         confirmLoading={saving}
+        okText={course ? "Lưu thay đổi" : "Tạo học phần"}
+        cancelText="Hủy"
         onOk={() => form.submit()}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}
@@ -133,32 +145,62 @@ export function CourseActions({
         >
           {!course && (
             <>
-              <Form.Item name="semesterId" label="Học kỳ" rules={[{ required: true }]}>
+              <Form.Item
+                name="semesterId"
+                label="Học kỳ"
+                rules={[{ required: true, message: "Vui lòng chọn học kỳ" }]}
+              >
                 <Select
-                  loading={optionsLoading}
+                  placeholder="Chọn học kỳ"
                   options={semesters.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))}
                 />
               </Form.Item>
-              <Form.Item name="subjectId" label="Môn" rules={[{ required: true }]}>
+              <Form.Item
+                name="subjectId"
+                label="Môn học"
+                rules={[{ required: true, message: "Vui lòng chọn môn học" }]}
+              >
                 <Select
-                  loading={optionsLoading}
+                  placeholder="Chọn môn học"
                   options={subjects.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))}
                 />
               </Form.Item>
             </>
           )}
-          <Form.Item name="groupTypeId" label="Loại nhóm" rules={[{ required: true }]}>
+          <Form.Item
+            name="groupTypeId"
+            label="Loại nhóm"
+            rules={[{ required: true, message: "Vui lòng chọn loại nhóm" }]}
+          >
             <Select
-              loading={optionsLoading}
+              placeholder="Chọn loại nhóm"
               disabled={!!course && course.status !== "Planned"}
               options={types.map((x) => ({ value: x.id, label: x.name }))}
             />
           </Form.Item>
-          <Form.Item name="startTime" label="Bắt đầu" rules={[{ required: true }]}>
-            <DatePicker showTime style={{ width: "100%" }} />
+          <Form.Item
+            name="startTime"
+            label="Thời gian bắt đầu"
+            rules={[{ required: true, message: "Vui lòng chọn thời gian bắt đầu" }]}
+          >
+            <DatePicker
+              showTime={{ format: "HH:mm" }}
+              format="DD/MM/YYYY HH:mm"
+              placeholder="Chọn ngày và giờ bắt đầu"
+              style={{ width: "100%" }}
+            />
           </Form.Item>
-          <Form.Item name="deadline" label="Hạn" rules={[{ required: true }]}>
-            <DatePicker showTime style={{ width: "100%" }} />
+          <Form.Item
+            name="deadline"
+            label="Hạn ghép nhóm"
+            rules={[{ required: true, message: "Vui lòng chọn hạn ghép nhóm" }]}
+          >
+            <DatePicker
+              showTime={{ format: "HH:mm" }}
+              format="DD/MM/YYYY HH:mm"
+              placeholder="Chọn ngày và giờ kết thúc"
+              style={{ width: "100%" }}
+            />
           </Form.Item>
         </Form>
       </Modal>

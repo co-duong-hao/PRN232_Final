@@ -1,9 +1,10 @@
 import "@/features/workspace.css";
 import { useCallback, useEffect, useState } from "react";
-import { Button, Empty, Popconfirm, Select, Space, Table, Typography } from "antd";
-import { Link } from "react-router-dom";
+import { Button, Card, Popconfirm, Select, Space, Table, Typography } from "antd";
+import { Link, useNavigate } from "react-router-dom";
 import { appliesApi, meApi } from "@/api";
 import type { ApplyStatus, RoomApply } from "@/api";
+import { EmptyState } from "@/components/EmptyState";
 import { ApplyStatusTag } from "@/components/StatusTag";
 import { applyStatusLabel } from "@/components/labels";
 import { formatDateTime } from "@/components/format";
@@ -11,14 +12,17 @@ import { useApiAction, useShowError } from "@/components/useApiAction";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
 export function MyAppliesPage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<RoomApply[]>([]);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<ApplyStatus>();
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string>();
   const showError = useShowError();
-  const [cancel, cancelling] = useApiAction(appliesApi.cancel, "Đã hủy đơn");
+  const [cancel] = useApiAction(appliesApi.cancel, "Đã hủy đơn xin vào phòng");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -31,17 +35,22 @@ export function MyAppliesPage() {
       setLoading(false);
     }
   }, [page, size, status, showError]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
   return (
     <div className="workspace-page">
       <header className="workspace-heading">
         <div>
-          <Typography.Title level={1}>Đơn của tôi</Typography.Title>
-          <p>Theo dõi trạng thái các đơn xin vào phòng đã gửi.</p>
+          <span className="workspace-heading__eyebrow">Sinh viên</span>
+          <Typography.Title level={1}>Đơn xin vào phòng</Typography.Title>
+          <p>Theo dõi trạng thái các đơn bạn đã gửi tới các phòng đang khóa.</p>
         </div>
+        <Button onClick={() => navigate("/student/courses")}>Tìm phòng theo học phần</Button>
       </header>
+
       <Space wrap className="workspace-toolbar">
         <Select
           allowClear
@@ -56,6 +65,7 @@ export function MyAppliesPage() {
           options={Object.entries(applyStatusLabel).map(([value, label]) => ({ value, label: label.text }))}
         />
       </Space>
+
       {loading ? (
         <TableSkeleton
           scrollX={720}
@@ -70,12 +80,31 @@ export function MyAppliesPage() {
             { title: "Thao tác", kind: "actions", actionWidths: [84] },
           ]}
         />
+      ) : items.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="Chưa có đơn xin vào phòng"
+            description={
+              status
+                ? "Không có đơn nào ở trạng thái đã chọn."
+                : "Khi gửi đơn vào một phòng đang khóa, trạng thái duyệt sẽ hiển thị tại đây."
+            }
+            action={
+              status ? (
+                <Button onClick={() => setStatus(undefined)}>Xem tất cả trạng thái</Button>
+              ) : (
+                <Button type="primary" onClick={() => navigate("/student/courses")}>
+                  Đi tới Học phần của tôi
+                </Button>
+              )
+            }
+          />
+        </Card>
       ) : (
         <Table
           scroll={{ x: 720 }}
           rowKey="id"
           dataSource={items}
-          locale={{ emptyText: <Empty description="Không có đơn" /> }}
           pagination={{
             current: page,
             pageSize: size,
@@ -87,9 +116,12 @@ export function MyAppliesPage() {
             },
           }}
           columns={[
-            { title: "Phòng", render: (_, a) => <Link to={`/student/rooms/${a.roomId}`}>{a.roomCode}</Link> },
+            {
+              title: "Phòng",
+              render: (_, a) => <Link to={`/student/rooms/${a.roomId}`}>{a.roomCode}</Link>,
+            },
             { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },
-            { title: "Lời nhắn", dataIndex: "message" },
+            { title: "Lời nhắn", dataIndex: "message", render: (v: string) => v || "—" },
             { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
             { title: "Ngày xử lý", render: (_, a) => formatDateTime(a.decidedAt) },
             {
@@ -97,14 +129,21 @@ export function MyAppliesPage() {
               render: (_, a) =>
                 a.status === "Pending" && (
                   <Popconfirm
-                    title="Hủy đơn này?"
+                    title="Hủy đơn xin vào phòng này?"
                     onConfirm={async () => {
-                      if (await cancel(a.id)) await load();
+                      setCancellingId(a.id);
+                      try {
+                        if (await cancel(a.id)) await load();
+                      } finally {
+                        setCancellingId(undefined);
+                      }
                     }}
                     okText="Hủy đơn"
                     cancelText="Đóng"
                   >
-                    <Button loading={cancelling}>Hủy đơn</Button>
+                    <Button danger loading={cancellingId === a.id}>
+                      Hủy đơn
+                    </Button>
                   </Popconfirm>
                 ),
             },

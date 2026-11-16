@@ -1,4 +1,3 @@
-import { CheckCircleFilled } from "@ant-design/icons";
 import { Alert, List, Progress, Tag, Typography } from "antd";
 import type { CompositionAnalysis, GroupType, MajorCount } from "@/api";
 
@@ -29,19 +28,19 @@ function CompositionCriterion({ label, unit, current, minimum, maximum, missingM
   return (
     <List.Item>
       <div style={{ width: "100%", minWidth: 0 }}>
-        <div style={{ display: "flex", gap: "4px 12px", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "4px 10px", alignItems: "center", flexWrap: "wrap" }}>
           <Typography.Text strong>{label}</Typography.Text>
           {exceeded ? (
             <Tag color="error">Vượt giới hạn</Tag>
           ) : met ? (
-            <Tag color="success" icon={<CheckCircleFilled />}>
-              Đã đạt
-            </Tag>
+            <Tag color="success">Đã đạt</Tag>
           ) : (
             <Tag color="warning">Còn thiếu</Tag>
           )}
         </div>
-        <Typography.Text type="secondary">{detail}</Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+          {detail}
+        </Typography.Text>
         {(exceeded || (target !== undefined && target > 0)) && (
           <div aria-hidden="true">
             <Progress
@@ -53,7 +52,7 @@ function CompositionCriterion({ label, unit, current, minimum, maximum, missingM
           </div>
         )}
         {!met && (
-          <Typography.Text>
+          <Typography.Text style={{ fontSize: 13 }}>
             {exceeded ? `Đang dư ${excess} ${unit}` : missingMessage(missing)}
           </Typography.Text>
         )}
@@ -82,7 +81,6 @@ export function RoomCompositionSummary({
   } = composition;
   const criteria: Criterion[] = [];
 
-  // Without the group type, the overall upper limit is only reported in the violation text.
   const memberLimitPattern = /^BR14: vượt số thành viên tối đa \(\d+\/(\d+)\)\.$/;
   const exceededMemberLimit = violations.map((violation) => memberLimitPattern.exec(violation)).find(Boolean);
   if (groupType || missingMemberCount > 0 || exceededMemberLimit) {
@@ -142,9 +140,8 @@ export function RoomCompositionSummary({
   return (
     <>
       <Alert
-        showIcon
         type={composition.satisfied ? "success" : "warning"}
-        message={composition.satisfied ? "Đã đạt yêu cầu về cơ cấu nhóm" : "Nhóm chưa đủ điều kiện về cơ cấu"}
+        message={composition.satisfied ? "Đã đạt đủ yêu cầu cơ cấu nhóm" : "Nhóm chưa đủ điều kiện cơ cấu"}
       />
       {criteria.length > 0 && (
         <List

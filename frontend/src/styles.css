@@ -1,3 +1,17 @@
+:root {
+  --exe-bg: #f8fafc;
+  --exe-surface: #ffffff;
+  --exe-surface-subtle: #f1f5f9;
+  --exe-ink: #0f172a;
+  --exe-muted: #475569;
+  --exe-border: #e2e8f0;
+  --exe-accent: #c2410c;
+  --exe-accent-hover: #9a3412;
+  --exe-accent-soft: #fff7ed;
+  --exe-accent-border: #fed7aa;
+  --exe-shadow: 0 1px 3px rgb(15 23 42 / 6%), 0 1px 2px rgb(15 23 42 / 4%);
+}
+
 html,
 body,
 #root {
@@ -6,62 +20,16 @@ body,
 }
 
 body {
-  background: #f5f7fb;
+  background: var(--exe-bg);
+  color: var(--exe-ink);
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-}
-
-.app-footer.ant-layout-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 24px;
-  padding: 16px 24px;
-  border-top: 1px solid #dbe1ea;
-  background: #fff;
-}
-
-.app-footer__name {
-  color: #162033;
-  font-weight: 600;
-}
-
-.app-footer__credit {
-  margin-top: 2px;
-  color: #475569;
-  font-size: 0.8125rem;
-}
-
-.app-footer__nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-}
-
-.app-footer__nav a {
-  display: inline-flex;
-  min-height: 32px;
-  align-items: center;
-  border-radius: 4px;
-  color: #334155;
-  font-weight: 500;
-}
-
-.app-footer__nav a:hover,
-.app-footer__nav a[aria-current="page"] {
-  color: #9a3412;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.app-footer__nav a:focus-visible {
-  outline: 2px solid #9a3412;
-  outline-offset: 3px;
+  -webkit-font-smoothing: antialiased;
 }
 
 .app-shell {
   min-height: 100vh;
+  background: var(--exe-bg);
 }
 
 .app-shell__skip {
@@ -73,7 +41,7 @@ body {
   border-radius: 6px;
   padding: 10px 14px;
   background: #fff;
-  color: #9a3412;
+  color: var(--exe-accent);
   font-weight: 600;
 }
 
@@ -82,22 +50,54 @@ body {
 }
 
 .app-shell__sidebar {
-  border-right: 1px solid #dbe1ea;
+  border-right: 1px solid var(--exe-border);
+  background: var(--exe-surface);
+}
+
+.app-shell__sidebar .ant-menu-inline {
+  border-inline-end: none;
+  padding: 8px;
+}
+
+.app-shell__sidebar .ant-menu-item {
+  margin-block: 4px;
+  border-radius: 8px;
+  font-weight: 500;
 }
 
 .app-shell__brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 18px 20px;
-  color: #162033;
-  font-size: 16px;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--exe-border);
+  color: var(--exe-ink);
+  font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
 }
 
-.app-shell__brand .anticon {
-  color: #ea580c;
+.app-shell__brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 8px;
+  background: var(--exe-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.app-shell__brand-sub {
+  display: block;
+  color: var(--exe-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .app-shell__main,
@@ -108,11 +108,24 @@ body {
 .app-shell__header.ant-layout-header {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #dbe1ea;
+  height: 60px;
+  line-height: 60px;
+  border-bottom: 1px solid var(--exe-border);
   padding: 0 24px;
-  background: #fff;
+  background: var(--exe-surface);
+}
+
+.app-shell__header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-shell__breadcrumb {
+  min-width: 0;
 }
 
 .app-shell__mobile-toggle.ant-btn {
@@ -123,7 +136,13 @@ body {
   min-width: 0;
   max-width: 100%;
   height: auto;
-  min-height: 44px;
+  min-height: 40px;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.app-shell__account.ant-btn:hover {
+  background: var(--exe-surface-subtle);
 }
 
 .app-shell__account-content {
@@ -132,33 +151,129 @@ body {
   gap: 8px;
 }
 
-.app-shell__account-name {
+.app-shell__account-avatar {
+  background: var(--exe-accent-soft);
+  color: var(--exe-accent);
+  font-weight: 700;
+}
+
+.app-shell__account-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
   min-width: 0;
+}
+
+.app-shell__account-name {
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--exe-ink);
+}
+
+.app-shell__account-detail {
+  color: var(--exe-muted);
+  font-size: 12px;
 }
 
 .app-shell__content {
   min-width: 0;
+  padding: 20px 24px 32px;
+}
+
+.app-shell__onboarding {
+  max-width: 1440px;
+  margin: 0 auto 16px;
+}
+
+.app-footer.ant-layout-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--exe-border);
+  background: var(--exe-surface);
+  color: var(--exe-muted);
+  font-size: 13px;
+}
+
+.app-footer__name {
+  color: var(--exe-ink);
+  font-weight: 600;
+}
+
+.app-status-page {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
   padding: 24px;
+}
+
+.app-status-card {
+  width: min(460px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--exe-border);
+  border-radius: 12px;
+  background: var(--exe-surface);
+  box-shadow: var(--exe-shadow);
+  text-align: center;
+}
+
+.app-status-card__code {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--exe-accent-soft);
+  color: var(--exe-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.app-empty-state {
+  padding: 28px 16px;
+  text-align: center;
+}
+
+.app-empty-state__title {
+  color: var(--exe-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-empty-state__desc {
+  margin-top: 6px;
+  color: var(--exe-muted);
+  font-size: 13px;
+}
+
+.app-empty-state__action {
+  margin-top: 14px;
 }
 
 @media (max-width: 991.98px) {
   .app-shell__sidebar.ant-layout-sider,
-  .app-shell__account-detail {
+  .app-shell__account-detail,
+  .app-shell__account-role-tag {
     display: none;
   }
 
   .app-shell__header.ant-layout-header {
-    justify-content: space-between;
     padding-inline: 16px;
   }
 
   .app-shell__mobile-toggle.ant-btn {
     display: inline-flex;
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
   }
 
   .app-shell__content,
