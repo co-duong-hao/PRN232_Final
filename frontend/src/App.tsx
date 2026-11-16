@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { homePathFor, useAuth } from "@/auth/AuthContext";
 import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/components/AppLayout";
+import { useI18n } from "@/i18n";
 import { LoginPage } from "@/pages/LoginPage";
 import { UsersPage } from "@/pages/admin/UsersPage";
 import { CourseDetailPage } from "@/pages/staff/CourseDetailPage";
@@ -116,18 +117,19 @@ function HomeRedirect() {
 
 function NotFound() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   return (
     <div className="app-status-page">
       <div className="app-status-card">
-        <span className="app-status-card__code">404 · Không tìm thấy trang</span>
+        <span className="app-status-card__code">{t.notFound.code}</span>
         <Typography.Title level={3} style={{ margin: "0 0 8px" }}>
-          Trang không tồn tại
+          {t.notFound.title}
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 20 }}>
-          Đường dẫn bạn truy cập không hợp lệ hoặc đã được thay đổi.
+          {t.notFound.desc}
         </Typography.Paragraph>
         <Button type="primary" onClick={() => navigate("/")}>
-          Về trang chính
+          {t.notFound.backHome}
         </Button>
       </div>
     </div>
