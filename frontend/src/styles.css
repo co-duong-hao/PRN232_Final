@@ -124,6 +124,25 @@ body {
   min-width: 0;
 }
 
+.app-shell__header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-lang-switch {
+  display: inline-flex;
+  align-items: center;
+}
+
+.app-lang-switch .ant-segmented {
+  font-weight: 600;
+  font-size: 12px;
+  background: var(--exe-surface-subtle);
+  border: 1px solid var(--exe-border);
+}
+
 .app-shell__breadcrumb {
   min-width: 0;
 }
