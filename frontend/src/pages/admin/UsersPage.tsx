@@ -1,3 +1,4 @@
+import "@/features/workspace.css";
 import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -54,11 +55,22 @@ export function UsersPage() {
   };
   const filter = (p: Partial<UserListParams>) => setParams((x) => ({ ...x, ...p, page: 1 }));
   return (
-    <>
-      <Typography.Title level={2}>Tài khoản</Typography.Title>
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Input.Search placeholder="Tìm email hoặc họ tên" allowClear onSearch={(q) => filter({ q })} />
+    <div className="workspace-page">
+      <header className="workspace-heading">
+        <div>
+          <Typography.Title level={1}>Tài khoản</Typography.Title>
+          <p>Quản lý người dùng, vai trò và trạng thái truy cập.</p>
+        </div>
+      </header>
+      <Space wrap className="workspace-toolbar">
+        <Input.Search
+          aria-label="Tìm tài khoản"
+          placeholder="Tìm email hoặc họ tên"
+          allowClear
+          onSearch={(q) => filter({ q })}
+        />
         <Select
+          aria-label="Lọc theo vai trò"
           placeholder="Vai trò"
           allowClear
           style={{ width: 170 }}
@@ -66,6 +78,7 @@ export function UsersPage() {
           onChange={(role) => filter({ role })}
         />
         <Select
+          aria-label="Lọc theo trạng thái tài khoản"
           placeholder="Trạng thái"
           allowClear
           style={{ width: 150 }}
@@ -190,6 +203,6 @@ export function UsersPage() {
           )}
         </Form>
       </Modal>
-    </>
+    </div>
   );
 }
