@@ -1,3 +1,4 @@
+using Exe.Shared.Web.Observability;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -21,6 +22,8 @@ public sealed class AppExceptionHandler(ILogger<AppExceptionHandler> logger) : I
                 "The resource was changed by another request. Please retry."),
             _ => (StatusCodes.Status500InternalServerError, "INTERNAL_ERROR", "An unexpected error occurred."),
         };
+
+        SharedMetrics.RecordApiError(code, status);
 
         if (status >= 500)
         {

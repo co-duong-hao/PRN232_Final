@@ -1,0 +1,9 @@
+apiVersion: 1
+providers:
+  - name: exe
+    folder: EXE Team Matching
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

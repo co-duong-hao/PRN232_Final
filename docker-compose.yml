@@ -5,6 +5,8 @@
 #   http://localhost:5101/swagger   Auth Service Swagger (exposed for the demo)
 #   http://localhost:5102/swagger   Team Service Swagger (exposed for the demo)
 #   http://localhost:8025   Mailpit: inbox for every email the system sends
+#   http://localhost:3001   Grafana: metrics dashboard "EXE Team Matching" (data from Prometheus)
+#   http://localhost:9090   Prometheus: scrapes GET /metrics of every service every 5 s
 #
 # Infrastructure only: `docker compose up -d sqlserver redis kafka mailpit`.
 
@@ -143,6 +145,7 @@ services:
     environment:
       <<: *dotnet-env
       Kafka__BootstrapServers: "kafka:9092"
+      ASPNETCORE_HTTP_PORTS: "8080"   # GET /metrics and /health for Prometheus
       Smtp__Host: "mailpit"
       Smtp__Port: "1025"
     depends_on:
@@ -178,7 +181,41 @@ services:
       - gateway
     restart: on-failure
 
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: on-failure
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-Grafana@12345}
+      # Anyone who opens Grafana can view dashboards without signing in; editing needs the admin account.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/exe-overview.json
+      GF_USERS_DEFAULT_LANGUAGE: en-US
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    restart: on-failure
+
 volumes:
   sqlserver-data:
   redis-data:
   kafka-data:
+  prometheus-data:
+  grafana-data:

@@ -9,7 +9,7 @@ Bạn là một worker: chỉ làm đúng task được giao.
      `docs/design/conventions.md`.
 2. Đọc task của bạn trong `docs/design/tasks/` và các tài liệu mà task liệt kê ở mục "Đọc trước".
 3. Chỉ sửa file trong mục "Được sửa" của task. Những phần sau là của Manager: `src/Shared/**`, `*.sln`,
-   `Directory.*.props`, `docker-compose.yml`, các `Dockerfile`, `docs/design/**`, và trong frontend:
+   `Directory.*.props`, `docker-compose.yml`, các `Dockerfile`, `deploy/**` (trừ file task cho phép), `docs/design/**`, và trong frontend:
    `package.json`, `package-lock.json`, các file cấu hình, `src/api/**`, `src/auth/**`,
    `src/components/**`, `src/App.tsx`, `src/main.tsx`.
 4. Không `git push`, không merge, không đổi nhánh, không sửa cấu hình sandbox hay rules. Không cần commit.

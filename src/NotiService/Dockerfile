@@ -6,7 +6,7 @@ COPY src/Shared/ src/Shared/
 COPY src/NotiService/ src/NotiService/
 RUN dotnet publish src/NotiService/Exe.NotiService.csproj -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
 USER app
