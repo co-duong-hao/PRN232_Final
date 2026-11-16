@@ -47,6 +47,7 @@ flowchart LR
 | 10 | [Schema quan hệ ban đầu](10-migrations-base.md) |
 | 11 | [Migration dữ liệu tuyển thành viên](11-migrations-recruitment.md) |
 | 12 | [Quản lý Course](12-courses.md) |
+| 13 | [Danh mục và loại nhóm](13-reference-data.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
