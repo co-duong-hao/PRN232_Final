@@ -1,4 +1,9 @@
-"""Cách dùng: python tests/e2e/e2e_smoke.py .env. Cần dữ liệu mẫu mới (docker compose down -v rồi up -d). Exit: 0 đạt, 1 lỗi, 2 dữ liệu cũ."""
+"""Run the demo smoke test for EXE101, or use --workflows for EXE201.
+
+Usage: python tests/e2e/e2e_smoke.py .env [--workflows]
+Use this only with a dedicated seeded Compose stack. Exit codes: 0 passed,
+1 failed, 2 seed already used.
+"""
 import json
 import os
 import traceback
@@ -9,6 +14,7 @@ import urllib.request
 
 GW = "http://localhost:8080"
 COURSE = "30000000-0000-0000-0000-000000000001"
+WORKFLOW_COURSE = "30000000-0000-0000-0000-000000000002"
 sys.stdout.reconfigure(encoding="utf-8")
 
 PASSWORD = None
@@ -67,7 +73,7 @@ def require_status(step_name, status, expected, body):
         raise ScriptError()
 
 
-def preflight():
+def preflight(course_id, course_code):
     print("== Kiểm tra trước khi chạy")
     try:
         status, body = call("GET", "/health")
@@ -85,14 +91,22 @@ def preflight():
     if not isinstance(token, str) or not token.strip():
         print("   Đăng nhập trả HTTP 200 nhưng thiếu accessToken hợp lệ.")
         raise ScriptError()
-    status, body = call("GET", f"/api/courses/{COURSE}/rooms?pageSize=1", token)
+    status, body = call("GET", f"/api/courses/{course_id}", token)
+    require_status("kiểm tra Course mẫu", status, 200, body)
+    if not isinstance(body, dict) or body.get("code") != course_code:
+        print(f"   Không tìm thấy dữ liệu mẫu cho {course_code}.")
+        raise ScriptError()
+    if body.get("status") != "Forming":
+        print(f"   {course_code} đang ở trạng thái {body.get('status')}. Script cần dữ liệu mẫu ban đầu.")
+        return False
+    status, body = call("GET", f"/api/courses/{course_id}/rooms?pageSize=1", token)
     require_status("kiểm tra dữ liệu mẫu", status, 200, body)
     count = body.get("totalItems") if isinstance(body, dict) else None
     if type(count) is not int or count < 0:
         print("   Danh sách phòng trả totalItems không hợp lệ.")
         raise ScriptError()
     if count > 0:
-        print(f"Dữ liệu đã được dùng ở lần chạy trước (Course FA26-EXE101 đang có {count} phòng). Script cần dữ liệu mẫu ban đầu. Reset bằng: docker compose down -v  rồi  docker compose up -d  (chờ 30–60 giây), sau đó chạy lại.")
+        print(f"Dữ liệu đã được dùng ở lần chạy trước (Course {course_code} đang có {count} phòng). Script cần dữ liệu mẫu ban đầu. Reset bằng: docker compose down -v  rồi  docker compose up -d  (chờ 30–60 giây), sau đó chạy lại.")
         return False
     print("   Gateway, đăng nhập và dữ liệu mẫu: OK")
     return True
@@ -229,18 +243,59 @@ def main():
     return 0 if all(results) else 1
 
 
+def room_leave_workflow(rooms_path, tokens):
+    leader, member, third = (tokens[number] for number in (1, 2, 6))
+    status, room = call("POST", rooms_path, leader)
+    check("QT04 create room fixture", status, 201, room)
+    room_path = f"/api/rooms/{room['id']}"
+    status, body = call("POST", room_path + "/join", member)
+    check("QT04 second student joins", status, 200, body)
+    status, body = call("POST", room_path + "/join", third)
+    check("QT04 room locks at three", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Locked" and body.get("memberCount") == 3)
+
+    status, body = call("POST", room_path + "/leave", leader)
+    check("BR13 leader must transfer before leaving", status, 409, body, "BR13")
+    status, body = call("POST", room_path + "/leave", third)
+    check("QT04 member leaves locked room", status, 204, body)
+    status, body = call("GET", room_path, leader)
+    check("QT04 room reopens below lock threshold", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Open" and body.get("memberCount") == 2)
+    status, body = call("POST", room_path + "/leave", third)
+    check("QT04 removed student cannot leave twice", status, 409, body, "NOT_A_MEMBER")
+
+    status, body = call("POST", room_path + "/leave", member)
+    check("QT04 second member leaves", status, 204, body)
+    status, body = call("POST", room_path + "/leave", leader)
+    check("QT04 last member leaves", status, 204, body)
+    status, page = call("GET", rooms_path, leader)
+    check("QT04 empty room is no longer visible", status, 200, page,
+          matches=isinstance(page, dict) and page.get("totalItems") == 0)
+
+
+def workflows():
+    rooms_path = f"/api/courses/{WORKFLOW_COURSE}/rooms"
+    tokens = {number: login(f"student{number:02d}@exe.local") for number in (1, 2, 6)}
+    room_leave_workflow(rooms_path, tokens)
+    print(f"\n{sum(results)}/{len(results)} workflow checks passed")
+    return 0
+
+
 if __name__ == "__main__":
     try:
-        if len(sys.argv) != 2 or not os.path.isfile(sys.argv[1]):
-            print("Cách dùng: python tests/e2e/e2e_smoke.py .env")
+        args = sys.argv[1:]
+        if len(args) not in (1, 2) or not os.path.isfile(args[0]) or args[1:] not in ([], ["--workflows"]):
+            print("Cách dùng: python tests/e2e/e2e_smoke.py .env [--workflows]")
             sys.exit(1)
-        with open(sys.argv[1], encoding="utf-8") as env_file:
+        with open(args[0], encoding="utf-8") as env_file:
             env = dict(line.strip().split("=", 1) for line in env_file
                        if "=" in line and not line.lstrip().startswith("#"))
         PASSWORD = env["SEED_DEFAULT_PASSWORD"]
-        if not preflight():
+        extended = args[1:] == ["--workflows"]
+        course_id, course_code = (WORKFLOW_COURSE, "FA26-EXE201") if extended else (COURSE, "FA26-EXE101")
+        if not preflight(course_id, course_code):
             sys.exit(2)
-        sys.exit(main() or 0)
+        sys.exit(workflows() if extended else main())
     except ScriptError:
         sys.exit(1)
     except Exception as exc:
