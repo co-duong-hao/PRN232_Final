@@ -56,6 +56,7 @@ flowchart LR
 | 19 | [Phân tích cơ cấu và gợi ý phòng](19-matching-server.md) |
 | 20 | [Sự kiện Kafka và producer](20-kafka-producer.md) |
 | 21 | [Consumer Kafka và email](21-kafka-consumer.md) |
+| 22 | [Cache Redis và job nền](22-cache-and-jobs.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
@@ -66,6 +67,7 @@ flowchart LR
 | Trạng thái đơn chưa cập nhật | [Đơn xin vào phòng](15-room-applies.md) |
 | Phòng chưa đủ cơ cấu hoặc gRPC lỗi | [Hợp đồng gRPC](18-grpc-contract.md), [MatchingService](19-matching-server.md) |
 | Nhóm đã tạo nhưng chưa có email | [Kafka producer](20-kafka-producer.md), [Kafka consumer](21-kafka-consumer.md) |
+| Thống kê vẫn hiện số cũ | [Cache Redis và job nền](22-cache-and-jobs.md) |
 
 ## Đối chiếu mã nguồn
 
