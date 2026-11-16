@@ -74,10 +74,11 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 | Message Broker | **Apache Kafka**: Team Service là producer (key theo phòng để giữ thứ tự, `acks=all`, idempotent), Noti Service là consumer (consumer group, commit sau khi xử lý, thử lại, topic thư chết `exe.events.dlq`) |
 | Cache | **Redis**: cache loại nhóm và thống kê Course trong Team Service, tự xóa khi dữ liệu đổi; header `X-Cache: HIT/MISS` để quan sát |
 | gRPC | Matching Service, được Team Service gọi khi kiểm tra cơ cấu, hoàn tất phòng và gợi ý phòng |
-| Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 10 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
+| Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 13 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
 | CI/CD | **GitHub Actions**: mỗi lần push hoặc mở PR thì build, chạy unit test, kiểm tra và build frontend, build 6 image Docker; push lên `main` thì đẩy image lên **GitHub Container Registry** — xem mục [CI/CD](#cicd) |
 | Tài liệu API | Swagger/OpenAPI cho Auth Service và Team Service |
 | Database scripts / migrations | EF Core migrations trong `src/AuthService/Data/Migrations` và `src/TeamService/Data/Migrations`, tự áp dụng khi khởi động |
+| Giám sát | **Prometheus + Grafana**: metric HTTP, nghiệp vụ, Kafka, cache, email của 5 service (OpenTelemetry); trạng thái UP/DOWN của cả 13 container (blackbox exporter); **cảnh báo** qua email khi container không phản hồi quá 30 giây — http://localhost:3001 |
 | Làm thêm | Web app React cho 4 vai trò (giao diện theo F-Spark); hồ sơ GPA và vai trò, tìm nhóm theo GPA/vai trò; Matching Service gợi ý phòng; dead-letter stream; kiểm thử end-to-end |
 
 ## Công nghệ
@@ -94,6 +95,7 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 - **React 18**, TypeScript, Vite, **Ant Design 5**, React Router; Nginx phục vụ bản build
 - **xUnit**, Moq, SQLite in-memory cho test
 - **Docker**, Docker Compose
+- **OpenTelemetry**, **Prometheus**, **Grafana** (dashboard và cảnh báo), blackbox exporter
 - **GitHub Actions** (CI/CD), **GitHub Container Registry** (lưu image)
 
 ## Cấu trúc thư mục
@@ -119,7 +121,7 @@ docker-compose.yml
 > Hướng dẫn chi tiết từng bước cho Windows (build từng image, reset dữ liệu trước demo, xử lý lỗi thường gặp):
 > [docs/HUONG_DAN_CHAY.md](docs/HUONG_DAN_CHAY.md).
 
-Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 10 container
+Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 13 container
 (5 service .NET, web app, SQL Server, Kafka, Redis, Mailpit) và chúng giao tiếp với nhau qua mạng nội bộ của Compose.
 
 ### Yêu cầu

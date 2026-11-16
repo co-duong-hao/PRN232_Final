@@ -1,0 +1,11 @@
+# exe:service_up{service, kind} = 1 when the container answers, 0 when it does not.
+# One series per container, whatever the way it is checked; the Grafana "Container" row and the
+# "Container không phản hồi" alert both read this series.
+groups:
+  - name: exe-service-up
+    rules:
+      - record: exe:service_up
+        expr: max by (service, kind) (up{job=~"exe-services|prometheus|grafana|blackbox"})
+      # Containers checked through the blackbox exporter (if blackbox itself is down, its own series says so).
+      - record: exe:service_up
+        expr: max by (service, kind) (probe_success{job=~"infra-tcp|infra-http"})

@@ -17,7 +17,7 @@ Nếu chỉ cần nhớ nhanh: [phần 9 — Chạy nhanh trước buổi demo](
 | [.NET SDK 8](https://dotnet.microsoft.com/download/dotnet/8.0) | Chạy unit test, chạy service ngoài Docker | Khi phát triển |
 | [Node.js 20+](https://nodejs.org/) | Chạy frontend ở chế độ phát triển | Khi phát triển |
 
-**Cấu hình Docker Desktop**: vào *Settings → Resources*, cho Docker ít nhất **6–8 GB RAM**. Hệ thống có 10 container
+**Cấu hình Docker Desktop**: vào *Settings → Resources*, cho Docker ít nhất **6–8 GB RAM**. Hệ thống có 13 container
 (SQL Server và Kafka khá nặng).
 
 ---
@@ -119,7 +119,7 @@ mẫu). Kiểm tra:
 docker compose ps
 ```
 
-Đủ **10 container** ở trạng thái `Up`; `sqlserver`, `redis`, `kafka`, `mailpit` có thêm `(healthy)`.
+Đủ **13 container** ở trạng thái `Up`; `sqlserver`, `redis`, `kafka`, `mailpit` có thêm `(healthy)`.
 
 ```powershell
 curl.exe http://localhost:8080/health
@@ -132,7 +132,9 @@ Trả về `Healthy` là sẵn sàng.
 | Địa chỉ | Nội dung |
 |---|---|
 | http://localhost:3000 | **Web app** — đăng nhập và dùng như người dùng thật |
-| http://localhost:8025 | **Mailpit** — hộp thư nhận mọi email hệ thống gửi |
+| http://localhost:8025 | **Mailpit** — hộp thư nhận mọi email hệ thống gửi, kể cả email cảnh báo của Grafana |
+| http://localhost:3001 | **Grafana** — dashboard "EXE Team Matching" (xem không cần đăng nhập; sửa: `admin` / `GRAFANA_ADMIN_PASSWORD`) |
+| http://localhost:9090 | **Prometheus** — *Status → Targets* xem nguồn số liệu |
 | http://localhost:5102/swagger | Swagger của Team Service |
 | http://localhost:5101/swagger | Swagger của Auth Service |
 | http://localhost:8080 | API Gateway (mọi lời gọi API đi qua đây) |
@@ -205,6 +207,27 @@ Kết quả đúng: 4 dòng `Passed!` (Auth, Matching, Noti, Team), tổng 83 te
 
 ## 8. Xem các thành phần hoạt động (khi trình bày)
 
+**Grafana** — mở http://localhost:3001 (dashboard "EXE Team Matching" là trang chủ):
+
+- Hàng **Container**: 13 ô UP/DOWN, mỗi container một ô; bên phải là các cảnh báo đang bật.
+- Các hàng dưới: request mỗi giây, độ trễ, số phòng, nhóm, sự kiện Kafka, email, cache... Chạy `demo.py` để thấy số tăng.
+
+**Thử cảnh báo "container down"** — biết ngay khi một container hỏng:
+
+```powershell
+docker compose stop redis
+```
+
+Khoảng 5 giây sau ô `redis` chuyển **DOWN** màu đỏ; khoảng 40 giây sau Mailpit (http://localhost:8025) nhận email
+`[FIRING:1] Container không phản hồi redis`. Bật lại:
+
+```powershell
+docker compose start redis
+```
+
+Khoảng 40 giây sau có email `[RESOLVED] ...`. Đổi người nhận cảnh báo: đặt `ALERT_EMAIL_TO=...` trong `.env`.
+
+
 **Kafka** — sự kiện đã được Noti Service đọc hết (cột `LAG` bằng 0):
 
 ```powershell
@@ -242,7 +265,8 @@ docker compose down -v
 docker compose up -d
 ```
 
-Chờ 60 giây, kiểm tra `docker compose ps` đủ 10 container `Up`, mở http://localhost:3000 và http://localhost:8025.
+Chờ 60 giây, kiểm tra `docker compose ps` đủ 13 container `Up`, mở http://localhost:3000, http://localhost:8025 và http://localhost:3001
+(hàng "Container" phải xanh hết).
 Không chạy `demo.py` hay `e2e_smoke.py` trước giờ demo — chúng làm thay đổi dữ liệu; nếu lỡ chạy thì reset lại.
 
 ---

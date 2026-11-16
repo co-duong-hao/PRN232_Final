@@ -1,0 +1,12 @@
+# Blackbox exporter: Prometheus asks it "can you reach <target>?" and gets probe_success 1 or 0.
+# Used for containers that have no /metrics endpoint of their own (SQL Server, Redis, Kafka, Mailpit, web).
+modules:
+  tcp_connect:
+    prober: tcp
+    timeout: 3s
+  http_2xx:
+    prober: http
+    timeout: 3s
+    http:
+      valid_status_codes: [200]
+      preferred_ip_protocol: ip4

@@ -126,6 +126,30 @@ gần nhất, biến `service` (multi, All) lấy từ `label_values(up, service
 
 Mọi panel có tiêu đề tiếng Việt và mô tả ngắn (`description`).
 
+## Giám sát container và cảnh báo (O4)
+
+Mục tiêu: "container nào down là biết liền" — cả 13 container, không chỉ 5 service .NET.
+
+| Container | Cách kiểm tra | Job Prometheus |
+|---|---|---|
+| gateway, auth, team, matching, noti | `GET /metrics` (`up`) | `exe-services` |
+| sqlserver `:1433`, redis `:6379`, kafka `:9092`, mailpit `:1025` | blackbox exporter, kết nối TCP (`probe_success`) | `infra-tcp` |
+| web | blackbox exporter, `GET http://web/` trả 200 | `infra-http` |
+| prometheus, grafana, blackbox | `GET /metrics` của chính chúng | `prometheus`, `grafana`, `blackbox` |
+
+- Recording rule `exe:service_up{service,kind}` (`deploy/prometheus/rules.yml`) gộp hai nguồn trên thành một chuỗi
+  1/0 cho mỗi container; `kind` = `app` | `infra` | `monitoring`.
+- Dashboard: hàng đầu **Container** — ô UP/DOWN cho từng container và panel "Cảnh báo đang bật".
+- Cảnh báo (`deploy/grafana/provisioning/alerting/alerting.yml`): rule "Container không phản hồi", đánh giá 10 giây
+  một lần, `exe:service_up < 1` liên tục 30 giây → gửi email tới `ALERT_EMAIL_TO` (mặc định `ops@exe.local`, qua
+  Mailpit); hồi phục → email `[RESOLVED]`. Prometheus không trả lời hoặc không có dữ liệu cũng tính là cảnh báo.
+- Đo thực tế: dừng Redis → ô đỏ sau ~5 giây, email FIRING sau ~43 giây; bật lại → email RESOLVED sau ~40 giây.
+- Hạn chế: Grafana down thì không ai gửi cảnh báo (ô `grafana` chỉ thấy khi Grafana chạy); blackbox down thì 5 container
+  hạ tầng mất số liệu nhưng chính `blackbox` báo DOWN. Kiểm tra TCP chỉ biết cổng còn mở, không biết dịch vụ bên trong
+  có trả lời đúng hay không.
+- Gửi thêm tới Discord/Telegram: thêm một receiver (`type: discord`, `settings.url: <webhook>`) vào contact point
+  `exe-email` trong file alerting. Không đưa URL webhook lên Git.
+
 ## Kiểm tra (Manager làm khi tích hợp)
 
 1. `docker compose up -d`; Prometheus *Targets* 5/5 `UP`.

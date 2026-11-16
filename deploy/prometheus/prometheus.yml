@@ -1,20 +1,69 @@
-# Prometheus scrapes GET /metrics of every .NET service on the Docker network.
-# The `service` label is the compose service name; Grafana filters on it.
+# Prometheus scrapes GET /metrics of every .NET service on the Docker network, probes the infrastructure
+# containers through the blackbox exporter, and watches itself and Grafana.
+# Every target carries a `service` label (the compose service name); Grafana filters and alerts on it.
 global:
   scrape_interval: 5s
   evaluation_interval: 5s
 
+rule_files:
+  - /etc/prometheus/rules.yml
+
 scrape_configs:
+  # .NET services: application metrics + `up`.
   - job_name: exe-services
     metrics_path: /metrics
     static_configs:
       - targets: ["gateway:8080"]
-        labels: { service: gateway }
+        labels: { service: gateway, kind: app }
       - targets: ["auth-service:8080"]
-        labels: { service: auth-service }
+        labels: { service: auth-service, kind: app }
       - targets: ["team-service:8080"]
-        labels: { service: team-service }
+        labels: { service: team-service, kind: app }
       - targets: ["matching-service:8081"]   # 8080 is HTTP/2-only gRPC; metrics live on the health port
-        labels: { service: matching-service }
+        labels: { service: matching-service, kind: app }
       - targets: ["noti-service:8080"]
-        labels: { service: noti-service }
+        labels: { service: noti-service, kind: app }
+
+  # Infrastructure without /metrics: TCP connect through the blackbox exporter (probe_success 1/0).
+  - job_name: infra-tcp
+    metrics_path: /probe
+    params: { module: [tcp_connect] }
+    static_configs:
+      - targets: ["sqlserver:1433"]
+        labels: { service: sqlserver, kind: infra }
+      - targets: ["redis:6379"]
+        labels: { service: redis, kind: infra }
+      - targets: ["kafka:9092"]
+        labels: { service: kafka, kind: infra }
+      - targets: ["mailpit:1025"]
+        labels: { service: mailpit, kind: infra }
+    relabel_configs: &probe-relabel
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  # Web app (Nginx): HTTP 200 on the home page.
+  - job_name: infra-http
+    metrics_path: /probe
+    params: { module: [http_2xx] }
+    static_configs:
+      - targets: ["http://web/"]
+        labels: { service: web, kind: app }
+    relabel_configs: *probe-relabel
+
+  # The monitoring stack itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels: { service: prometheus, kind: monitoring }
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+        labels: { service: grafana, kind: monitoring }
+  - job_name: blackbox
+    static_configs:
+      - targets: ["blackbox:9115"]
+        labels: { service: blackbox, kind: monitoring }

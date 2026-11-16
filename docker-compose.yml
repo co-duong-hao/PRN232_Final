@@ -198,9 +198,21 @@ services:
       - --storage.tsdb.retention.time=7d
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
+    depends_on:
+      - blackbox
+    restart: on-failure
+
+  # Answers Prometheus "is <host:port> reachable?" for containers without /metrics (SQL Server, Redis, Kafka...).
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./deploy/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
     restart: on-failure
 
   grafana:
@@ -214,6 +226,13 @@ services:
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/exe-overview.json
       GF_USERS_DEFAULT_LANGUAGE: en-US
       GF_PLUGINS_PREINSTALL_DISABLED: "true"   # no plugin downloads at start-up; the dashboard uses built-in panels only
+      # Alert e-mails ("Container không phản hồi") go to Mailpit, like every other e-mail in the system.
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: mailpit:1025
+      GF_SMTP_FROM_ADDRESS: grafana@exe.local
+      GF_SMTP_FROM_NAME: EXE Monitoring
+      GF_SMTP_SKIP_VERIFY: "true"
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-ops@exe.local}
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro

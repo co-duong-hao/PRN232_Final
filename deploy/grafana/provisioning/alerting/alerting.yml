@@ -1,0 +1,59 @@
+# Grafana alerting, provisioned at start-up (read-only in the UI).
+# Rule: any container whose exe:service_up is 0 for 30 s -> one alert per container, e-mailed to Mailpit
+# (http://localhost:8025); a "Resolved" e-mail follows when it answers again.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: exe-email
+    receivers:
+      - uid: exe-email
+        type: email
+        settings:
+          addresses: $ALERT_EMAIL_TO
+          singleEmail: false
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: exe-email
+    group_by: [alertname, service]
+    group_wait: 5s
+    group_interval: 30s
+    repeat_interval: 1h
+
+groups:
+  - orgId: 1
+    name: container-health
+    folder: EXE Team Matching
+    interval: 10s
+    rules:
+      - uid: exe-container-down
+        title: Container không phản hồi
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: exe:service_up
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 30s
+        noDataState: Alerting       # Prometheus returns nothing at all -> treat as an outage
+        execErrState: Alerting      # Prometheus itself unreachable -> alert
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} không phản hồi"
+          description: "Container {{ $labels.service }} ({{ $labels.kind }}) không trả lời Prometheus quá 30 giây. Kiểm tra: docker compose ps {{ $labels.service }} và docker compose logs {{ $labels.service }}."

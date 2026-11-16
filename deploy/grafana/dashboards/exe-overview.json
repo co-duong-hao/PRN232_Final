@@ -18,8 +18,8 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(up, service)",
-        "definition": "label_values(up, service)",
+        "query": "label_values(up{job=\"exe-services\"}, service)",
+        "definition": "label_values(up{job=\"exe-services\"}, service)",
         "multi": true,
         "includeAll": true,
         "allValue": ".*",
@@ -33,11 +33,11 @@
   },
   "panels": [
     {
+      "id": 28,
       "type": "row",
+      "title": "Container",
       "collapsed": false,
       "panels": [],
-      "title": "Tổng quan",
-      "id": 1,
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -46,34 +46,54 @@
       }
     },
     {
-      "id": 2,
-      "title": "Trạng thái dịch vụ",
-      "description": "Trạng thái dịch vụ",
+      "id": 29,
       "type": "stat",
+      "title": "Trạng thái container",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Mỗi ô là một container. UP: trả lời Prometheus trong 5 giây gần nhất. Service .NET, Grafana, Prometheus được kiểm tra qua /metrics; SQL Server, Redis, Kafka, Mailpit, web được blackbox exporter kiểm tra kết nối. DOWN quá 30 giây thì Grafana gửi email cảnh báo tới Mailpit.",
       "gridPos": {
         "x": 0,
         "y": 1,
-        "w": 6,
-        "h": 7
+        "w": 17,
+        "h": 9
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "up{service=~\"$service\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          }
+          },
+          "expr": "max by (service) (exe:service_up)",
+          "instant": true,
+          "legendFormat": "{{service}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -86,11 +106,155 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "DOWN",
+          "displayName": "${__field.labels.service}"
         },
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 30,
+      "type": "alertlist",
+      "title": "Cảnh báo đang bật",
+      "datasource": null,
+      "description": "Các cảnh báo \"Container không phản hồi\" đang ở trạng thái Firing hoặc Pending. Trống nghĩa là mọi container đều ổn.",
+      "gridPos": {
+        "x": 17,
+        "y": 1,
+        "w": 7,
+        "h": 9
+      },
+      "options": {
+        "viewMode": "list",
+        "groupMode": "default",
+        "groupBy": [],
+        "maxItems": 20,
+        "sortOrder": 1,
+        "dashboardAlerts": false,
+        "alertName": "",
+        "alertInstanceLabelFilter": "",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": true,
+          "normal": false,
+          "error": true
+        },
+        "showInstances": true
+      }
+    },
+    {
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "title": "Tổng quan",
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "title": "Trạng thái service .NET",
+      "description": "Trạng thái dịch vụ",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"exe-services\",service=~\"$service\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "DOWN",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
     },
     {
       "id": 3,
@@ -103,7 +267,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 1,
+        "y": 11,
         "w": 6,
         "h": 7
       },
@@ -134,7 +298,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 1,
+        "y": 11,
         "w": 6,
         "h": 7
       },
@@ -165,7 +329,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 1,
+        "y": 11,
         "w": 6,
         "h": 7
       },
@@ -193,7 +357,7 @@
       "id": 6,
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 18,
         "w": 24,
         "h": 1
       }
@@ -209,7 +373,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 19,
         "w": 6,
         "h": 7
       },
@@ -240,7 +404,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 9,
+        "y": 19,
         "w": 6,
         "h": 7
       },
@@ -271,7 +435,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 9,
+        "y": 19,
         "w": 6,
         "h": 7
       },
@@ -302,7 +466,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 9,
+        "y": 19,
         "w": 6,
         "h": 7
       },
@@ -333,7 +497,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 26,
         "w": 24,
         "h": 7
       },
@@ -361,7 +525,7 @@
       "id": 12,
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 33,
         "w": 24,
         "h": 1
       }
@@ -377,7 +541,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 34,
         "w": 6,
         "h": 7
       },
@@ -408,7 +572,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 24,
+        "y": 34,
         "w": 6,
         "h": 7
       },
@@ -439,7 +603,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 34,
         "w": 6,
         "h": 7
       },
@@ -470,7 +634,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 24,
+        "y": 34,
         "w": 6,
         "h": 7
       },
@@ -515,7 +679,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 41,
         "w": 24,
         "h": 7
       },
@@ -543,7 +707,7 @@
       "id": 18,
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 48,
         "w": 24,
         "h": 1
       }
@@ -559,7 +723,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 49,
         "w": 8,
         "h": 7
       },
@@ -590,7 +754,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 39,
+        "y": 49,
         "w": 8,
         "h": 7
       },
@@ -621,7 +785,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 39,
+        "y": 49,
         "w": 8,
         "h": 7
       },
@@ -649,7 +813,7 @@
       "id": 22,
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 56,
         "w": 24,
         "h": 1
       }
@@ -665,7 +829,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 57,
         "w": 24,
         "h": 7
       },
@@ -693,7 +857,7 @@
       "id": 24,
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 64,
         "w": 24,
         "h": 1
       }
@@ -709,7 +873,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 65,
         "w": 8,
         "h": 7
       },
@@ -740,7 +904,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 55,
+        "y": 65,
         "w": 8,
         "h": 7
       },
@@ -771,7 +935,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 55,
+        "y": 65,
         "w": 8,
         "h": 7
       },
