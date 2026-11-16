@@ -10,9 +10,9 @@ public sealed record CourseDto(Guid Id, string Code, Guid SemesterId, Guid Subje
 {
     public CourseDto() : this(default, "", default, default, default, "", "", default, default, 0) { }
 }
-public sealed record CourseStudentDto(Guid Id, string StudentCode, string FullName, string Email, Guid MajorId, string MajorCode, bool HasRoom)
+public sealed record CourseStudentDto(Guid Id, string StudentCode, string FullName, string Email, Guid MajorId, string MajorCode, bool HasRoom, decimal? Gpa, IReadOnlyList<RoleDto> Roles)
 {
-    public CourseStudentDto() : this(default, "", "", "", default, "", false) { }
+    public CourseStudentDto() : this(default, "", "", "", default, "", false, null, []) { }
 }
 public sealed record CourseStatsDto(int TotalStudents, int StudentsInRoom, int StudentsInGroup, IReadOnlyDictionary<string, int> RoomsByStatus, int GroupCount);
 public sealed record MyCourseDto(Guid Id, string Code, Guid SemesterId, Guid SubjectId, Guid GroupTypeId, string GroupTypeName, string Status, DateTime StartTime, DateTime Deadline, int StudentCount, RoomDto? MyRoom, GroupDto? MyGroup);

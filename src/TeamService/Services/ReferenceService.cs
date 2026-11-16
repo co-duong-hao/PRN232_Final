@@ -14,6 +14,7 @@ public sealed class ReferenceService(TeamDbContext db, ITeamCache cache) : IRefe
     {
         "semesters" => db.Semesters.Select(x => new LookupDto { Id = x.Id, Code = x.Code, Name = x.Name, StartDate = x.StartDate, EndDate = x.EndDate }),
         "subjects" => db.Subjects.Select(x => new LookupDto { Id = x.Id, Code = x.Code, Name = x.Name }),
+        "team-roles" => db.TeamRoles.Select(x => new LookupDto { Id = x.Id, Code = x.Code, Name = x.Name }),
         "majors" => db.Majors.Select(x => new LookupDto { Id = x.Id, Code = x.Code, Name = x.Name }),
         _ => throw new NotFoundException("Không tìm thấy tài nguyên.")
     };
@@ -94,6 +95,12 @@ public sealed class ReferenceService(TeamDbContext db, ITeamCache cache) : IRefe
                     db.Majors.Add(major);
                 }
                 break;
+            case "team-roles":
+                var role = id.HasValue ? await db.TeamRoles.FindAsync([key], ct) : new TeamRole { Id = key };
+                if (role is null) throw new NotFoundException("Không tìm thấy vai trò.");
+                role.Code = request.Code; role.Name = request.Name;
+                if (!id.HasValue) db.TeamRoles.Add(role);
+                break;
             default:
                 throw new NotFoundException("Không tìm thấy tài nguyên.");
         }
@@ -129,13 +136,16 @@ public sealed class ReferenceService(TeamDbContext db, ITeamCache cache) : IRefe
                 }
                 db.Majors.Remove(major);
                 break;
-            default:
-                throw new NotFoundException("Không tìm thấy tài nguyên.");
+            case "team-roles":
+                var role = await db.TeamRoles.FindAsync([id], ct) ?? throw new NotFoundException("Không tìm thấy vai trò.");
+                if (await db.StudentTeamRoles.AnyAsync(x => x.TeamRoleId == id, ct) || await db.RoomNeededRoles.AnyAsync(x => x.TeamRoleId == id, ct)) throw new BusinessRuleException("IN_USE", "Vai trò đang được sử dụng.");
+                db.TeamRoles.Remove(role); break;
+            default: throw new NotFoundException("Không tìm thấy tài nguyên.");
         }
         await db.SaveChangesAsync(ct);
     }
 
-    private IQueryable<StudentDto> StudentQuery() => db.Students.Select(x => new StudentDto { Id = x.Id, UserId = x.UserId, StudentCode = x.StudentCode, FullName = x.FullName, Email = x.Email, MajorId = x.MajorId, MajorCode = x.Major.Code });
+    private IQueryable<StudentDto> StudentQuery() => db.Students.Select(x => new StudentDto { Id = x.Id, UserId = x.UserId, StudentCode = x.StudentCode, FullName = x.FullName, Email = x.Email, MajorId = x.MajorId, MajorCode = x.Major.Code, Gpa = x.Gpa, Roles = x.Roles.Select(r => new RoleDto(r.TeamRole.Id, r.TeamRole.Code, r.TeamRole.Name)).ToArray() });
 
     public async Task<PagedResult<StudentDto>> StudentsAsync(StudentQuery query, CancellationToken ct)
     {

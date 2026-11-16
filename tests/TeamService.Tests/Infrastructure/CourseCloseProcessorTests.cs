@@ -24,6 +24,9 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
         db = new TeamDbContext(new DbContextOptionsBuilder<TeamDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
         await TeamDbSeeder.SeedAsync(db);
+        var other = await db.Courses.SingleAsync(x => x.Code == "FA26-EXE201");
+        other.Status = CourseStatus.Planned;
+        await db.SaveChangesAsync();
         publisher.Setup(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()))
             .Callback<EventEnvelope, CancellationToken>((item, _) => events.Add(item))
             .Returns(Task.CompletedTask);

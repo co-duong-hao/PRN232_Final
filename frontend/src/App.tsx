@@ -11,6 +11,7 @@ import { CourseRoomsPage } from "@/pages/student/CourseRoomsPage";
 import { GroupDetailPage } from "@/pages/student/GroupDetailPage";
 import { MyAppliesPage } from "@/pages/student/MyAppliesPage";
 import { MyCoursesPage } from "@/pages/student/MyCoursesPage";
+import { ProfilePage } from "@/pages/student/ProfilePage";
 import { RoomDetailPage } from "@/pages/student/RoomDetailPage";
 
 // Route table. Owned by the Manager: tasks F1 and F2 fill in the page components, not this file.
@@ -65,6 +66,15 @@ export function App() {
           element={
             <RequireAuth roles={["Student"]}>
               <GroupDetailPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="student/profile"
+          element={
+            <RequireAuth roles={["Student"]}>
+              <ProfilePage />
             </RequireAuth>
           }
         />

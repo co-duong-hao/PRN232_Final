@@ -81,6 +81,13 @@ export interface Lookup {
   endDate?: string | null;
 }
 
+/** A role a student can play in a team, e.g. "FE" Frontend. Fixed list managed by Admin. */
+export interface TeamRole {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface Student {
   id: string;
   userId: string;
@@ -89,6 +96,9 @@ export interface Student {
   email: string;
   majorId: string;
   majorCode: string;
+  /** 0.00–4.00; null when the student has not filled it in. */
+  gpa: number | null;
+  roles: TeamRole[];
 }
 
 export interface GroupTypeMajor {
@@ -157,6 +167,8 @@ export interface CourseStudent {
   majorId: string;
   majorCode: string;
   hasRoom: boolean;
+  gpa: number | null;
+  roles: TeamRole[];
 }
 
 export interface CourseStudentParams extends PageParams {
@@ -194,6 +206,14 @@ export interface RoomSummary {
   leaderName: string;
   majors: MajorCount[];
   createdAt: string;
+  /** Recruitment profile (all optional). */
+  name: string | null;
+  projectName: string | null;
+  ideaDescription: string | null;
+  /** Minimum GPA to join directly (BR19); null = no requirement. */
+  requiredGpa: number | null;
+  targetGrade: number | null;
+  neededRoles: TeamRole[];
 }
 
 export interface RoomMember {
@@ -203,6 +223,8 @@ export interface RoomMember {
   majorCode: string;
   isLeader: boolean;
   joinedAt: string;
+  gpa: number | null;
+  roles: TeamRole[];
 }
 
 export interface Room extends RoomSummary {
@@ -215,6 +237,26 @@ export interface Room extends RoomSummary {
 
 export interface RoomListParams extends PageParams {
   status?: RoomStatus;
+  /** Only rooms this GPA can join directly: requiredGpa empty or <= gpa. */
+  gpa?: number;
+  /** Rooms needing at least one of these roles. */
+  roleIds?: string[];
+}
+
+/** Body of POST /courses/{id}/rooms and PUT /rooms/{id}/profile. Every field is optional. */
+export interface RoomProfileRequest {
+  name?: string | null;
+  projectName?: string | null;
+  ideaDescription?: string | null;
+  requiredGpa?: number | null;
+  targetGrade?: number | null;
+  neededRoleIds?: string[];
+}
+
+/** Body of PUT /me/student/profile (BR21). */
+export interface StudentProfileRequest {
+  gpa: number | null;
+  roleIds: string[];
 }
 
 export interface MajorGap {
@@ -256,6 +298,9 @@ export interface RoomApply {
   status: ApplyStatus;
   decidedAt: string | null;
   createdAt: string;
+  /** Applicant's GPA and roles, so the leader can decide. */
+  gpa: number | null;
+  roles: TeamRole[];
 }
 
 export interface ApplyListParams extends PageParams {

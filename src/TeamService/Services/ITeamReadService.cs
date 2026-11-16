@@ -6,6 +6,8 @@ namespace Exe.TeamService.Services;
 public sealed class RoomListQuery : PageQuery
 {
     public string? Status { get; set; }
+    public decimal? Gpa { get; set; }
+    public Guid[]? RoleIds { get; set; }
 }
 
 public sealed class ApplyListQuery : PageQuery

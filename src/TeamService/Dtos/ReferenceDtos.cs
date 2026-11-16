@@ -8,9 +8,13 @@ public sealed record LookupDto(Guid Id, string Code, string Name, DateTime? Star
     public LookupDto() : this(default, "", "", null, null) { }
 }
 public sealed record StudentRequest(Guid UserId, string StudentCode, string FullName, string Email, Guid MajorId);
+public sealed record RoleDto(Guid Id, string Code, string Name);
+public sealed record StudentProfileRequest(decimal? Gpa, IReadOnlyList<Guid> RoleIds);
 public sealed record StudentDto(Guid Id, Guid UserId, string StudentCode, string FullName, string Email, Guid MajorId, string MajorCode)
 {
     public StudentDto() : this(default, default, "", "", "", default, "") { }
+    public decimal? Gpa { get; init; }
+    public IReadOnlyList<RoleDto> Roles { get; init; } = [];
 }
 public sealed class StudentQuery : PageQuery
 {

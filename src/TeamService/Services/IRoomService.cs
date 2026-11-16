@@ -6,6 +6,8 @@ namespace Exe.TeamService.Services;
 public interface IRoomService
 {
     Task<RoomDto> CreateAsync(Guid courseId, CancellationToken ct);
+    Task<RoomDto> CreateAsync(Guid courseId, RoomProfileRequest? profile, CancellationToken ct);
+    Task<RoomDto> UpdateProfileAsync(Guid id, RoomProfileRequest profile, CancellationToken ct);
     Task<RoomDto> JoinAsync(Guid roomId, CancellationToken ct);
     Task LeaveAsync(Guid roomId, CancellationToken ct);
     Task<RoomDto> ChangeLeaderAsync(Guid roomId, Guid studentId, CancellationToken ct);

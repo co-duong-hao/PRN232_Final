@@ -4,6 +4,8 @@ import {
   Alert,
   Button,
   Card,
+  Row,
+  Col,
   Empty,
   Input,
   Modal,
@@ -23,6 +25,7 @@ import { ApplyStatusTag, RoomStatusTag } from "@/components/StatusTag";
 import { applyStatusLabel } from "@/components/labels";
 import { formatDateTime } from "@/components/format";
 import { useApiAction, useShowError } from "@/components/useApiAction";
+import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 
 export function RoomDetailPage() {
@@ -30,6 +33,7 @@ export function RoomDetailPage() {
   const navigate = useNavigate();
   const { student } = useAuth();
   const showError = useShowError();
+  const [editOpen, setEditOpen] = useState(false);
   const [room, setRoom] = useState<Room>();
   const [composition, setComposition] = useState<CompositionAnalysis>();
   const [unavailable, setUnavailable] = useState(false);
@@ -46,7 +50,26 @@ export function RoomDetailPage() {
   const [message, setMessage] = useState("");
   const [leaderOpen, setLeaderOpen] = useState(false);
   const [leaderId, setLeaderId] = useState<string>();
-  const [join, joining] = useApiAction(roomsApi.join, "Đã vào phòng");
+  const [join, joining] = useApiAction(async (id: string) => {
+    try {
+      return await roomsApi.join(id);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "BR19") {
+        Modal.confirm({
+          title: "Không thể vào phòng trực tiếp",
+          content: "GPA của bạn thấp hơn yêu cầu của phòng. Hãy gửi đơn để trưởng phòng xét.",
+          okText: "Gửi đơn",
+          cancelText: "Đóng",
+          onOk: () => {
+            setMessage("");
+            setApplyOpen(true);
+          },
+        });
+        return undefined;
+      }
+      throw e;
+    }
+  });
   const [apply, applying] = useApiAction(roomsApi.apply, "Đã gửi đơn");
   const [leave, leaving] = useApiAction(async (id: string) => {
     await roomsApi.leave(id);
@@ -119,25 +142,16 @@ export function RoomDetailPage() {
     <Spin spinning={loading}>
       {room ? (
         <>
-          <Typography.Title level={2}>Phòng {room.code}</Typography.Title>
-          {room.status === "Completed" && (
-            <Alert
-              type="success"
-              message={
-                <>
-                  Phòng đã thành nhóm{" "}
-                  {group && <Link to={`/student/groups/${group.id}`}>Xem nhóm {group.code}</Link>}
-                </>
-              }
-            />
-          )}
-          <Card>
-            <p>Course: {room.courseCode}</p>
-            <p>
-              Trạng thái: <RoomStatusTag status={room.status} />
-            </p>
-            <p>Số người: {room.memberCount}</p>
-            <p>Trưởng phòng: {room.leaderName}</p>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <Typography.Title level={2}>{room.name || room.code}</Typography.Title>
             <Space wrap>
               {active && !isMember && room.status === "Open" && (
                 <Button
@@ -168,7 +182,7 @@ export function RoomDetailPage() {
                     if (await leave(roomId)) navigate("/student/courses");
                   }}
                 >
-                  <Button loading={leaving} disabled={isLeader && room.members.length > 1}>
+                  <Button danger loading={leaving} disabled={isLeader && room.members.length > 1}>
                     Rời phòng
                   </Button>
                 </Popconfirm>
@@ -178,6 +192,7 @@ export function RoomDetailPage() {
               )}
               {active && isLeader && (
                 <>
+                  <Button onClick={() => setEditOpen(true)}>Sửa thông tin tuyển</Button>
                   <Button
                     disabled={room.members.length < 2}
                     onClick={() => {
@@ -207,6 +222,61 @@ export function RoomDetailPage() {
                 </>
               )}
             </Space>
+          </div>
+          <CreateRoomModal
+            open={editOpen}
+            room={room}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => void refresh()}
+          />
+          {room.status === "Completed" && (
+            <Alert
+              type="success"
+              message={
+                <>
+                  Phòng đã thành nhóm{" "}
+                  {group && <Link to={`/student/groups/${group.id}`}>Xem nhóm {group.code}</Link>}
+                </>
+              }
+            />
+          )}
+          <Card>
+            <Typography.Title level={4}>{room.name || room.code}</Typography.Title>
+            <Typography.Text type="secondary">
+              {room.code} · {room.courseCode}
+            </Typography.Text>{" "}
+            <RoomStatusTag status={room.status} />
+            <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+              {[
+                ["Dự án", room.projectName || "Chưa có"],
+                ["GPA yêu cầu", room.requiredGpa ?? "Không yêu cầu"],
+                ["Điểm mục tiêu", room.targetGrade ?? "Chưa có"],
+                ["Trưởng phòng", room.leaderName],
+                ["Course", room.courseCode],
+                ["Số thành viên", room.memberCount],
+              ].map(([label, value]) => (
+                <Col xs={24} sm={12} lg={8} key={label}>
+                  <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 12, height: "100%" }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12, textTransform: "uppercase" }}>
+                      {label}
+                    </Typography.Text>
+                    <div>{value}</div>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+            <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 16, marginTop: 16 }}>
+              <strong>Mô tả ý tưởng</strong>
+              <div>{room.ideaDescription || "Chưa có"}</div>
+            </div>
+            <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 16, marginTop: 16 }}>
+              <strong>Vai trò cần tuyển</strong>
+              <div>
+                {room.neededRoles.length
+                  ? room.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
+                  : "Chưa tuyển thêm"}
+              </div>
+            </div>
           </Card>
           <Typography.Title level={3}>Thành viên</Typography.Title>
           <Table
@@ -224,6 +294,8 @@ export function RoomDetailPage() {
                 ),
               },
               { title: "Ngành", dataIndex: "majorCode" },
+              { title: "GPA", render: (_, m) => m.gpa ?? "—" },
+              { title: "Vai trò", render: (_, m) => m.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) },
               { title: "Ngày vào", render: (_, m) => formatDateTime(m.joinedAt) },
             ]}
           />
@@ -307,6 +379,8 @@ export function RoomDetailPage() {
                   { title: "Người xin", dataIndex: "fullName" },
                   { title: "Mã SV", dataIndex: "studentCode" },
                   { title: "Ngành", dataIndex: "majorCode" },
+                  { title: "GPA", render: (_, a) => a.gpa ?? "—" },
+                  { title: "Vai trò", render: (_, a) => a.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) },
                   { title: "Lời nhắn", dataIndex: "message" },
                   { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
                   { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },

@@ -12,6 +12,7 @@ import {
   Spin,
   Statistic,
   Table,
+  Tag,
   Tabs,
   Typography,
 } from "antd";
@@ -260,6 +261,16 @@ export function CourseDetailPage() {
                     { title: "Email", dataIndex: "email" },
                     { title: "Ngành", dataIndex: "majorCode" },
                     {
+                      title: "GPA",
+                      dataIndex: "gpa",
+                      render: (v: number | null) => (v == null ? "—" : v.toFixed(2)),
+                    },
+                    {
+                      title: "Vai trò",
+                      render: (_: unknown, s: CourseStudent) =>
+                        s.roles.length ? s.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
+                    },
+                    {
                       title: "Phòng",
                       dataIndex: "hasRoom",
                       render: (v: boolean) => (v ? "Đã có phòng" : "Chưa có phòng"),
@@ -303,7 +314,9 @@ export function CourseDetailPage() {
                     placeholder="Trạng thái"
                     allowClear
                     style={{ width: 170 }}
-                    options={Object.entries(roomStatusLabel).map(([value, v]) => ({ value, label: v.text }))}
+                    options={Object.entries(roomStatusLabel)
+                      .filter(([value]) => value !== "Cancelled" || hasRole("Admin"))
+                      .map(([value, v]) => ({ value, label: v.text }))}
                     onChange={(status) => setRp((x) => ({ ...x, status, page: 1 }))}
                   />
                 </Space>
@@ -337,6 +350,13 @@ export function CourseDetailPage() {
                   }}
                   columns={[
                     { title: "Mã", dataIndex: "code" },
+                    { title: "Tên nhóm", render: (_: unknown, r: RoomSummary) => r.name || r.code },
+                    { title: "GPA yêu cầu", render: (_: unknown, r: RoomSummary) => r.requiredGpa ?? "—" },
+                    {
+                      title: "Vai trò cần tuyển",
+                      render: (_: unknown, r: RoomSummary) =>
+                        r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>),
+                    },
                     {
                       title: "Trạng thái",
                       dataIndex: "status",
