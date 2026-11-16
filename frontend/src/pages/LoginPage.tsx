@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { homePathFor, useAuth } from "@/auth/AuthContext";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
+import { useI18n } from "@/i18n";
 
 interface LoginForm {
   email: string;
@@ -12,6 +14,7 @@ interface LoginForm {
 
 export function LoginPage() {
   const { user, login } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +30,7 @@ export function LoginPage() {
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from && from !== "/login" ? from : homePathFor(u), { replace: true });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Đăng nhập thất bại. Vui lòng thử lại.");
+      setError(e instanceof ApiError ? e.message : t.login.loginFailed);
     } finally {
       setSubmitting(false);
     }
@@ -53,31 +56,39 @@ export function LoginPage() {
         }}
         styles={{ body: { padding: 32 } }}
       >
-        <div style={{ marginBottom: 24 }}>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              background: "#c2410c",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-              marginBottom: 14,
-            }}
-          >
-            EXE
-          </span>
-          <Typography.Title level={3} style={{ margin: "0 0 6px" }}>
-            EXE Team Matching
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Đăng nhập dành cho sinh viên, giảng viên, trưởng bộ môn và quản trị viên.
-          </Typography.Text>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 20,
+          }}
+        >
+          <div>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: "#c2410c",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                marginBottom: 14,
+              }}
+            >
+              EXE
+            </span>
+            <Typography.Title level={3} style={{ margin: "0 0 6px" }}>
+              {t.login.title}
+            </Typography.Title>
+            <Typography.Text type="secondary">{t.login.subtitle}</Typography.Text>
+          </div>
+          <LanguageSwitch />
         </div>
 
         {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
@@ -85,33 +96,33 @@ export function LoginPage() {
         <Form<LoginForm> layout="vertical" onFinish={onFinish} requiredMark={false}>
           <Form.Item
             name="email"
-            label="Email"
+            label={t.login.emailLabel}
             rules={[
-              { required: true, message: "Vui lòng nhập email" },
-              { type: "email", message: "Email không đúng định dạng" },
+              { required: true, message: t.login.emailRequired },
+              { type: "email", message: t.login.emailInvalid },
             ]}
           >
             <Input
               size="large"
               prefix={<MailOutlined />}
-              placeholder="Nhập email được cấp"
+              placeholder={t.login.emailPlaceholder}
               autoComplete="username"
             />
           </Form.Item>
           <Form.Item
             name="password"
-            label="Mật khẩu"
-            rules={[{ required: true, message: "Vui lòng nhập mật khẩu" }]}
+            label={t.login.passwordLabel}
+            rules={[{ required: true, message: t.login.passwordRequired }]}
           >
             <Input.Password
               size="large"
               prefix={<LockOutlined />}
-              placeholder="Nhập mật khẩu"
+              placeholder={t.login.passwordPlaceholder}
               autoComplete="current-password"
             />
           </Form.Item>
           <Button type="primary" size="large" htmlType="submit" block loading={submitting}>
-            Đăng nhập
+            {t.login.loginBtn}
           </Button>
         </Form>
 
@@ -119,7 +130,7 @@ export function LoginPage() {
           type="secondary"
           style={{ marginTop: 18, marginBottom: 0, fontSize: 13, textAlign: "center" }}
         >
-          Chưa có tài khoản hoặc quên mật khẩu? Vui lòng liên hệ Quản trị viên để được cấp lại.
+          {t.login.helpText}
         </Typography.Paragraph>
       </Card>
     </div>
