@@ -18,9 +18,11 @@ import { useShowError } from "@/components/useApiAction";
 import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 import { CourseGridSkeleton, MetricsSkeleton } from "@/features/WorkspaceSkeletons";
+import { useI18n } from "@/i18n";
 
 export function MyCoursesPage() {
   const navigate = useNavigate();
+  const { t, language } = useI18n();
   const [createOpen, setCreateOpen] = useState(false);
   const [allCourses, setAllCourses] = useState<MyCourse[]>([]);
   const [pending, setPending] = useState(0);
@@ -72,7 +74,7 @@ export function MyCoursesPage() {
       disabled={!metricsLoading && !canCreateAny}
       onClick={() => setCreateOpen(true)}
     >
-      Tạo nhóm mới
+      {t.myCourses.createRoomBtn}
     </Button>
   );
 
@@ -80,12 +82,12 @@ export function MyCoursesPage() {
     <div className="workspace-page">
       <header className="workspace-heading">
         <div>
-          <span className="workspace-heading__eyebrow">Sinh viên</span>
-          <Typography.Title level={1}>Học phần của tôi</Typography.Title>
-          <p>Theo dõi tiến độ ghép nhóm và truy cập nhanh phòng hoặc nhóm trong từng học phần.</p>
+          <span className="workspace-heading__eyebrow">{t.myCourses.eyebrow}</span>
+          <Typography.Title level={1}>{t.myCourses.title}</Typography.Title>
+          <p>{t.myCourses.subtitle}</p>
         </div>
         {!metricsLoading && !canCreateAny ? (
-          <Tooltip title="Bạn đã tham gia phòng hoặc nhóm ở tất cả học phần đang mở.">
+          <Tooltip title={t.myCourses.allOpenJoinedTooltip}>
             <span>{createButton}</span>
           </Tooltip>
         ) : (
@@ -101,7 +103,10 @@ export function MyCoursesPage() {
         <div className="workspace-metrics">
           <Card className="workspace-metric-card">
             <div className="workspace-metric">
-              <Statistic title="Tổng học phần" value={allCourses.length} />
+              <Statistic
+                title={language === "en" ? "Total Courses" : "Tổng học phần"}
+                value={allCourses.length}
+              />
               <span className="workspace-metric-icon" aria-hidden="true">
                 <BookOutlined />
               </span>
@@ -122,8 +127,12 @@ export function MyCoursesPage() {
           >
             <div className="workspace-metric">
               <div>
-                <Statistic title="Đã có nhóm" value={formedGroups.length} />
-                {formedGroups.length === 1 && <div className="workspace-metric-hint">Mở trang nhóm</div>}
+                <Statistic title={t.myCourses.statFormedGroups} value={formedGroups.length} />
+                {formedGroups.length === 1 && (
+                  <div className="workspace-metric-hint">
+                    {language === "en" ? "Open team page" : "Mở trang nhóm"}
+                  </div>
+                )}
               </div>
               <span className="workspace-metric-icon" aria-hidden="true">
                 <TeamOutlined />
@@ -145,8 +154,12 @@ export function MyCoursesPage() {
           >
             <div className="workspace-metric">
               <div>
-                <Statistic title="Đang ở phòng" value={activeRooms.length} />
-                {activeRooms.length === 1 && <div className="workspace-metric-hint">Vào phòng ngay</div>}
+                <Statistic title={t.myCourses.statActiveRooms} value={activeRooms.length} />
+                {activeRooms.length === 1 && (
+                  <div className="workspace-metric-hint">
+                    {language === "en" ? "Enter room now" : "Vào phòng ngay"}
+                  </div>
+                )}
               </div>
               <span className="workspace-metric-icon" aria-hidden="true">
                 <HomeOutlined />
@@ -160,8 +173,10 @@ export function MyCoursesPage() {
           >
             <div className="workspace-metric">
               <div>
-                <Statistic title="Đơn đang chờ" value={pending} />
-                <div className="workspace-metric-hint">Xem đơn của tôi</div>
+                <Statistic title={t.myCourses.statPendingApplies} value={pending} />
+                <div className="workspace-metric-hint">
+                  {language === "en" ? "View my applications" : "Xem đơn của tôi"}
+                </div>
               </div>
               <span className="workspace-metric-icon" aria-hidden="true">
                 <ClockCircleOutlined />
@@ -171,39 +186,43 @@ export function MyCoursesPage() {
         </div>
       )}
 
-      <Typography.Title level={2}>Danh sách học phần tham gia</Typography.Title>
+      <Typography.Title level={2}>
+        {language === "en" ? "Enrolled Courses" : "Danh sách học phần tham gia"}
+      </Typography.Title>
 
       {loading ? (
         <CourseGridSkeleton count={3} />
       ) : items.length === 0 ? (
         <Card>
-          <EmptyState
-            title="Bạn chưa được ghi danh học phần nào"
-            description="Khi được thêm vào học phần EXE101 hoặc EXE201, danh sách sẽ hiển thị tại đây."
-          />
+          <EmptyState title={t.myCourses.emptyTitle} description={t.myCourses.emptyDesc} />
         </Card>
       ) : (
         <div className="workspace-course-grid">
           {items.map((c) => {
-            const remaining = formatDeadlineRemaining(c.deadline);
+            const remaining = formatDeadlineRemaining(c.deadline, language);
             return (
               <Card key={c.id} title={c.code} extra={<CourseStatusTag status={c.status} />}>
                 <div className="workspace-course-card__meta">
                   <div>
-                    Loại nhóm: <strong>{c.groupTypeName}</strong>
+                    {t.myCourses.cardGroupType}: <strong>{c.groupTypeName}</strong>
                   </div>
                   <div>
-                    Hạn ghép nhóm: <strong>{formatDateTime(c.deadline)}</strong>{" "}
+                    {t.myCourses.cardDeadline}: <strong>{formatDateTime(c.deadline)}</strong>{" "}
                     {remaining && c.status === "Forming" && <Tag>{remaining}</Tag>}
                   </div>
                   <div>
-                    Sĩ số học phần: <strong>{c.studentCount} sinh viên</strong>
+                    {language === "en" ? "Course enrollment" : "Sĩ số học phần"}:{" "}
+                    <strong>{t.common.membersCount(c.studentCount)}</strong>
                   </div>
                   {c.status !== "Forming" && (
                     <Typography.Text type="secondary">
                       {c.status === "Planned"
-                        ? "Học phần chưa mở ghép nhóm."
-                        : "Học phần đã kết thúc thời gian ghép nhóm."}
+                        ? language === "en"
+                          ? "Course has not opened team matching yet."
+                          : "Học phần chưa mở ghép nhóm."
+                        : language === "en"
+                          ? "Course has ended team matching period."
+                          : "Học phần đã kết thúc thời gian ghép nhóm."}
                     </Typography.Text>
                   )}
                 </div>
@@ -212,33 +231,37 @@ export function MyCoursesPage() {
                   <div className="workspace-course-card__status workspace-course-card__status--active">
                     <div>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        Trạng thái của bạn
+                        {language === "en" ? "Your status" : "Trạng thái của bạn"}
                       </Typography.Text>
                       <div>
-                        <strong>Đã vào nhóm: {c.myGroup.name || c.myGroup.code}</strong>
+                        <strong>
+                          {language === "en" ? "In team" : "Đã vào nhóm"}: {c.myGroup.name || c.myGroup.code}
+                        </strong>
                       </div>
                     </div>
                     <Button type="primary" onClick={() => navigate(`/student/groups/${c.myGroup!.id}`)}>
-                      Xem nhóm
+                      {language === "en" ? "View Team" : "Xem nhóm"}
                     </Button>
                   </div>
                 ) : c.myRoom ? (
                   <div className="workspace-course-card__status workspace-course-card__status--active">
                     <div>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        Trạng thái của bạn
+                        {language === "en" ? "Your status" : "Trạng thái của bạn"}
                       </Typography.Text>
                       <Space wrap size={6} style={{ marginTop: 2 }}>
-                        <strong>Phòng: {c.myRoom.name || c.myRoom.code}</strong>
+                        <strong>
+                          {language === "en" ? "Room" : "Phòng"}: {c.myRoom.name || c.myRoom.code}
+                        </strong>
                         <RoomStatusTag status={c.myRoom.status} />
                       </Space>
                     </div>
                     <Space wrap>
                       <Button type="primary" onClick={() => navigate(`/student/rooms/${c.myRoom!.id}`)}>
-                        Vào phòng của tôi
+                        {language === "en" ? "Go to My Room" : "Vào phòng của tôi"}
                       </Button>
                       <Button onClick={() => navigate(`/student/courses/${c.id}`)}>
-                        Xem danh sách phòng
+                        {language === "en" ? "View Room List" : "Xem danh sách phòng"}
                       </Button>
                     </Space>
                   </div>
@@ -246,17 +269,25 @@ export function MyCoursesPage() {
                   <div className="workspace-course-card__status">
                     <div>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        Trạng thái của bạn
+                        {language === "en" ? "Your status" : "Trạng thái của bạn"}
                       </Typography.Text>
                       <div>
-                        <strong>Chưa tham gia phòng nào</strong>
+                        <strong>
+                          {language === "en" ? "Not joined any room" : "Chưa tham gia phòng nào"}
+                        </strong>
                       </div>
                     </div>
                     <Button
                       type={c.status === "Forming" ? "primary" : "default"}
                       onClick={() => navigate(`/student/courses/${c.id}`)}
                     >
-                      {c.status === "Forming" ? "Tìm nhóm ngay" : "Xem danh sách phòng"}
+                      {c.status === "Forming"
+                        ? language === "en"
+                          ? "Find Team Now"
+                          : "Tìm nhóm ngay"
+                        : language === "en"
+                          ? "View Room List"
+                          : "Xem danh sách phòng"}
                     </Button>
                   </div>
                 )}
