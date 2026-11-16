@@ -193,7 +193,19 @@ export function CourseActions({
           <Form.Item
             name="deadline"
             label="Hạn ghép nhóm"
-            rules={[{ required: true, message: "Vui lòng chọn hạn ghép nhóm" }]}
+            dependencies={["startTime"]}
+            rules={[
+              { required: true, message: "Vui lòng chọn hạn ghép nhóm" },
+              ({ getFieldValue }) => ({
+                validator: (_, deadline?: Dayjs) => {
+                  const start = getFieldValue("startTime") as Dayjs | undefined;
+                  if (deadline && start && !deadline.isAfter(start)) {
+                    return Promise.reject(new Error("Hạn ghép nhóm phải sau thời gian bắt đầu"));
+                  }
+                  return Promise.resolve();
+                },
+              }),
+            ]}
           >
             <DatePicker
               showTime={{ format: "HH:mm" }}
