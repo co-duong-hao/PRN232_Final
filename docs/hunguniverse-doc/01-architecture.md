@@ -61,6 +61,7 @@ flowchart LR
 | 24 | [Giao diện tìm nhóm](24-frontend-discovery.md) |
 | 25 | [Giao diện chi tiết phòng](25-frontend-room.md) |
 | 26 | [Học phần trên web](26-frontend-courses.md) |
+| 27 | [Bảng quản lý staff và admin](27-frontend-staff.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
