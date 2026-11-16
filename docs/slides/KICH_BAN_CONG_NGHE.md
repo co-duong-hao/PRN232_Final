@@ -107,8 +107,7 @@ Grafana `:3001`, Swagger Team `:5102/swagger`, GitHub Actions của repo.
 > Khi trưởng phòng bấm **Hoàn tất**, Team Service gọi `AnalyzeComposition` qua gRPC client. Không đạt thì trả `409
 > BR16` kèm ngành còn thiếu; đạt thì tạo nhóm chính thức. Matching chết thì Team trả `503` rõ ràng thay vì treo.
 
-**Làm**: trên web, ở trang chi tiết phòng bấm **Kiểm tra cơ cấu**, chỉ kết quả "thiếu ngành …"; ở trang phòng
-trong Course chỉ khối **Gợi ý cho bạn**.
+**Làm**: trên web, ở trang chi tiết phòng của giảng viên bấm **Kiểm tra cơ cấu phòng** (hoặc xem thẻ **Cơ cấu nhóm** ở trang phòng sinh viên), chỉ kết quả "thiếu ngành …"; ở trang phòng trong học phần chỉ khối **Gợi ý phòng phù hợp với ngành của bạn**.
 
 **Nếu bị hỏi** "Vì sao dùng gRPC mà không dùng REST?":
 > gRPC có hợp đồng kiểu mạnh sinh code từ `.proto` cho cả hai phía, payload nhị phân nhỏ, hợp với gọi nội bộ giữa
@@ -219,7 +218,7 @@ thái thành "Đã đóng" và Mailpit có email đóng Course.
 
 > Mỗi lần push code, **GitHub Actions** tự chạy pipeline `ci-cd.yml` trên máy Ubuntu của GitHub:
 >
-> 1. **Backend**: build solution ở chế độ Release và chạy toàn bộ **94 unit test**.
+> 1. **Backend**: build solution ở chế độ Release và chạy toàn bộ **436 unit test**.
 > 2. **Frontend**: kiểm tra định dạng Prettier và build bản production.
 > 3. **Image**: khi hai bước trên đạt, build song song **6 image Docker**.
 > 4. **CD**: nếu là nhánh `main`, đẩy 6 image lên **GitHub Container Registry**, gắn tag `latest` và tag theo commit
@@ -268,11 +267,11 @@ thái thành "Đã đóng" và Mailpit có email đóng Course.
 
 **Nói**:
 
-> - **94 unit test** bằng xUnit, Moq, SQLite in-memory: Team 61, Noti 20, Matching 8, Auth 5. Test viết theo quy tắc
+> - **436 unit test** bằng xUnit, Moq, SQLite in-memory: Team 268, Gateway 72, Noti 65, Matching 26, Auth 5. Test viết theo quy tắc
 >   nghiệp vụ: mỗi BR có test đúng và test vi phạm; thêm test cho Kafka thử lại và thư chết, cache khi Redis lỗi,
 >   job đóng Course, và số liệu metric.
-> - **Kiểm thử end-to-end** `tests/e2e/e2e_smoke.py` chạy **84 bước** trên hệ thống thật qua Gateway:
->   29 bước với EXE101 — đăng nhập, phân quyền, QT01–QT06, các lỗi BR05, BR09, BR16, BR18, gọi gRPC, email trong
+> - **Kiểm thử end-to-end** `tests/e2e/e2e_smoke.py` chạy **89 bước** trên hệ thống thật qua Gateway:
+>   34 bước với EXE101 — đăng nhập, phân quyền, QT01–QT06, các lỗi BR05, BR09, BR16, BR18, thống kê Course, gọi gRPC, email trong
 >   Mailpit; thêm 55 bước với EXE201 (`--workflows`) — rời và mở lại phòng, tìm nhóm theo GPA và vai trò, phân trang,
 >   từ chối và rút đơn, đóng Course. Ngoài ra `browser_smoke.py` thử giao diện trên Chromium.
 > - Unit test chạy tự động trên CI ở mỗi lần push.
