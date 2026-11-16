@@ -73,7 +73,7 @@ export function LoginPage() {
             EXE
           </span>
           <Typography.Title level={3} style={{ margin: "0 0 6px" }}>
-            Hệ thống ghép nhóm EXE
+            EXE Team Matching
           </Typography.Title>
           <Typography.Text type="secondary">
             Đăng nhập dành cho sinh viên, giảng viên, trưởng bộ môn và quản trị viên.

@@ -167,8 +167,8 @@ export function AppLayout() {
             EXE
           </span>
           <div>
-            <div>Ghép nhóm EXE</div>
-            <span className="app-shell__brand-sub">Cổng hỗ trợ EXE101 · EXE201</span>
+            <div>EXE Team Matching</div>
+            <span className="app-shell__brand-sub">EXE101 · EXE201 Portal</span>
           </div>
         </div>
         <nav aria-label="Điều hướng chính">{menu}</nav>
@@ -255,7 +255,7 @@ export function AppLayout() {
           <Outlet />
         </Content>
         <Footer className="app-footer">
-          <span className="app-footer__name">Hệ thống ghép nhóm EXE</span>
+          <span className="app-footer__name">EXE Team Matching</span>
           <span>Đồ án PRN232 · Nhóm 6</span>
         </Footer>
       </Layout>
