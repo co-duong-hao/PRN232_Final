@@ -120,6 +120,9 @@ docker-compose.yml
 
 > Hướng dẫn chi tiết từng bước cho Windows (build từng image, reset dữ liệu trước demo, xử lý lỗi thường gặp):
 > [docs/HUONG_DAN_CHAY.md](docs/HUONG_DAN_CHAY.md).
+>
+> Kiểm thử từng công nghệ (REST, JWT, gRPC, Kafka, Redis, job, Docker, CI/CD, Grafana) bằng lệnh cụ thể và kết quả
+> mong đợi: [docs/HUONG_DAN_CHAY_VA_KIEM_THU.md](docs/HUONG_DAN_CHAY_VA_KIEM_THU.md).
 
 Hệ thống được triển khai bằng **Docker Desktop với Docker Compose**: một lệnh dựng toàn bộ 13 container
 (5 service .NET, web app, SQL Server, Kafka, Redis, Mailpit) và chúng giao tiếp với nhau qua mạng nội bộ của Compose.

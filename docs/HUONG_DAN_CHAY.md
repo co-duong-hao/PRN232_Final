@@ -5,6 +5,9 @@ VS Code), tại thư mục gốc dự án — nơi có file `docker-compose.yml`
 
 Nếu chỉ cần nhớ nhanh: [phần 9 — Chạy nhanh trước buổi demo](#9-chạy-nhanh-trước-buổi-demo).
 
+Kiểm thử từng công nghệ bằng lệnh cụ thể và kết quả mong đợi:
+[HUONG_DAN_CHAY_VA_KIEM_THU.md](HUONG_DAN_CHAY_VA_KIEM_THU.md).
+
 ---
 
 ## 1. Cần cài gì
