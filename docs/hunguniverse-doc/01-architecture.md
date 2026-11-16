@@ -57,6 +57,7 @@ flowchart LR
 | 20 | [Sự kiện Kafka và producer](20-kafka-producer.md) |
 | 21 | [Consumer Kafka và email](21-kafka-consumer.md) |
 | 22 | [Cache Redis và job nền](22-cache-and-jobs.md) |
+| 23 | [Điều hướng và xác thực trên web](23-frontend-shell.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
