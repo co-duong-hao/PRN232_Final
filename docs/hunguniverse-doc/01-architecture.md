@@ -55,6 +55,7 @@ flowchart LR
 | 18 | [Hợp đồng và client gRPC](18-grpc-contract.md) |
 | 19 | [Phân tích cơ cấu và gợi ý phòng](19-matching-server.md) |
 | 20 | [Sự kiện Kafka và producer](20-kafka-producer.md) |
+| 21 | [Consumer Kafka và email](21-kafka-consumer.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
@@ -64,6 +65,7 @@ flowchart LR
 | Mã lỗi BR05 hoặc BR19 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
 | Trạng thái đơn chưa cập nhật | [Đơn xin vào phòng](15-room-applies.md) |
 | Phòng chưa đủ cơ cấu hoặc gRPC lỗi | [Hợp đồng gRPC](18-grpc-contract.md), [MatchingService](19-matching-server.md) |
+| Nhóm đã tạo nhưng chưa có email | [Kafka producer](20-kafka-producer.md), [Kafka consumer](21-kafka-consumer.md) |
 
 ## Đối chiếu mã nguồn
 
