@@ -4,13 +4,13 @@ import {
   Button,
   Card,
   Descriptions,
+  Empty,
   Input,
   Modal,
   Popconfirm,
   Progress,
   Select,
   Space,
-  Spin,
   Statistic,
   Table,
   Tag,
@@ -45,6 +45,7 @@ import { roomStatusLabel } from "@/components/labels";
 import { CourseStatusTag, MajorCounts, RoomStatusTag } from "@/components/StatusTag";
 import { useApiAction, useShowError } from "@/components/useApiAction";
 import { CourseActions } from "@/features/staff/CourseActions";
+import { CourseDetailSkeleton, CourseStatsSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
 export function CourseDetailPage() {
   const { courseId = "" } = useParams();
   const { hasRole } = useAuth();
@@ -55,7 +56,9 @@ export function CourseDetailPage() {
   const [types, setTypes] = useState<GroupType[]>([]);
   const [majors, setMajors] = useState<Lookup[]>([]);
   const [tab, setTab] = useState("students");
-  const [loading, setLoading] = useState(false);
+  const [headerLoading, setHeaderLoading] = useState(true);
+  const [filtersLoading, setFiltersLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [sp, setSp] = useState<CourseStudentParams>({ page: 1, pageSize: 20 });
   const [rp, setRp] = useState<RoomListParams>({ page: 1, pageSize: 20 });
   const [gp, setGp] = useState<PageParams>({ page: 1, pageSize: 20 });
@@ -63,18 +66,22 @@ export function CourseDetailPage() {
   const [rooms, setRooms] = useState<Paged<RoomSummary>>();
   const [groups, setGroups] = useState<Paged<Group>>();
   const [details, setDetails] = useState<Record<string, Room>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({});
   const [analysis, setAnalysis] = useState<CompositionAnalysis>();
   const [checking, setChecking] = useState(false);
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [choices, setChoices] = useState<Student[]>([]);
+  const [searchingStudents, setSearchingStudents] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const loadHeader = useCallback(() => {
+    setHeaderLoading(true);
     Promise.all([coursesApi.get(courseId), coursesApi.stats(courseId)])
       .then(([c, s]) => {
         setCourse(c);
         setStats(s);
       })
-      .catch(showError);
+      .catch(showError)
+      .finally(() => setHeaderLoading(false));
   }, [courseId, showError]);
   const loadTab = useCallback(() => {
     setLoading(true);
@@ -86,15 +93,21 @@ export function CourseDetailPage() {
           : coursesApi.groups(courseId, gp).then(setGroups);
     request.catch(showError).finally(() => setLoading(false));
   }, [courseId, tab, sp, rp, gp, showError]);
-  useEffect(loadHeader, [loadHeader]);
+  useEffect(() => {
+    setCourse(undefined);
+    setStats(undefined);
+    loadHeader();
+  }, [loadHeader]);
   useEffect(loadTab, [loadTab]);
   useEffect(() => {
+    setFiltersLoading(true);
     Promise.all([referenceApi.majors(), referenceApi.groupTypes()])
       .then(([m, t]) => {
         setMajors(m.items);
         setTypes(t.items);
       })
-      .catch(showError);
+      .catch(showError)
+      .finally(() => setFiltersLoading(false));
   }, [showError]);
   const refresh = () => {
     loadHeader();
@@ -108,11 +121,14 @@ export function CourseDetailPage() {
     await coursesApi.removeStudent(courseId, id);
     return true;
   }, "Đã gỡ sinh viên");
-  const searchStudents = (q: string) =>
-    referenceApi
+  const searchStudents = (q: string) => {
+    setSearchingStudents(true);
+    return referenceApi
       .students({ q, page: 1, pageSize: 100 })
       .then((x) => setChoices(x.items))
-      .catch(showError);
+      .catch(showError)
+      .finally(() => setSearchingStudents(false));
+  };
   const check = async (id: string) => {
     setChecking(true);
     try {
@@ -152,7 +168,24 @@ export function CourseDetailPage() {
       ]}
     />
   );
-  if (!course) return <Spin />;
+  if (headerLoading && !course) {
+    return (
+      <CourseDetailSkeleton canManage={hasRole("Admin", "HeadOfDepartment")} isAdmin={hasRole("Admin")} />
+    );
+  }
+  if (!course) {
+    return (
+      <div className="workspace-page">
+        <header className="workspace-heading">
+          <div>
+            <Link to="/staff/courses">← Quản lý Course</Link>
+            <Typography.Title level={1}>Không tìm thấy Course</Typography.Title>
+          </div>
+        </header>
+        <Empty description="Không tìm thấy Course" />
+      </div>
+    );
+  }
   return (
     <div className="workspace-page">
       <header className="workspace-heading">
@@ -181,7 +214,7 @@ export function CourseDetailPage() {
           { key: "end", label: "Hạn", children: formatDateTime(course.deadline) },
         ]}
       />
-      {stats && (
+      {stats ? (
         <Card title="Tiến độ ghép nhóm" className="workspace-section">
           <div className="workspace-metrics">
             <Statistic title="Tổng sinh viên" value={stats.totalStudents} />
@@ -205,6 +238,8 @@ export function CourseDetailPage() {
             ))}
           </Space>
         </Card>
+      ) : (
+        headerLoading && <CourseStatsSkeleton />
       )}
       <Tabs
         className="workspace-section"
@@ -227,6 +262,7 @@ export function CourseDetailPage() {
                     aria-label="Lọc theo ngành"
                     placeholder="Ngành"
                     allowClear
+                    loading={filtersLoading}
                     style={{ width: 150 }}
                     options={majors.map((m) => ({ value: m.id, label: m.code }))}
                     onChange={(majorId) => setSp((x) => ({ ...x, majorId, page: 1 }))}
@@ -248,66 +284,89 @@ export function CourseDetailPage() {
                       onClick={() => {
                         setSelected([]);
                         setEnrollOpen(true);
-                        searchStudents("");
+                        void searchStudents("");
                       }}
                     >
                       Thêm sinh viên
                     </Button>
                   )}
                 </Space>
-                <Table
-                  scroll={{ x: 840 }}
-                  rowKey="id"
-                  loading={loading}
-                  dataSource={students?.items ?? []}
-                  pagination={{
-                    current: sp.page,
-                    pageSize: sp.pageSize,
-                    total: students?.totalItems,
-                    showSizeChanger: true,
-                    onChange: (page, pageSize) => setSp((x) => ({ ...x, page, pageSize })),
-                  }}
-                  columns={[
-                    { title: "Mã SV", dataIndex: "studentCode" },
-                    { title: "Họ tên", dataIndex: "fullName" },
-                    { title: "Email", dataIndex: "email" },
-                    { title: "Ngành", dataIndex: "majorCode" },
-                    {
-                      title: "GPA",
-                      dataIndex: "gpa",
-                      render: (v: number | null) => (v == null ? "—" : v.toFixed(2)),
-                    },
-                    {
-                      title: "Vai trò",
-                      render: (_: unknown, s: CourseStudent) =>
-                        s.roles.length ? s.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
-                    },
-                    {
-                      title: "Phòng",
-                      dataIndex: "hasRoom",
-                      render: (v: boolean) => (v ? "Đã có phòng" : "Chưa có phòng"),
-                    },
-                    ...(hasRole("Admin")
-                      ? [
-                          {
-                            title: "Thao tác",
-                            render: (_: unknown, s: CourseStudent) => (
-                              <Popconfirm
-                                title="Gỡ sinh viên khỏi Course?"
-                                onConfirm={async () => {
-                                  if (await remove(s.id)) refresh();
-                                }}
-                              >
-                                <Button danger loading={removing}>
-                                  Gỡ
-                                </Button>
-                              </Popconfirm>
-                            ),
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
+                {loading ? (
+                  <TableSkeleton
+                    scrollX={840}
+                    rows={5}
+                    pagination={{
+                      current: sp.page,
+                      pageSize: sp.pageSize,
+                      total: students?.totalItems,
+                    }}
+                    columns={[
+                      { title: "Mã SV", kind: "code" },
+                      { title: "Họ tên", kind: "text" },
+                      { title: "Email", kind: "longText" },
+                      { title: "Ngành", kind: "code" },
+                      { title: "GPA", kind: "number" },
+                      { title: "Vai trò", kind: "tags" },
+                      { title: "Phòng", kind: "text" },
+                      ...(hasRole("Admin")
+                        ? [{ title: "Thao tác", kind: "actions" as const, actionWidths: [52] }]
+                        : []),
+                    ]}
+                  />
+                ) : (
+                  <Table
+                    scroll={{ x: 840 }}
+                    rowKey="id"
+                    dataSource={students?.items ?? []}
+                    pagination={{
+                      current: sp.page,
+                      pageSize: sp.pageSize,
+                      total: students?.totalItems,
+                      showSizeChanger: true,
+                      onChange: (page, pageSize) => setSp((x) => ({ ...x, page, pageSize })),
+                    }}
+                    columns={[
+                      { title: "Mã SV", dataIndex: "studentCode" },
+                      { title: "Họ tên", dataIndex: "fullName" },
+                      { title: "Email", dataIndex: "email" },
+                      { title: "Ngành", dataIndex: "majorCode" },
+                      {
+                        title: "GPA",
+                        dataIndex: "gpa",
+                        render: (v: number | null) => (v == null ? "—" : v.toFixed(2)),
+                      },
+                      {
+                        title: "Vai trò",
+                        render: (_: unknown, s: CourseStudent) =>
+                          s.roles.length ? s.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) : "—",
+                      },
+                      {
+                        title: "Phòng",
+                        dataIndex: "hasRoom",
+                        render: (v: boolean) => (v ? "Đã có phòng" : "Chưa có phòng"),
+                      },
+                      ...(hasRole("Admin")
+                        ? [
+                            {
+                              title: "Thao tác",
+                              render: (_: unknown, s: CourseStudent) => (
+                                <Popconfirm
+                                  title="Gỡ sinh viên khỏi Course?"
+                                  onConfirm={async () => {
+                                    if (await remove(s.id)) refresh();
+                                  }}
+                                >
+                                  <Button danger loading={removing}>
+                                    Gỡ
+                                  </Button>
+                                </Popconfirm>
+                              ),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                )}
               </>
             ),
           },
@@ -334,59 +393,97 @@ export function CourseDetailPage() {
                     onChange={(status) => setRp((x) => ({ ...x, status, page: 1 }))}
                   />
                 </Space>
-                <Table
-                  scroll={{ x: 820 }}
-                  rowKey="id"
-                  loading={loading}
-                  dataSource={rooms?.items ?? []}
-                  pagination={{
-                    current: rp.page,
-                    pageSize: rp.pageSize,
-                    total: rooms?.totalItems,
-                    showSizeChanger: true,
-                    onChange: (page, pageSize) => setRp((x) => ({ ...x, page, pageSize })),
-                  }}
-                  expandable={{
-                    onExpand: (expanded, r) => {
-                      if (expanded)
-                        roomsApi
-                          .get(r.id)
-                          .then((d) => setDetails((x) => ({ ...x, [r.id]: d })))
-                          .catch(showError);
-                    },
-                    expandedRowRender: (r) => (
-                      <>
-                        {details[r.id] ? memberList(details[r.id].members) : <Spin />}
-                        <Button loading={checking} onClick={() => check(r.id)}>
-                          Kiểm tra cơ cấu
-                        </Button>
-                      </>
-                    ),
-                  }}
-                  columns={[
-                    { title: "Mã", dataIndex: "code" },
-                    { title: "Tên nhóm", render: (_: unknown, r: RoomSummary) => r.name || r.code },
-                    { title: "GPA yêu cầu", render: (_: unknown, r: RoomSummary) => r.requiredGpa ?? "—" },
-                    {
-                      title: "Vai trò cần tuyển",
-                      render: (_: unknown, r: RoomSummary) =>
-                        r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>),
-                    },
-                    {
-                      title: "Trạng thái",
-                      dataIndex: "status",
-                      render: (s: RoomSummary["status"]) => <RoomStatusTag status={s} />,
-                    },
-                    { title: "Số người", dataIndex: "memberCount" },
-                    {
-                      title: "Ngành",
-                      dataIndex: "majors",
-                      render: (m: RoomSummary["majors"]) => <MajorCounts majors={m} />,
-                    },
-                    { title: "Trưởng phòng", dataIndex: "leaderName" },
-                    { title: "Ngày tạo", dataIndex: "createdAt", render: formatDateTime },
-                  ]}
-                />
+                {loading ? (
+                  <TableSkeleton
+                    scrollX={820}
+                    rows={5}
+                    showExpandColumn
+                    pagination={{ current: rp.page, pageSize: rp.pageSize, total: rooms?.totalItems }}
+                    columns={[
+                      { title: "Mã", kind: "code" },
+                      { title: "Tên nhóm", kind: "text" },
+                      { title: "GPA yêu cầu", kind: "number" },
+                      { title: "Vai trò cần tuyển", kind: "tags" },
+                      { title: "Trạng thái", kind: "tag" },
+                      { title: "Số người", kind: "number" },
+                      { title: "Ngành", kind: "tags" },
+                      { title: "Trưởng phòng", kind: "text" },
+                      { title: "Ngày tạo", kind: "date" },
+                    ]}
+                  />
+                ) : (
+                  <Table
+                    scroll={{ x: 820 }}
+                    rowKey="id"
+                    dataSource={rooms?.items ?? []}
+                    pagination={{
+                      current: rp.page,
+                      pageSize: rp.pageSize,
+                      total: rooms?.totalItems,
+                      showSizeChanger: true,
+                      onChange: (page, pageSize) => setRp((x) => ({ ...x, page, pageSize })),
+                    }}
+                    expandable={{
+                      onExpand: (expanded, r) => {
+                        if (expanded && !details[r.id]) {
+                          setLoadingDetails((x) => ({ ...x, [r.id]: true }));
+                          roomsApi
+                            .get(r.id)
+                            .then((d) => setDetails((x) => ({ ...x, [r.id]: d })))
+                            .catch(showError)
+                            .finally(() => setLoadingDetails((x) => ({ ...x, [r.id]: false })));
+                        }
+                      },
+                      expandedRowRender: (r) => (
+                        <>
+                          {details[r.id] ? (
+                            memberList(details[r.id].members)
+                          ) : loadingDetails[r.id] ? (
+                            <TableSkeleton
+                              scrollX={480}
+                              size="small"
+                              rows={3}
+                              columns={[
+                                { title: "Mã SV", kind: "code" },
+                                { title: "Họ tên", kind: "text" },
+                                { title: "Ngành", kind: "code" },
+                                { title: "Vai trò", kind: "text" },
+                              ]}
+                            />
+                          ) : (
+                            <Empty description="Không tải được thành viên" />
+                          )}
+                          <Button loading={checking} onClick={() => check(r.id)}>
+                            Kiểm tra cơ cấu
+                          </Button>
+                        </>
+                      ),
+                    }}
+                    columns={[
+                      { title: "Mã", dataIndex: "code" },
+                      { title: "Tên nhóm", render: (_: unknown, r: RoomSummary) => r.name || r.code },
+                      { title: "GPA yêu cầu", render: (_: unknown, r: RoomSummary) => r.requiredGpa ?? "—" },
+                      {
+                        title: "Vai trò cần tuyển",
+                        render: (_: unknown, r: RoomSummary) =>
+                          r.neededRoles.map((role) => <Tag key={role.id}>{role.name}</Tag>),
+                      },
+                      {
+                        title: "Trạng thái",
+                        dataIndex: "status",
+                        render: (s: RoomSummary["status"]) => <RoomStatusTag status={s} />,
+                      },
+                      { title: "Số người", dataIndex: "memberCount" },
+                      {
+                        title: "Ngành",
+                        dataIndex: "majors",
+                        render: (m: RoomSummary["majors"]) => <MajorCounts majors={m} />,
+                      },
+                      { title: "Trưởng phòng", dataIndex: "leaderName" },
+                      { title: "Ngày tạo", dataIndex: "createdAt", render: formatDateTime },
+                    ]}
+                  />
+                )}
               </>
             ),
           },
@@ -402,29 +499,43 @@ export function CourseDetailPage() {
                   style={{ maxWidth: 300, marginBottom: 16 }}
                   onSearch={(q) => setGp((x) => ({ ...x, q, page: 1 }))}
                 />
-                <Table
-                  scroll={{ x: 580 }}
-                  rowKey="id"
-                  loading={loading}
-                  dataSource={groups?.items ?? []}
-                  pagination={{
-                    current: gp.page,
-                    pageSize: gp.pageSize,
-                    total: groups?.totalItems,
-                    showSizeChanger: true,
-                    onChange: (page, pageSize) => setGp((x) => ({ ...x, page, pageSize })),
-                  }}
-                  expandable={{ expandedRowRender: (g) => memberList(g.members) }}
-                  columns={[
-                    { title: "Mã", dataIndex: "code" },
-                    { title: "Số thành viên", render: (_: unknown, g: Group) => g.members.length },
-                    {
-                      title: "Trưởng nhóm",
-                      render: (_: unknown, g: Group) => g.members.find((m) => m.isLeader)?.fullName ?? "—",
-                    },
-                    { title: "Ngày thành lập", dataIndex: "createdAt", render: formatDateTime },
-                  ]}
-                />
+                {loading ? (
+                  <TableSkeleton
+                    scrollX={580}
+                    rows={5}
+                    showExpandColumn
+                    pagination={{ current: gp.page, pageSize: gp.pageSize, total: groups?.totalItems }}
+                    columns={[
+                      { title: "Mã", kind: "code" },
+                      { title: "Số thành viên", kind: "number" },
+                      { title: "Trưởng nhóm", kind: "text" },
+                      { title: "Ngày thành lập", kind: "date" },
+                    ]}
+                  />
+                ) : (
+                  <Table
+                    scroll={{ x: 580 }}
+                    rowKey="id"
+                    dataSource={groups?.items ?? []}
+                    pagination={{
+                      current: gp.page,
+                      pageSize: gp.pageSize,
+                      total: groups?.totalItems,
+                      showSizeChanger: true,
+                      onChange: (page, pageSize) => setGp((x) => ({ ...x, page, pageSize })),
+                    }}
+                    expandable={{ expandedRowRender: (g) => memberList(g.members) }}
+                    columns={[
+                      { title: "Mã", dataIndex: "code" },
+                      { title: "Số thành viên", render: (_: unknown, g: Group) => g.members.length },
+                      {
+                        title: "Trưởng nhóm",
+                        render: (_: unknown, g: Group) => g.members.find((m) => m.isLeader)?.fullName ?? "—",
+                      },
+                      { title: "Ngày thành lập", dataIndex: "createdAt", render: formatDateTime },
+                    ]}
+                  />
+                )}
               </>
             ),
           },
@@ -447,6 +558,7 @@ export function CourseDetailPage() {
         <Select
           mode="multiple"
           showSearch
+          loading={searchingStudents}
           filterOption={false}
           style={{ width: "100%" }}
           aria-label="Tìm sinh viên"

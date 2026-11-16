@@ -11,7 +11,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Spin,
   Table,
   Tag,
   Typography,
@@ -27,6 +26,7 @@ import { useApiAction, useShowError } from "@/components/useApiAction";
 import { CreateRoomModal } from "@/features/student/CreateRoomModal";
 import { loadAllMyCourses } from "@/features/student/loadMyCourses";
 import { RoomCompositionSummary } from "@/features/student/RoomCompositionSummary";
+import { RoomCompositionSkeleton, RoomDetailSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
 
 export function RoomDetailPage() {
   const { roomId = "" } = useParams();
@@ -47,6 +47,7 @@ export function RoomDetailPage() {
   const [size, setSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [appliesLoading, setAppliesLoading] = useState(false);
+  const [appliesReady, setAppliesReady] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [leaderOpen, setLeaderOpen] = useState(false);
@@ -123,6 +124,7 @@ export function RoomDetailPage() {
       showError(e);
     } finally {
       setAppliesLoading(false);
+      setAppliesReady(true);
     }
   }, [roomId, page, size, status, showError]);
   const isMember = !!student && !!room?.members.some((m) => m.studentId === student.id);
@@ -130,6 +132,9 @@ export function RoomDetailPage() {
   const active = room?.status === "Open" || room?.status === "Locked";
   const courseId = room?.courseId;
   useEffect(() => {
+    setRoom(undefined);
+    setAppliesReady(false);
+    setLoading(true);
     void loadRoom();
     void loadComposition();
   }, [loadRoom, loadComposition]);
@@ -177,208 +182,224 @@ export function RoomDetailPage() {
   };
   return (
     <div className="workspace-page">
-      <Spin spinning={loading}>
-        {room ? (
-          <>
-            <header className="workspace-heading">
-              <div>
-                <Link to={`/student/courses/${room.courseId}`}>← Tìm nhóm</Link>
-                <Typography.Title level={1}>{room.name || room.code}</Typography.Title>
-                <p>
-                  {room.code} · {room.courseCode}
-                </p>
-              </div>
-              <Space wrap>
-                {active && !isMember && room.status === "Open" && (
-                  <Button
-                    type="primary"
-                    loading={joining}
-                    onClick={async () => {
-                      if (await join(roomId)) await refresh();
-                    }}
-                  >
-                    Vào phòng
+      {loading && !room ? (
+        <RoomDetailSkeleton />
+      ) : room ? (
+        <>
+          <header className="workspace-heading">
+            <div>
+              <Link to={`/student/courses/${room.courseId}`}>← Tìm nhóm</Link>
+              <Typography.Title level={1}>{room.name || room.code}</Typography.Title>
+              <p>
+                {room.code} · {room.courseCode}
+              </p>
+            </div>
+            <Space wrap>
+              {active && !isMember && room.status === "Open" && (
+                <Button
+                  type="primary"
+                  loading={joining}
+                  onClick={async () => {
+                    if (await join(roomId)) await refresh();
+                  }}
+                >
+                  Vào phòng
+                </Button>
+              )}
+              {active && !isMember && room.status === "Locked" && (
+                <Button
+                  type="primary"
+                  onClick={() => {
+                    setMessage("");
+                    setApplyOpen(true);
+                  }}
+                >
+                  Gửi đơn
+                </Button>
+              )}
+              {active && isMember && (
+                <Popconfirm
+                  title="Rời phòng này?"
+                  okText="Rời phòng"
+                  cancelText="Hủy"
+                  onConfirm={async () => {
+                    if (await leave(roomId)) navigate("/student/courses");
+                  }}
+                >
+                  <Button danger loading={leaving} disabled={isLeader && room.members.length > 1}>
+                    Rời phòng
                   </Button>
-                )}
-                {active && !isMember && room.status === "Locked" && (
+                </Popconfirm>
+              )}
+              {active && isLeader && room.members.length > 1 && (
+                <Typography.Text type="secondary">Chuyển quyền trưởng phòng trước khi rời</Typography.Text>
+              )}
+              {active && isLeader && (
+                <>
+                  <Button onClick={() => setEditOpen(true)}>Sửa thông tin tuyển</Button>
                   <Button
-                    type="primary"
+                    disabled={room.members.length < 2}
                     onClick={() => {
-                      setMessage("");
-                      setApplyOpen(true);
+                      setLeaderId(undefined);
+                      setLeaderOpen(true);
                     }}
                   >
-                    Gửi đơn
+                    Chuyển trưởng phòng
                   </Button>
-                )}
-                {active && isMember && (
                   <Popconfirm
-                    title="Rời phòng này?"
-                    okText="Rời phòng"
+                    title="Hoàn tất phòng thành nhóm?"
+                    okText="Hoàn tất"
                     cancelText="Hủy"
                     onConfirm={async () => {
-                      if (await leave(roomId)) navigate("/student/courses");
+                      const result = await complete(roomId);
+                      if (result) navigate(`/student/groups/${result.id}`);
                     }}
                   >
-                    <Button danger loading={leaving} disabled={isLeader && room.members.length > 1}>
-                      Rời phòng
+                    <Button
+                      type="primary"
+                      disabled={!composition?.satisfied || compositionLoading}
+                      loading={completing}
+                    >
+                      Hoàn tất thành nhóm
                     </Button>
                   </Popconfirm>
-                )}
-                {active && isLeader && room.members.length > 1 && (
-                  <Typography.Text type="secondary">Chuyển quyền trưởng phòng trước khi rời</Typography.Text>
-                )}
-                {active && isLeader && (
-                  <>
-                    <Button onClick={() => setEditOpen(true)}>Sửa thông tin tuyển</Button>
-                    <Button
-                      disabled={room.members.length < 2}
-                      onClick={() => {
-                        setLeaderId(undefined);
-                        setLeaderOpen(true);
-                      }}
-                    >
-                      Chuyển trưởng phòng
-                    </Button>
-                    <Popconfirm
-                      title="Hoàn tất phòng thành nhóm?"
-                      okText="Hoàn tất"
-                      cancelText="Hủy"
-                      onConfirm={async () => {
-                        const result = await complete(roomId);
-                        if (result) navigate(`/student/groups/${result.id}`);
-                      }}
-                    >
-                      <Button
-                        type="primary"
-                        disabled={!composition?.satisfied || compositionLoading}
-                        loading={completing}
-                      >
-                        Hoàn tất thành nhóm
-                      </Button>
-                    </Popconfirm>
-                  </>
-                )}
-              </Space>
-            </header>
-            <CreateRoomModal
-              open={editOpen}
-              room={room}
-              onClose={() => setEditOpen(false)}
-              onSaved={() => void refresh()}
-            />
-            {room.status === "Completed" && (
-              <Alert
-                type="success"
-                message={
-                  <>
-                    Phòng đã thành nhóm{" "}
-                    {group && <Link to={`/student/groups/${group.id}`}>Xem nhóm {group.code}</Link>}
-                  </>
-                }
-              />
-            )}
-            <Card title="Thông tin tuyển" extra={<RoomStatusTag status={room.status} />}>
-              <dl className="workspace-facts">
-                {[
-                  ["Dự án", room.projectName || "Chưa có"],
-                  ["GPA yêu cầu", room.requiredGpa ?? "Không yêu cầu"],
-                  ["Điểm mục tiêu", room.targetGrade ?? "Chưa có"],
-                  ["Trưởng phòng", room.leaderName],
-                  ["Course", room.courseCode],
-                  ["Số thành viên", room.memberCount],
-                ].map(([label, value]) => (
-                  <div className="workspace-fact" key={label}>
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="workspace-section">
-                <strong>Mô tả ý tưởng</strong>
-                <div className="workspace-room-description">{room.ideaDescription || "Chưa có"}</div>
-              </div>
-              <div className="workspace-section">
-                <strong>Vai trò cần tuyển</strong>
-                <div>
-                  {room.neededRoles.length
-                    ? room.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
-                    : "Chưa tuyển thêm"}
-                </div>
-              </div>
-            </Card>
-            <Typography.Title level={2}>Thành viên</Typography.Title>
-            <Table
-              scroll={{ x: 650 }}
-              rowKey="studentId"
-              pagination={false}
-              dataSource={room.members}
-              columns={[
-                { title: "Mã SV", dataIndex: "studentCode" },
-                {
-                  title: "Họ tên",
-                  render: (_, m) => (
-                    <>
-                      {m.fullName} {m.isLeader && <StarFilled title="Trưởng phòng" />}
-                    </>
-                  ),
-                },
-                { title: "Ngành", dataIndex: "majorCode" },
-                { title: "GPA", render: (_, m) => m.gpa ?? "—" },
-                { title: "Vai trò", render: (_, m) => m.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) },
-                { title: "Ngày vào", render: (_, m) => formatDateTime(m.joinedAt) },
-              ]}
-            />
-            <Card
-              title="Cơ cấu nhóm"
-              extra={
-                <Button loading={compositionLoading} onClick={() => void loadComposition(true)}>
-                  Làm mới
-                </Button>
+                </>
+              )}
+            </Space>
+          </header>
+          <CreateRoomModal
+            open={editOpen}
+            room={room}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => void refresh()}
+          />
+          {room.status === "Completed" && (
+            <Alert
+              type="success"
+              message={
+                <>
+                  Phòng đã thành nhóm{" "}
+                  {group && <Link to={`/student/groups/${group.id}`}>Xem nhóm {group.code}</Link>}
+                </>
               }
-              style={{ marginTop: 16 }}
-            >
-              {compositionLoading ? (
-                <Typography.Text type="secondary" role="status">
-                  Đang kiểm tra cơ cấu nhóm…
-                </Typography.Text>
-              ) : unavailable ? (
-                <Alert type="warning" message="Tạm thời chưa kiểm tra được cơ cấu nhóm. Hãy thử làm mới." />
-              ) : composition ? (
-                <RoomCompositionSummary
-                  composition={composition}
-                  groupType={
-                    compositionRules?.courseId === room.courseId ? compositionRules.groupType : undefined
-                  }
-                  majorCounts={room.majors}
+            />
+          )}
+          <Card title="Thông tin tuyển" extra={<RoomStatusTag status={room.status} />}>
+            <dl className="workspace-facts">
+              {[
+                ["Dự án", room.projectName || "Chưa có"],
+                ["GPA yêu cầu", room.requiredGpa ?? "Không yêu cầu"],
+                ["Điểm mục tiêu", room.targetGrade ?? "Chưa có"],
+                ["Trưởng phòng", room.leaderName],
+                ["Course", room.courseCode],
+                ["Số thành viên", room.memberCount],
+              ].map(([label, value]) => (
+                <div className="workspace-fact" key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="workspace-section">
+              <strong>Mô tả ý tưởng</strong>
+              <div className="workspace-room-description">{room.ideaDescription || "Chưa có"}</div>
+            </div>
+            <div className="workspace-section">
+              <strong>Vai trò cần tuyển</strong>
+              <div>
+                {room.neededRoles.length
+                  ? room.neededRoles.map((r) => <Tag key={r.id}>{r.name}</Tag>)
+                  : "Chưa tuyển thêm"}
+              </div>
+            </div>
+          </Card>
+          <Typography.Title level={2}>Thành viên</Typography.Title>
+          <Table
+            scroll={{ x: 650 }}
+            rowKey="studentId"
+            pagination={false}
+            dataSource={room.members}
+            columns={[
+              { title: "Mã SV", dataIndex: "studentCode" },
+              {
+                title: "Họ tên",
+                render: (_, m) => (
+                  <>
+                    {m.fullName} {m.isLeader && <StarFilled title="Trưởng phòng" />}
+                  </>
+                ),
+              },
+              { title: "Ngành", dataIndex: "majorCode" },
+              { title: "GPA", render: (_, m) => m.gpa ?? "—" },
+              { title: "Vai trò", render: (_, m) => m.roles.map((r) => <Tag key={r.id}>{r.name}</Tag>) },
+              { title: "Ngày vào", render: (_, m) => formatDateTime(m.joinedAt) },
+            ]}
+          />
+          <Card
+            title="Cơ cấu nhóm"
+            extra={
+              <Button loading={compositionLoading} onClick={() => void loadComposition(true)}>
+                Làm mới
+              </Button>
+            }
+            style={{ marginTop: 16 }}
+          >
+            {compositionLoading ? (
+              <RoomCompositionSkeleton />
+            ) : unavailable ? (
+              <Alert type="warning" message="Tạm thời chưa kiểm tra được cơ cấu nhóm. Hãy thử làm mới." />
+            ) : composition ? (
+              <RoomCompositionSummary
+                composition={composition}
+                groupType={
+                  compositionRules?.courseId === room.courseId ? compositionRules.groupType : undefined
+                }
+                majorCounts={room.majors}
+              />
+            ) : (
+              <Empty description="Chưa có dữ liệu cơ cấu" />
+            )}
+          </Card>
+          {isLeader && (
+            <>
+              <Typography.Title level={2}>Đơn xin vào phòng</Typography.Title>
+              <Select
+                className="workspace-toolbar"
+                allowClear
+                aria-label="Lọc theo trạng thái đơn"
+                placeholder="Tất cả trạng thái"
+                style={{ width: 200 }}
+                value={status}
+                onChange={(v) => {
+                  setStatus(v);
+                  setPage(1);
+                }}
+                options={Object.entries(applyStatusLabel).map(([value, label]) => ({
+                  value,
+                  label: label.text,
+                }))}
+              />
+              {appliesLoading || !appliesReady ? (
+                <TableSkeleton
+                  scrollX={1000}
+                  rows={4}
+                  pagination={{ current: page, pageSize: size, total }}
+                  columns={[
+                    { title: "Người xin", kind: "text" },
+                    { title: "Mã SV", kind: "code" },
+                    { title: "Ngành", kind: "code" },
+                    { title: "GPA", kind: "number" },
+                    { title: "Vai trò", kind: "tags" },
+                    { title: "Lời nhắn", kind: "longText" },
+                    { title: "Ngày gửi", kind: "date" },
+                    { title: "Trạng thái", kind: "tag" },
+                    { title: "Thao tác", kind: "actions", actionWidths: [92, 74] },
+                  ]}
                 />
               ) : (
-                <Empty description="Chưa có dữ liệu cơ cấu" />
-              )}
-            </Card>
-            {isLeader && (
-              <>
-                <Typography.Title level={2}>Đơn xin vào phòng</Typography.Title>
-                <Select
-                  className="workspace-toolbar"
-                  allowClear
-                  aria-label="Lọc theo trạng thái đơn"
-                  placeholder="Tất cả trạng thái"
-                  style={{ width: 200 }}
-                  value={status}
-                  onChange={(v) => {
-                    setStatus(v);
-                    setPage(1);
-                  }}
-                  options={Object.entries(applyStatusLabel).map(([value, label]) => ({
-                    value,
-                    label: label.text,
-                  }))}
-                />
                 <Table
                   scroll={{ x: 1000 }}
                   rowKey="id"
-                  loading={appliesLoading}
                   dataSource={applies}
                   pagination={{
                     current: page,
@@ -429,62 +450,62 @@ export function RoomDetailPage() {
                     },
                   ]}
                 />
-              </>
-            )}
-            <Modal
-              title="Gửi đơn xin vào phòng"
-              open={applyOpen}
-              confirmLoading={applying}
-              okText="Gửi đơn"
-              cancelText="Hủy"
-              onCancel={() => setApplyOpen(false)}
-              onOk={async () => {
-                if (await apply(roomId, message)) {
-                  setApplyOpen(false);
-                  await refresh();
-                }
-              }}
-            >
-              <Input.TextArea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                maxLength={500}
-                showCount
-                aria-label="Lời nhắn gửi trưởng phòng"
-                placeholder="Lời nhắn"
-              />
-            </Modal>
-            <Modal
-              title="Chuyển trưởng phòng"
-              open={leaderOpen}
-              confirmLoading={changing}
-              okText="Chuyển quyền"
-              cancelText="Hủy"
-              okButtonProps={{ disabled: !leaderId }}
-              onCancel={() => setLeaderOpen(false)}
-              onOk={async () => {
-                if (leaderId && (await changeLeader(roomId, leaderId))) {
-                  setLeaderOpen(false);
-                  await refresh();
-                }
-              }}
-            >
-              <Select
-                style={{ width: "100%" }}
-                aria-label="Chọn trưởng phòng mới"
-                placeholder="Chọn thành viên"
-                value={leaderId}
-                onChange={setLeaderId}
-                options={room.members
-                  .filter((m) => m.studentId !== student?.id)
-                  .map((m) => ({ value: m.studentId, label: `${m.fullName} (${m.studentCode})` }))}
-              />
-            </Modal>
-          </>
-        ) : (
-          !loading && <Empty description="Không tìm thấy phòng" />
-        )}
-      </Spin>
+              )}
+            </>
+          )}
+          <Modal
+            title="Gửi đơn xin vào phòng"
+            open={applyOpen}
+            confirmLoading={applying}
+            okText="Gửi đơn"
+            cancelText="Hủy"
+            onCancel={() => setApplyOpen(false)}
+            onOk={async () => {
+              if (await apply(roomId, message)) {
+                setApplyOpen(false);
+                await refresh();
+              }
+            }}
+          >
+            <Input.TextArea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={500}
+              showCount
+              aria-label="Lời nhắn gửi trưởng phòng"
+              placeholder="Lời nhắn"
+            />
+          </Modal>
+          <Modal
+            title="Chuyển trưởng phòng"
+            open={leaderOpen}
+            confirmLoading={changing}
+            okText="Chuyển quyền"
+            cancelText="Hủy"
+            okButtonProps={{ disabled: !leaderId }}
+            onCancel={() => setLeaderOpen(false)}
+            onOk={async () => {
+              if (leaderId && (await changeLeader(roomId, leaderId))) {
+                setLeaderOpen(false);
+                await refresh();
+              }
+            }}
+          >
+            <Select
+              style={{ width: "100%" }}
+              aria-label="Chọn trưởng phòng mới"
+              placeholder="Chọn thành viên"
+              value={leaderId}
+              onChange={setLeaderId}
+              options={room.members
+                .filter((m) => m.studentId !== student?.id)
+                .map((m) => ({ value: m.studentId, label: `${m.fullName} (${m.studentCode})` }))}
+            />
+          </Modal>
+        </>
+      ) : (
+        <Empty description="Không tìm thấy phòng" />
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ApplyStatusTag } from "@/components/StatusTag";
 import { applyStatusLabel } from "@/components/labels";
 import { formatDateTime } from "@/components/format";
 import { useApiAction, useShowError } from "@/components/useApiAction";
+import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
 export function MyAppliesPage() {
   const [items, setItems] = useState<RoomApply[]>([]);
@@ -15,7 +16,7 @@ export function MyAppliesPage() {
   const [size, setSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<ApplyStatus>();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const showError = useShowError();
   const [cancel, cancelling] = useApiAction(appliesApi.cancel, "Đã hủy đơn");
   const load = useCallback(async () => {
@@ -55,46 +56,61 @@ export function MyAppliesPage() {
           options={Object.entries(applyStatusLabel).map(([value, label]) => ({ value, label: label.text }))}
         />
       </Space>
-      <Table
-        scroll={{ x: 720 }}
-        rowKey="id"
-        loading={loading}
-        dataSource={items}
-        locale={{ emptyText: <Empty description="Không có đơn" /> }}
-        pagination={{
-          current: page,
-          pageSize: size,
-          total,
-          showSizeChanger: true,
-          onChange: (p, s) => {
-            setPage(p);
-            setSize(s);
-          },
-        }}
-        columns={[
-          { title: "Phòng", render: (_, a) => <Link to={`/student/rooms/${a.roomId}`}>{a.roomCode}</Link> },
-          { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },
-          { title: "Lời nhắn", dataIndex: "message" },
-          { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
-          { title: "Ngày xử lý", render: (_, a) => formatDateTime(a.decidedAt) },
-          {
-            title: "Thao tác",
-            render: (_, a) =>
-              a.status === "Pending" && (
-                <Popconfirm
-                  title="Hủy đơn này?"
-                  onConfirm={async () => {
-                    if (await cancel(a.id)) await load();
-                  }}
-                  okText="Hủy đơn"
-                  cancelText="Đóng"
-                >
-                  <Button loading={cancelling}>Hủy đơn</Button>
-                </Popconfirm>
-              ),
-          },
-        ]}
-      />
+      {loading ? (
+        <TableSkeleton
+          scrollX={720}
+          rows={5}
+          pagination={{ current: page, pageSize: size, total }}
+          columns={[
+            { title: "Phòng", kind: "code" },
+            { title: "Trạng thái", kind: "tag" },
+            { title: "Lời nhắn", kind: "longText" },
+            { title: "Ngày gửi", kind: "date" },
+            { title: "Ngày xử lý", kind: "date" },
+            { title: "Thao tác", kind: "actions", actionWidths: [84] },
+          ]}
+        />
+      ) : (
+        <Table
+          scroll={{ x: 720 }}
+          rowKey="id"
+          dataSource={items}
+          locale={{ emptyText: <Empty description="Không có đơn" /> }}
+          pagination={{
+            current: page,
+            pageSize: size,
+            total,
+            showSizeChanger: true,
+            onChange: (p, s) => {
+              setPage(p);
+              setSize(s);
+            },
+          }}
+          columns={[
+            { title: "Phòng", render: (_, a) => <Link to={`/student/rooms/${a.roomId}`}>{a.roomCode}</Link> },
+            { title: "Trạng thái", render: (_, a) => <ApplyStatusTag status={a.status} /> },
+            { title: "Lời nhắn", dataIndex: "message" },
+            { title: "Ngày gửi", render: (_, a) => formatDateTime(a.createdAt) },
+            { title: "Ngày xử lý", render: (_, a) => formatDateTime(a.decidedAt) },
+            {
+              title: "Thao tác",
+              render: (_, a) =>
+                a.status === "Pending" && (
+                  <Popconfirm
+                    title="Hủy đơn này?"
+                    onConfirm={async () => {
+                      if (await cancel(a.id)) await load();
+                    }}
+                    okText="Hủy đơn"
+                    cancelText="Đóng"
+                  >
+                    <Button loading={cancelling}>Hủy đơn</Button>
+                  </Popconfirm>
+                ),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

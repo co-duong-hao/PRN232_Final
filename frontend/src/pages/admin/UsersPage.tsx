@@ -13,12 +13,15 @@ import {
 import { formatDateTime } from "@/components/format";
 import { roleLabel } from "@/components/labels";
 import { useApiAction, useShowError } from "@/components/useApiAction";
+import { TableSkeleton } from "@/features/WorkspaceSkeletons";
+
 type Values = { email: string; fullName: string; password: string; roles: Role[]; status: UserStatus };
 export function UsersPage() {
   const [params, setParams] = useState<UserListParams>({ page: 1, pageSize: 20 });
   const [data, setData] = useState<Paged<User>>();
   const [roles, setRoles] = useState<RoleInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [edit, setEdit] = useState<User | null>(null);
   const [mode, setMode] = useState<"create" | "edit" | "password" | null>(null);
   const [form] = Form.useForm<Values>();
@@ -33,7 +36,12 @@ export function UsersPage() {
   }, [params, showError]);
   useEffect(load, [load]);
   useEffect(() => {
-    usersApi.roles().then(setRoles).catch(showError);
+    setRolesLoading(true);
+    usersApi
+      .roles()
+      .then(setRoles)
+      .catch(showError)
+      .finally(() => setRolesLoading(false));
   }, [showError]);
   const [save, saving] = useApiAction(async (v: Values) => {
     if (mode === "create")
@@ -73,6 +81,7 @@ export function UsersPage() {
           aria-label="Lọc theo vai trò"
           placeholder="Vai trò"
           allowClear
+          loading={rolesLoading}
           style={{ width: 170 }}
           options={roles.map((r) => ({ value: r.code, label: roleLabel[r.code] }))}
           onChange={(role) => filter({ role })}
@@ -92,64 +101,79 @@ export function UsersPage() {
           Tạo tài khoản
         </Button>
       </Space>
-      <Table
-        rowKey="id"
-        scroll={{ x: "max-content" }}
-        loading={loading}
-        dataSource={data?.items ?? []}
-        pagination={{
-          current: params.page,
-          pageSize: params.pageSize,
-          total: data?.totalItems,
-          showSizeChanger: true,
-        }}
-        onChange={(p, _, s) => {
-          const sort = Array.isArray(s) ? s[0] : s;
-          setParams((x) => ({
-            ...x,
-            page: p.current,
-            pageSize: p.pageSize,
-            sortBy: sort?.order ? String(sort.field) : undefined,
-            sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
-          }));
-        }}
-        columns={[
-          { title: "Email", dataIndex: "email", sorter: true },
-          { title: "Họ tên", dataIndex: "fullName", sorter: true },
-          {
-            title: "Vai trò",
-            dataIndex: "roles",
-            render: (rs: Role[]) => rs.map((r) => <Tag key={r}>{roleLabel[r]}</Tag>),
-          },
-          {
-            title: "Trạng thái",
-            dataIndex: "status",
-            render: (s: UserStatus) => (s === "Active" ? "Hoạt động" : "Vô hiệu hóa"),
-          },
-          { title: "Ngày tạo", dataIndex: "createdAt", sorter: true, render: formatDateTime },
-          {
-            title: "Thao tác",
-            render: (_: unknown, u: User) => (
-              <Space wrap>
-                <Button onClick={() => show("edit", u)}>Sửa</Button>
-                <Button onClick={() => show("password", u)}>Đặt lại mật khẩu</Button>
-                {u.status === "Active" && (
-                  <Popconfirm
-                    title="Vô hiệu hóa tài khoản này?"
-                    onConfirm={async () => {
-                      if (await deactivate(u.id)) load();
-                    }}
-                  >
-                    <Button danger loading={busy}>
-                      Vô hiệu hóa
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
-            ),
-          },
-        ]}
-      />
+      {loading ? (
+        <TableSkeleton
+          scrollX="max-content"
+          rows={5}
+          pagination={{ current: params.page, pageSize: params.pageSize, total: data?.totalItems }}
+          columns={[
+            { title: "Email", kind: "longText" },
+            { title: "Họ tên", kind: "text" },
+            { title: "Vai trò", kind: "tags" },
+            { title: "Trạng thái", kind: "text" },
+            { title: "Ngày tạo", kind: "date" },
+            { title: "Thao tác", kind: "actions", actionWidths: [58, 134, 96] },
+          ]}
+        />
+      ) : (
+        <Table
+          rowKey="id"
+          scroll={{ x: "max-content" }}
+          dataSource={data?.items ?? []}
+          pagination={{
+            current: params.page,
+            pageSize: params.pageSize,
+            total: data?.totalItems,
+            showSizeChanger: true,
+          }}
+          onChange={(p, _, s) => {
+            const sort = Array.isArray(s) ? s[0] : s;
+            setParams((x) => ({
+              ...x,
+              page: p.current,
+              pageSize: p.pageSize,
+              sortBy: sort?.order ? String(sort.field) : undefined,
+              sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
+            }));
+          }}
+          columns={[
+            { title: "Email", dataIndex: "email", sorter: true },
+            { title: "Họ tên", dataIndex: "fullName", sorter: true },
+            {
+              title: "Vai trò",
+              dataIndex: "roles",
+              render: (rs: Role[]) => rs.map((r) => <Tag key={r}>{roleLabel[r]}</Tag>),
+            },
+            {
+              title: "Trạng thái",
+              dataIndex: "status",
+              render: (s: UserStatus) => (s === "Active" ? "Hoạt động" : "Vô hiệu hóa"),
+            },
+            { title: "Ngày tạo", dataIndex: "createdAt", sorter: true, render: formatDateTime },
+            {
+              title: "Thao tác",
+              render: (_: unknown, u: User) => (
+                <Space wrap>
+                  <Button onClick={() => show("edit", u)}>Sửa</Button>
+                  <Button onClick={() => show("password", u)}>Đặt lại mật khẩu</Button>
+                  {u.status === "Active" && (
+                    <Popconfirm
+                      title="Vô hiệu hóa tài khoản này?"
+                      onConfirm={async () => {
+                        if (await deactivate(u.id)) load();
+                      }}
+                    >
+                      <Button danger loading={busy}>
+                        Vô hiệu hóa
+                      </Button>
+                    </Popconfirm>
+                  )}
+                </Space>
+              ),
+            },
+          ]}
+        />
+      )}
       <Modal
         title={mode === "create" ? "Tạo tài khoản" : mode === "edit" ? "Sửa tài khoản" : "Đặt lại mật khẩu"}
         open={mode !== null}

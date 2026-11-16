@@ -360,3 +360,46 @@
     padding-inline: 14px;
   }
 }
+
+.workspace-skeleton-bar {
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.workspace-skeleton-bar .ant-skeleton-input {
+  min-width: 0;
+  line-height: 1;
+}
+
+.workspace-skeleton-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-skeleton-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-skeleton-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.workspace-skeleton-tabs {
+  display: flex;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.workspace-table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
