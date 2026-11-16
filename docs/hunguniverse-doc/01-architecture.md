@@ -60,6 +60,7 @@ flowchart LR
 | 23 | [Điều hướng và xác thực trên web](23-frontend-shell.md) |
 | 24 | [Giao diện tìm nhóm](24-frontend-discovery.md) |
 | 25 | [Giao diện chi tiết phòng](25-frontend-room.md) |
+| 26 | [Học phần trên web](26-frontend-courses.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
