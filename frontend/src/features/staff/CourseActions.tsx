@@ -60,6 +60,8 @@ export function CourseActions({
     return true;
   }, "Đã xóa học phần");
 
+  const actionPending = saving || opening || closing || removing;
+
   const show = () => {
     form.resetFields();
     if (course) {
@@ -76,7 +78,7 @@ export function CourseActions({
     <>
       <Space wrap>
         {!course && hasRole("Admin") && (
-          <Button type="primary" onClick={show}>
+          <Button type="primary" onClick={show} disabled={actionPending}>
             Tạo học phần
           </Button>
         )}
@@ -86,6 +88,7 @@ export function CourseActions({
               <Button
                 type="primary"
                 loading={opening}
+                disabled={actionPending}
                 onClick={async () => {
                   if (await open()) onChanged();
                 }}
@@ -96,26 +99,32 @@ export function CourseActions({
             {course.status === "Forming" && (
               <Popconfirm
                 title="Đóng ghép nhóm học phần này?"
+                disabled={actionPending}
                 okText="Đóng ghép nhóm"
                 cancelText="Hủy"
                 onConfirm={async () => {
                   if (await close()) onChanged();
                 }}
               >
-                <Button loading={closing}>Đóng ghép nhóm</Button>
+                <Button loading={closing} disabled={actionPending}>
+                  Đóng ghép nhóm
+                </Button>
               </Popconfirm>
             )}
-            <Button onClick={show}>Sửa</Button>
+            <Button onClick={show} disabled={actionPending}>
+              Sửa
+            </Button>
             {allowDelete && course.status === "Planned" && hasRole("Admin") && (
               <Popconfirm
                 title="Xóa học phần này?"
+                disabled={actionPending}
                 okText="Xóa"
                 cancelText="Hủy"
                 onConfirm={async () => {
                   if (await remove()) onChanged();
                 }}
               >
-                <Button danger loading={removing}>
+                <Button danger loading={removing} disabled={actionPending}>
                   Xóa
                 </Button>
               </Popconfirm>
@@ -127,12 +136,18 @@ export function CourseActions({
       <Modal
         title={course ? "Cập nhật học phần" : "Tạo học phần mới"}
         open={visible}
-        onCancel={() => setVisible(false)}
+        onCancel={() => {
+          if (!saving) setVisible(false);
+        }}
+        closable={!saving}
+        keyboard={!saving}
+        maskClosable={!saving}
+        cancelButtonProps={{ disabled: saving }}
         confirmLoading={saving}
         okText={course ? "Lưu thay đổi" : "Tạo học phần"}
         cancelText="Hủy"
         onOk={() => form.submit()}
-        okButtonProps={{ disabled: lookupsUnavailable }}
+        okButtonProps={{ disabled: lookupsUnavailable || actionPending }}
         destroyOnHidden
       >
         {lookups.map(({ label, failure, reload }) =>
@@ -149,7 +164,7 @@ export function CourseActions({
           form={form}
           layout="vertical"
           onFinish={async (v) => {
-            if (!lookupsUnavailable && (await save(v))) {
+            if (!lookupsUnavailable && !actionPending && (await save(v))) {
               setVisible(false);
               onChanged();
             }
