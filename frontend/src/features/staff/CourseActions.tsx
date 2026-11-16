@@ -1,9 +1,11 @@
 import { Button, DatePicker, Form, Modal, Popconfirm, Select, Space } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useState } from "react";
-import { coursesApi, referenceApi, type Course, type GroupType, type Lookup } from "@/api";
+import { useState } from "react";
+import { coursesApi, referenceApi, type Course } from "@/api";
 import { useAuth } from "@/auth/AuthContext";
-import { useApiAction, useShowError } from "@/components/useApiAction";
+import { useApiAction } from "@/components/useApiAction";
+import { StaffLoadError } from "./StaffLoadError";
+import { useStaffQuery } from "./useStaffQuery";
 
 type Values = {
   semesterId: string;
@@ -24,11 +26,21 @@ export function CourseActions({
 }) {
   const { hasRole } = useAuth();
   const [visible, setVisible] = useState(false);
-  const [semesters, setSemesters] = useState<Lookup[]>([]);
-  const [subjects, setSubjects] = useState<Lookup[]>([]);
-  const [types, setTypes] = useState<GroupType[]>([]);
   const [form] = Form.useForm<Values>();
-  const showError = useShowError();
+  const canChangeGroupType = !course || course.status === "Planned";
+  const semesters = useStaffQuery(visible && !course ? referenceApi.semesters : null);
+  const subjects = useStaffQuery(visible && !course ? referenceApi.subjects : null);
+  const types = useStaffQuery(visible && canChangeGroupType ? referenceApi.groupTypes : null);
+  const lookups = [
+    { label: "học kỳ", ...semesters },
+    { label: "môn học", ...subjects },
+    { label: "loại nhóm", ...types },
+  ];
+  const lookupsUnavailable = lookups.some((lookup) => lookup.loading || lookup.failure);
+  const typeOptions = types.data?.items.map(({ id, name }) => ({ value: id, label: name })) ?? [];
+  if (course && !typeOptions.some(({ value }) => value === course.groupTypeId)) {
+    typeOptions.unshift({ value: course.groupTypeId, label: course.groupTypeName });
+  }
 
   const [save, saving] = useApiAction(async (v: Values) => {
     const dates = {
@@ -47,17 +59,6 @@ export function CourseActions({
     await coursesApi.remove(course!.id);
     return true;
   }, "Đã xóa học phần");
-
-  useEffect(() => {
-    if (!visible) return;
-    Promise.all([referenceApi.semesters(), referenceApi.subjects(), referenceApi.groupTypes()])
-      .then(([a, b, c]) => {
-        setSemesters(a.items);
-        setSubjects(b.items);
-        setTypes(c.items);
-      })
-      .catch(showError);
-  }, [visible, showError]);
 
   const show = () => {
     form.resetFields();
@@ -131,13 +132,24 @@ export function CourseActions({
         okText={course ? "Lưu thay đổi" : "Tạo học phần"}
         cancelText="Hủy"
         onOk={() => form.submit()}
+        okButtonProps={{ disabled: lookupsUnavailable }}
         destroyOnHidden
       >
+        {lookups.map(({ label, failure, reload }) =>
+          failure ? (
+            <StaffLoadError
+              key={label}
+              title={"Không tải được " + label}
+              error={failure.error}
+              onRetry={reload}
+            />
+          ) : null,
+        )}
         <Form
           form={form}
           layout="vertical"
           onFinish={async (v) => {
-            if (await save(v)) {
+            if (!lookupsUnavailable && (await save(v))) {
               setVisible(false);
               onChanged();
             }
@@ -152,7 +164,12 @@ export function CourseActions({
               >
                 <Select
                   placeholder="Chọn học kỳ"
-                  options={semesters.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))}
+                  loading={semesters.loading}
+                  disabled={semesters.loading || !!semesters.failure}
+                  options={semesters.data?.items.map((x) => ({
+                    value: x.id,
+                    label: x.code + " - " + x.name,
+                  }))}
                 />
               </Form.Item>
               <Form.Item
@@ -162,7 +179,9 @@ export function CourseActions({
               >
                 <Select
                   placeholder="Chọn môn học"
-                  options={subjects.map((x) => ({ value: x.id, label: `${x.code} - ${x.name}` }))}
+                  loading={subjects.loading}
+                  disabled={subjects.loading || !!subjects.failure}
+                  options={subjects.data?.items.map((x) => ({ value: x.id, label: x.code + " - " + x.name }))}
                 />
               </Form.Item>
             </>
@@ -174,8 +193,9 @@ export function CourseActions({
           >
             <Select
               placeholder="Chọn loại nhóm"
-              disabled={!!course && course.status !== "Planned"}
-              options={types.map((x) => ({ value: x.id, label: x.name }))}
+              loading={types.loading}
+              disabled={!canChangeGroupType || types.loading || !!types.failure}
+              options={typeOptions}
             />
           </Form.Item>
           <Form.Item
