@@ -17,7 +17,18 @@ Hệ thống cho sinh viên tự ghép nhóm qua cơ chế **Phòng (Room)**:
    trưởng phòng hoàn tất phòng và phòng trở thành **Nhóm (Group)** chính thức.
 5. Mỗi thay đổi quan trọng đều gửi email cho người liên quan.
 
-Mô tả nghiệp vụ đầy đủ (18 quy tắc BR01–BR18, 6 quy trình QT01–QT06):
+Từ v0.4, việc tìm và lập nhóm giống các hệ thống F-Spark / F-Caps của trường:
+
+- Sinh viên khai **hồ sơ**: GPA và 1–3 vai trò muốn đảm nhận (Frontend, Backend, Mobile, UI/UX, BA, Marketing,
+  Business).
+- **Tạo nhóm bằng form**: chọn kỳ, Course, đặt tên nhóm, dự án, mô tả ý tưởng, **GPA yêu cầu**, điểm mục tiêu và
+  **vai trò đang cần tuyển**.
+- **Tìm nhóm** theo GPA của mình, vai trò cần tuyển và tên nhóm. Sinh viên có GPA thấp hơn yêu cầu không vào thẳng
+  được nhưng vẫn gửi đơn để trưởng phòng xét.
+- Một sinh viên được ở **hai nhóm của hai Course khác nhau trong cùng kỳ** (EXE101 và EXE201).
+- Phòng đã hủy chỉ Admin thấy.
+
+Mô tả nghiệp vụ đầy đủ (22 quy tắc BR01–BR22, 6 quy trình QT01–QT06):
 [docs/Mo_ta_de_tai_He_thong_Ghep_nhom_EXE.docx](docs/Mo_ta_de_tai_He_thong_Ghep_nhom_EXE.docx).
 
 ## Kiến trúc
@@ -64,7 +75,7 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 | Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 10 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
 | Tài liệu API | Swagger/OpenAPI cho Auth Service và Team Service |
 | Database scripts / migrations | EF Core migrations trong `src/AuthService/Data/Migrations` và `src/TeamService/Data/Migrations`, tự áp dụng khi khởi động |
-| Làm thêm | Web app React cho 4 vai trò; Matching Service gợi ý phòng; dead-letter stream; kiểm thử end-to-end |
+| Làm thêm | Web app React cho 4 vai trò (giao diện theo F-Spark); hồ sơ GPA và vai trò, tìm nhóm theo GPA/vai trò; Matching Service gợi ý phòng; dead-letter stream; kiểm thử end-to-end |
 
 ## Công nghệ
 
@@ -209,7 +220,18 @@ Mọi tài khoản dùng mật khẩu trong biến `SEED_DEFAULT_PASSWORD` của
 | `student01@exe.local` … `student12@exe.local` | Sinh viên |
 
 - Sinh viên 01–05 ngành SE, 06–07 ngành AI, 08–10 ngành GD, 11–12 ngành MKT.
-- Course `FA26-EXE101` đang mở ghép nhóm, có đủ 12 sinh viên. Course `FA26-EXE201` chưa mở.
+- Course `FA26-EXE101` và `FA26-EXE201` cùng đang mở ghép nhóm, mỗi Course đủ 12 sinh viên.
+- GPA và vai trò mẫu (sinh viên tự sửa được ở trang "Hồ sơ của tôi"):
+
+| SV | GPA | Vai trò | | SV | GPA | Vai trò |
+|---|---|---|---|---|---|---|
+| 01 | 3.40 | Backend, Frontend | | 07 | 2.60 | Backend |
+| 02 | 3.10 | Frontend | | 08 | 3.00 | UI/UX |
+| 03 | 2.80 | Backend, Mobile | | 09 | 2.40 | UI/UX, Frontend |
+| 04 | 3.60 | BA | | 10 | 3.20 | UI/UX |
+| 05 | 2.20 | Mobile | | 11 | 2.90 | Marketing, Business |
+| 06 | 3.50 | Backend | | 12 | 3.30 | Marketing |
+
 - Loại nhóm "Nhóm EXE chuẩn": 4–6 thành viên, ít nhất 3 ngành, SE từ 2 đến 3 người.
 
 ## Sử dụng API
