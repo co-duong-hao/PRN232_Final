@@ -9,6 +9,7 @@ import { roleLabel } from "@/components/labels";
 import { useApiAction } from "@/components/useApiAction";
 import { StaffLoadError } from "@/features/staff/StaffLoadError";
 import { staffSortOrder } from "@/features/staff/staffTableSort";
+import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
@@ -24,6 +25,7 @@ export function UsersPage() {
 
   const request = useCallback(() => usersApi.list(params), [params]);
   const { data, loading, failure, reload: load } = useStaffQuery(request);
+  useStaffPageBounds(params.page, data?.totalPages, setParams);
   const roles = useStaffQuery(usersApi.roles);
   const roleOptions = roles.data?.map((r) => ({ value: r.code, label: roleLabel[r.code] }));
 

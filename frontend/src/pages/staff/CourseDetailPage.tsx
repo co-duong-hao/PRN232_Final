@@ -38,6 +38,7 @@ import { CourseActions } from "@/features/staff/CourseActions";
 import { CourseStatistics } from "@/features/staff/CourseStatistics";
 import { StaffLoadError } from "@/features/staff/StaffLoadError";
 import { StaffRoomDetails } from "@/features/staff/StaffRoomDetails";
+import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { CourseDetailSkeleton, CourseStatsSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
 
@@ -71,6 +72,9 @@ function CourseDetail({ courseId }: { courseId: string }) {
   const students = useStaffQuery(course && tab === "students" ? loadStudents : null);
   const rooms = useStaffQuery(course && tab === "rooms" ? loadRooms : null);
   const groups = useStaffQuery(course && tab === "groups" ? loadGroups : null);
+  useStaffPageBounds(sp.page, students.data?.totalPages, setSp);
+  useStaffPageBounds(rp.page, rooms.data?.totalPages, setRp);
+  useStaffPageBounds(gp.page, groups.data?.totalPages, setGp);
   const majors = useStaffQuery(course && tab === "students" ? referenceApi.majors : null);
   const groupTypes = useStaffQuery(course ? referenceApi.groupTypes : null);
   const searchStudents = useCallback(

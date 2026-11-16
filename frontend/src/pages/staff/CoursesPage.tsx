@@ -11,6 +11,7 @@ import { CourseStatusTag } from "@/components/StatusTag";
 import { CourseActions } from "@/features/staff/CourseActions";
 import { StaffLoadError } from "@/features/staff/StaffLoadError";
 import { staffSortOrder } from "@/features/staff/staffTableSort";
+import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
@@ -19,6 +20,7 @@ export function CoursesPage() {
   const screens = Grid.useBreakpoint();
   const request = useCallback(() => coursesApi.list(params), [params]);
   const { data, loading, failure, reload: load } = useStaffQuery(request);
+  useStaffPageBounds(params.page, data?.totalPages, setParams);
   const semesters = useStaffQuery(referenceApi.semesters);
   const subjects = useStaffQuery(referenceApi.subjects);
 
