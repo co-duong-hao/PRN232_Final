@@ -41,11 +41,13 @@ flowchart LR
 | 04 | [Pipeline CI/CD](04-ci-cd.md) |
 | 05 | [Vận hành bản chạy local](05-operations.md) |
 | 06 | [Quy ước HTTP dùng chung](06-api-basics.md) |
+| 07 | [Đăng nhập và JWT](07-auth-login.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
 | Tình huống | Chương đọc trước |
 |---|---|
+| Không đăng nhập được | [Đăng nhập và JWT](07-auth-login.md) |
 
 ## Đối chiếu mã nguồn
 
