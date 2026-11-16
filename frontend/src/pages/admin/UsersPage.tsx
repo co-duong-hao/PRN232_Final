@@ -17,6 +17,7 @@ type Values = { email: string; fullName: string; password: string; roles: Role[]
 
 export function UsersPage() {
   const [params, setParams] = useState<UserListParams>({ page: 1, pageSize: 20 });
+  const [searchText, setSearchText] = useState("");
   const screens = Grid.useBreakpoint();
   const [edit, setEdit] = useState<User | null>(null);
   const [mode, setMode] = useState<"create" | "edit" | "password" | null>(null);
@@ -72,7 +73,9 @@ export function UsersPage() {
           aria-label="Tìm tài khoản"
           placeholder="Tìm email hoặc họ tên..."
           allowClear
-          onSearch={(q) => filter({ q })}
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          onSearch={(value) => filter({ q: value.trim() || undefined })}
         />
         <Select
           aria-label="Lọc theo vai trò"
@@ -82,6 +85,7 @@ export function UsersPage() {
           loading={roles.loading}
           disabled={!!roles.failure}
           options={roleOptions}
+          value={params.role}
           onChange={(role) => filter({ role })}
         />
         <Select
@@ -93,8 +97,18 @@ export function UsersPage() {
             { value: "Active", label: "Hoạt động" },
             { value: "Inactive", label: "Vô hiệu hóa" },
           ]}
+          value={params.status}
           onChange={(status) => filter({ status })}
         />
+        <Button
+          disabled={!(searchText || params.q || params.role || params.status)}
+          onClick={() => {
+            setSearchText("");
+            filter({ q: undefined, role: undefined, status: undefined });
+          }}
+        >
+          Xóa bộ lọc
+        </Button>
       </Space>
 
       {roles.failure && (

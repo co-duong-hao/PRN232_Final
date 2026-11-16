@@ -1,6 +1,6 @@
 import "@/features/staff/staffPages.css";
 import "@/features/workspace.css";
-import { Grid, Input, Select, Space, Table, Typography } from "antd";
+import { Button, Grid, Input, Select, Space, Table, Typography } from "antd";
 import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { coursesApi, referenceApi, type Course, type CourseListParams } from "@/api";
@@ -17,6 +17,7 @@ import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
 export function CoursesPage() {
   const [params, setParams] = useState<CourseListParams>({ page: 1, pageSize: 20 });
+  const [searchText, setSearchText] = useState("");
   const screens = Grid.useBreakpoint();
   const request = useCallback(() => coursesApi.list(params), [params]);
   const { data, loading, failure, reload: load } = useStaffQuery(request);
@@ -42,7 +43,9 @@ export function CoursesPage() {
           aria-label="Tìm học phần"
           placeholder="Tìm mã học phần..."
           allowClear
-          onSearch={(q) => filter({ q })}
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          onSearch={(value) => filter({ q: value.trim() || undefined })}
         />
         <Select
           aria-label="Lọc theo trạng thái học phần"
@@ -50,6 +53,7 @@ export function CoursesPage() {
           allowClear
           style={{ width: 170 }}
           options={Object.entries(courseStatusLabel).map(([value, v]) => ({ value, label: v.text }))}
+          value={params.status}
           onChange={(status) => filter({ status })}
         />
         <Select
@@ -60,6 +64,7 @@ export function CoursesPage() {
           loading={semesters.loading}
           disabled={!!semesters.failure}
           options={semesters.data?.items.map((x) => ({ value: x.id, label: x.code }))}
+          value={params.semesterId}
           onChange={(semesterId) => filter({ semesterId })}
         />
         <Select
@@ -70,8 +75,18 @@ export function CoursesPage() {
           loading={subjects.loading}
           disabled={!!subjects.failure}
           options={subjects.data?.items.map((x) => ({ value: x.id, label: x.code }))}
+          value={params.subjectId}
           onChange={(subjectId) => filter({ subjectId })}
         />
+        <Button
+          disabled={!(searchText || params.q || params.status || params.semesterId || params.subjectId)}
+          onClick={() => {
+            setSearchText("");
+            filter({ q: undefined, status: undefined, semesterId: undefined, subjectId: undefined });
+          }}
+        >
+          Xóa bộ lọc
+        </Button>
       </Space>
 
       {semesters.failure && (
