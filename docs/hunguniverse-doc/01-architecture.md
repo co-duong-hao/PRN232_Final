@@ -46,6 +46,7 @@ flowchart LR
 | 09 | [Dữ liệu mẫu v0.4](09-seed-data.md) |
 | 10 | [Schema quan hệ ban đầu](10-migrations-base.md) |
 | 11 | [Migration dữ liệu tuyển thành viên](11-migrations-recruitment.md) |
+| 12 | [Quản lý Course](12-courses.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
