@@ -40,3 +40,19 @@ Lượt chạy trên Docker Compose với backend `a353bca` và script `b9f76e0`
 | CT10 qua API | SV01 tạo phòng EXE201 sau khi đã vào nhóm EXE101. Tạo phòng cần GPA 3.2 và vai trò UIUX. Lọc GPA 3.2 với UIUX trả 1 phòng, GPA 3.1 với UIUX trả 0 và GPA 3.2 với FE trả 0. |
 
 Các thao tác trên giao diện vẫn cần được ghi riêng vào bảng kết quả khi diễn tập.
+
+## Bộ kiểm tra mở rộng EXE201 và Chromium
+
+Chạy trên một Compose project thử nghiệm với hai Course đã seed. Chế độ `--workflows` tạo dữ liệu và đóng EXE201. Hai lệnh API có thể chạy trên cùng một bộ seed vì chúng sử dụng hai Course riêng.
+
+```powershell
+python tests/e2e/e2e_smoke.py .env
+python tests/e2e/e2e_smoke.py .env --workflows
+python -X utf8 tests/e2e/browser_smoke.py .env
+```
+
+Lệnh cuối cần Playwright cho Python cùng Chromium đã cài. Nó đọc các trạng thái do hai lệnh API tạo ra và dùng phiên trình duyệt riêng cho từng tài khoản.
+
+- EXE101 đạt 29/29 kiểm tra. EXE201 đạt 38/38, bao gồm mở lại phòng sau khi thành viên rời, quyền từ chối hoặc hủy đơn, quyền đóng Course và email đóng gửi đến ba thành viên.
+- Chromium xác nhận luồng chuyển về đăng nhập, chặn sinh viên vào trang staff, xem nhóm EXE101, hiển thị đơn EXE201 đã hủy và phân biệt trạng thái Course trong phiên giảng viên.
+- Chạy lại `--workflows` trên EXE201 đã đóng trả mã 2. Dùng seed mới để chạy lại toàn bộ kịch bản.
