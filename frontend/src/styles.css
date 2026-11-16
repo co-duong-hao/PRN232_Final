@@ -10,3 +10,52 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
+
+.app-footer.ant-layout-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px 24px;
+  border-top: 1px solid #dbe1ea;
+  background: #fff;
+}
+
+.app-footer__name {
+  color: #162033;
+  font-weight: 600;
+}
+
+.app-footer__credit {
+  margin-top: 2px;
+  color: #475569;
+  font-size: 0.8125rem;
+}
+
+.app-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.app-footer__nav a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border-radius: 4px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.app-footer__nav a:hover,
+.app-footer__nav a[aria-current="page"] {
+  color: #9a3412;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-footer__nav a:focus-visible {
+  outline: 2px solid #9a3412;
+  outline-offset: 3px;
+}

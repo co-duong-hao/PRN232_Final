@@ -7,13 +7,13 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { Avatar, Button, Dropdown, Layout, Menu, Space, Tag, Typography } from "antd";
-import type { MenuProps } from "antd";
+import type { ReactNode } from "react";
 import { useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { roleLabel } from "./labels";
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider, Content, Footer } = Layout;
 
 /** Below antd's "lg" breakpoint (992px). */
 const isNarrow = () => window.matchMedia("(max-width: 991.98px)").matches;
@@ -26,7 +26,7 @@ export function AppLayout() {
   // Start collapsed on narrow screens; antd's breakpoint only fires on later resizes.
   const [collapsed, setCollapsed] = useState(isNarrow);
 
-  const items: MenuProps["items"] = [];
+  const items: { key: string; icon: ReactNode; label: string }[] = [];
   if (hasRole("Student")) {
     items.push(
       { key: "/student/courses", icon: <BookOutlined />, label: "Course của tôi" },
@@ -42,7 +42,7 @@ export function AppLayout() {
   }
 
   const selected = items
-    .map((i) => String(i?.key))
+    .map((item) => item.key)
     .filter((k) => location.pathname.startsWith(k))
     .sort((a, b) => b.length - a.length)[0];
 
@@ -112,6 +112,19 @@ export function AppLayout() {
         <Content style={{ padding: 24 }}>
           <Outlet />
         </Content>
+        <Footer className="app-footer">
+          <div>
+            <div className="app-footer__name">EXE Team Matching</div>
+            <div className="app-footer__credit">Đồ án PRN232 · Nhóm 6</div>
+          </div>
+          <nav className="app-footer__nav" aria-label="Điều hướng cuối trang">
+            {items.map(({ key, label }) => (
+              <NavLink key={key} to={key}>
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        </Footer>
       </Layout>
     </Layout>
   );
