@@ -43,4 +43,77 @@ public sealed class EventProcessorTests
         Assert.Equal(ProcessingStatus.Skipped, (await processor.ProcessAsync(EmailTemplateRendererTests.CreateEvent("Unknown").ToJson(), default)).Status);
         sender.VerifyNoOtherCalls();
     }
+
+    [Fact]
+    public async Task Process_WhenRecipientsEmpty_ReturnsSuccessWithoutSendingEmail()
+    {
+        using var capture = new MetricCapture(NotiMetrics.MeterName);
+        var sender = new Mock<IEmailSender>(MockBehavior.Strict);
+        var processor = new EventProcessor(sender.Object, new(), NullLogger<EventProcessor>.Instance, new NotiMetrics(capture.Factory));
+        var envelope = EmailTemplateRendererTests.CreateEvent(EventTypes.CourseClosed) with { Recipients = [] };
+
+        var result = await processor.ProcessAsync(envelope.ToJson(), default);
+
+        Assert.Equal(ProcessingStatus.Success, result.Status);
+        Assert.Equal(0, capture.Count("exe.emails.sent"));
+        sender.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("""{"type":"RoomCreated","recipients":null,"data":{}}""")]
+    [InlineData("""{"type":"RoomCreated","recipients":[],"data":null}""")]
+    [InlineData("""{"type":"RoomCreated","recipients":[null],"data":{}}""")]
+    [InlineData("""{"type":"RoomCreated","recipients":[{"email":"","fullName":"A"}],"data":{}}""")]
+    public async Task Process_WhenEnvelopeInvalid_ReturnsPermanentFailure(string payload)
+    {
+        var sender = new Mock<IEmailSender>(MockBehavior.Strict);
+        var processor = new EventProcessor(sender.Object, new(), NullLogger<EventProcessor>.Instance, Metrics());
+
+        var result = await processor.ProcessAsync(payload, default);
+
+        Assert.Equal(ProcessingStatus.PermanentFailure, result.Status);
+        sender.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Process_WhenCancelled_PropagatesOperationCanceledException()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var sender = new Mock<IEmailSender>();
+        sender.Setup(x => x.SendAsync(It.IsAny<EventRecipient>(), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+        using var capture = new MetricCapture(NotiMetrics.MeterName);
+        var processor = new EventProcessor(sender.Object, new(), NullLogger<EventProcessor>.Instance, new NotiMetrics(capture.Factory));
+        var envelope = EmailTemplateRendererTests.CreateEvent(EventTypes.RoomCreated) with
+        {
+            Recipients = [new("one@example.com", "Một")]
+        };
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => processor.ProcessAsync(envelope.ToJson(), cts.Token));
+        Assert.Equal(0, capture.Count("exe.emails.sent"));
+    }
+
+    [Fact]
+    public async Task Process_RecordsEmailOkAndFailedMetrics()
+    {
+        using var capture = new MetricCapture(NotiMetrics.MeterName);
+        var sender = new Mock<IEmailSender>();
+        sender.SetupSequence(x => x.SendAsync(It.IsAny<EventRecipient>(), It.IsAny<RenderedEmail>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .ThrowsAsync(new IOException("smtp"));
+        var processor = new EventProcessor(sender.Object, new(), NullLogger<EventProcessor>.Instance, new NotiMetrics(capture.Factory));
+        var envelope = EmailTemplateRendererTests.CreateEvent(EventTypes.RoomCreated) with
+        {
+            Recipients = [new("one@example.com", "Một"), new("two@example.com", "Hai")]
+        };
+
+        var result = await processor.ProcessAsync(envelope.ToJson(), default);
+
+        Assert.Equal(ProcessingStatus.TemporaryFailure, result.Status);
+        Assert.Equal(1, capture.Count("exe.emails.sent", ("result", "ok")));
+        Assert.Equal(1, capture.Count("exe.emails.sent", ("result", "failed")));
+    }
 }

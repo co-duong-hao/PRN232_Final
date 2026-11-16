@@ -15,8 +15,14 @@ public sealed class EventProcessor(IEmailSender sender, EmailTemplateRenderer re
         try
         {
             envelope = EventEnvelope.FromJson(payload);
-            if (envelope is null || envelope.Type is null || envelope.Recipients is null || envelope.Data is null)
+            if (envelope is null
+                || envelope.Type is null
+                || envelope.Recipients is null
+                || envelope.Data is null
+                || envelope.Recipients.Any(r => r is null || string.IsNullOrWhiteSpace(r.Email)))
+            {
                 throw new JsonException("Envelope không hợp lệ.");
+            }
         }
         catch (JsonException ex)
         {

@@ -23,5 +23,16 @@ internal sealed class MetricCapture : IDisposable
     {
         lock (measurements) return measurements.Where(x => x.Name == name && (tag == null || x.Tags.TryGetValue(tag, out var actual) && Equals(actual, value))).Sum(x => x.Value);
     }
+
+    public long Count(string name, params (string Key, string? Value)[] tags)
+    {
+        lock (measurements)
+        {
+            return measurements
+                .Where(x => x.Name == name && tags.All(t => x.Tags.TryGetValue(t.Key, out var actual) && Equals(actual?.ToString(), t.Value)))
+                .Sum(x => x.Value);
+        }
+    }
+
     public void Dispose() => listener.Dispose();
 }

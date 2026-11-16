@@ -12,10 +12,13 @@ builder.Services.AddSingleton<EmailTemplateRenderer>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSingleton<EventProcessor>();
 builder.Services.AddHostedService<EventConsumerWorker>();
-builder.Services.AddExeMetrics("noti-service", "Exe.NotiService");
+builder.Services.AddExeMetrics("noti-service", NotiMetrics.MeterName);
 builder.Services.AddSingleton<NotiMetrics>();
 builder.Services.AddHealthChecks();
 var app = builder.Build();
 app.MapHealthChecks("/health");
 app.MapExeMetrics();
 app.Run();
+
+/// <summary>Exposed for WebApplicationFactory in tests.</summary>
+public partial class Program;

@@ -1,7 +1,8 @@
+using System.Text;
 using Confluent.Kafka;
+using Exe.Contracts.Events;
 using Exe.NotiService.Options;
 using Microsoft.Extensions.Options;
-using System.Text;
 
 namespace Exe.NotiService.Workers;
 
@@ -16,14 +17,24 @@ public sealed class DeadLetterPublisher : IDeadLetterPublisher, IDisposable
     private readonly string topic;
 
     public DeadLetterPublisher(IOptions<KafkaOptions> options)
+        : this(
+            new ProducerBuilder<string, string>(new ProducerConfig
+            {
+                BootstrapServers = options.Value.BootstrapServers,
+                Acks = Acks.All,
+                EnableIdempotence = true,
+                MessageTimeoutMs = 5000
+            }).Build(),
+            string.IsNullOrWhiteSpace(options.Value.DeadLetterTopic)
+                ? KafkaTopics.EventsDeadLetter
+                : options.Value.DeadLetterTopic)
     {
-        topic = options.Value.DeadLetterTopic;
-        producer = new ProducerBuilder<string, string>(new ProducerConfig
-        {
-            BootstrapServers = options.Value.BootstrapServers,
-            Acks = Acks.All,
-            EnableIdempotence = true
-        }).Build();
+    }
+
+    internal DeadLetterPublisher(IProducer<string, string> producer, string topic)
+    {
+        this.producer = producer;
+        this.topic = string.IsNullOrWhiteSpace(topic) ? KafkaTopics.EventsDeadLetter : topic;
     }
 
     public async Task PublishAsync(Message<string, string> message, string error, CancellationToken cancellationToken)
@@ -36,7 +47,9 @@ public sealed class DeadLetterPublisher : IDeadLetterPublisher, IDisposable
         headers.Add("failed-at", Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToString("O")));
         await producer.ProduceAsync(topic, new Message<string, string>
         {
-            Key = message.Key, Value = message.Value, Headers = headers
+            Key = message.Key,
+            Value = message.Value,
+            Headers = headers
         }, cancellationToken);
     }
 

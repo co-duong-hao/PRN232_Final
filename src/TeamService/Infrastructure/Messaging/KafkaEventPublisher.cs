@@ -12,9 +12,12 @@ public sealed class KafkaEventPublisher(IProducer<string, string> producer, ICon
     {
         try
         {
-            await producer.ProduceAsync(configuration["Kafka:Topic"] ?? KafkaTopics.Events, new Message<string, string>
+            var configuredTopic = configuration["Kafka:Topic"];
+            var topic = string.IsNullOrWhiteSpace(configuredTopic) ? KafkaTopics.Events : configuredTopic;
+            await producer.ProduceAsync(topic, new Message<string, string>
             {
-                Key = envelope.EventKey, Value = envelope.ToJson(),
+                Key = envelope.EventKey,
+                Value = envelope.ToJson(),
                 Headers = new Headers { { KafkaTopics.TypeHeader, Encoding.UTF8.GetBytes(envelope.Type) } }
             }, cancellationToken);
             metrics.KafkaPublished(envelope.Type, "ok");

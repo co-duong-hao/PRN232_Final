@@ -15,7 +15,7 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options) : IEmailSende
         message.To.Add(new MailboxAddress(recipient.FullName, recipient.Email));
         message.Subject = email.Subject;
         message.Body = new TextPart("plain") { Text = email.Body };
-        using var client = new SmtpClient();
+        using var client = new SmtpClient { Timeout = 10_000 };
         await client.ConnectAsync(settings.Host, settings.Port, SecureSocketOptions.None, cancellationToken);
         await client.SendAsync(message, cancellationToken);
         await client.DisconnectAsync(true, cancellationToken);

@@ -65,6 +65,13 @@ public sealed class EventConsumerWorker(
                 {
                     // Any failure (Kafka or otherwise) must not stop the worker: log, wait, reconnect.
                     logger.LogWarning(ex, "Consumer gặp lỗi; thử lại sau 5 giây.");
+                    if (ex is KafkaException { Error.IsFatal: true })
+                    {
+                        try { consumer?.Close(); }
+                        catch (KafkaException) { }
+                        consumer?.Dispose();
+                        consumer = null;
+                    }
                     await Task.Delay(TimeSpan.FromSeconds(5), ct);
                 }
             }

@@ -41,14 +41,46 @@ public sealed class EmailTemplateRendererTests
         Assert.Null(new EmailTemplateRenderer().Render(CreateEvent("Unknown"), new("a@example.com", "Bình")));
     }
 
+    [Theory]
+    [InlineData(EventTypes.RoomCreated, "Bạn là trưởng phòng R1 của C1.")]
+    [InlineData(EventTypes.RoomMemberJoined, "Phòng hiện có 4 thành viên.")]
+    [InlineData(EventTypes.RoomLocked, "Phòng đủ 4 thành viên; người mới phải gửi đơn để trưởng phòng duyệt.")]
+    [InlineData(EventTypes.RoomApplyCreated, "An xin vào phòng. Lời nhắn: Xin vào nhóm.")]
+    [InlineData(EventTypes.RoomApplyDecided, "An đã chấp nhận đơn của bạn.")]
+    [InlineData(EventTypes.RoomLeaderChanged, "Trưởng phòng mới là An.")]
+    [InlineData(EventTypes.RoomCompleted, "Phòng R1 đã hoàn tất và trở thành nhóm G1.")]
+    [InlineData(EventTypes.CourseDeadlineReminder, "Hạn ghép nhóm là 2026-12-01T00:00:00Z. Bạn chưa có nhóm.")]
+    [InlineData(EventTypes.CourseClosed, "Phòng của bạn chưa hoàn tất; giảng viên sẽ hỗ trợ xếp nhóm.")]
+    public void Render_AllKnownEvents_IncludeExpectedBodyContent(string type, string expectedBody)
+    {
+        var email = new EmailTemplateRenderer().Render(CreateEvent(type), new("a@example.com", "Bình"));
+        Assert.NotNull(email);
+        Assert.Equal($"Chào Bình,\n\n{expectedBody}", email.Body);
+    }
+
+    [Fact]
+    public void Render_WhenOptionalDataKeysMissing_DoesNotThrow()
+    {
+        var envelope = new EventEnvelope { Type = EventTypes.RoomCreated };
+        var email = new EmailTemplateRenderer().Render(envelope, new("a@example.com", "Bình"));
+        Assert.NotNull(email);
+        Assert.Equal("[EXE] Bạn đã tạo phòng ", email.Subject);
+        Assert.StartsWith("Chào Bình,", email.Body);
+    }
+
     internal static EventEnvelope CreateEvent(string type) => new()
     {
         Type = type,
         Data = new Dictionary<string, string>
         {
-            [EventDataKeys.RoomCode] = "R1", [EventDataKeys.CourseCode] = "C1",
-            [EventDataKeys.GroupCode] = "G1", [EventDataKeys.ActorName] = "An",
-            [EventDataKeys.MemberCount] = "4", [EventDataKeys.Decision] = "Approved"
+            [EventDataKeys.RoomCode] = "R1",
+            [EventDataKeys.CourseCode] = "C1",
+            [EventDataKeys.GroupCode] = "G1",
+            [EventDataKeys.ActorName] = "An",
+            [EventDataKeys.MemberCount] = "4",
+            [EventDataKeys.Decision] = "Approved",
+            [EventDataKeys.Message] = "Xin vào nhóm",
+            [EventDataKeys.Deadline] = "2026-12-01T00:00:00Z"
         }
     };
 }

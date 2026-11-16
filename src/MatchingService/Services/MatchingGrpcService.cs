@@ -5,6 +5,9 @@ namespace Exe.MatchingService.Services;
 
 public sealed class MatchingGrpcService(MatchingMetrics metrics) : Matching.MatchingBase
 {
+    private static readonly CompositionAnalyzer Analyzer = new();
+    private static readonly RoomRecommender Recommender = new();
+
     private static GroupRule Map(GroupTypeRule r) => new(
         r.MinMemberCount,
         r.MaxMemberCount,
@@ -17,7 +20,7 @@ public sealed class MatchingGrpcService(MatchingMetrics metrics) : Matching.Matc
         if (request.Rule is null)
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Thiếu quy tắc nhóm."));
 
-        var r = new CompositionAnalyzer().Analyze(Map(request.Rule), request.MemberMajorCodes);
+        var r = Analyzer.Analyze(Map(request.Rule), request.MemberMajorCodes);
         metrics.Composition(r.Satisfied);
         var reply = new AnalyzeCompositionReply
         {
@@ -51,7 +54,7 @@ public sealed class MatchingGrpcService(MatchingMetrics metrics) : Matching.Matc
 
         var rooms = request.Rooms.Select(x => new RoomModel(x.RoomId, x.RoomCode, x.Status, x.MemberMajorCodes)).ToList();
         var reply = new RecommendRoomsReply();
-        foreach (var r in new RoomRecommender().Recommend(Map(request.Rule), request.StudentMajorCode, rooms, request.Limit))
+        foreach (var r in Recommender.Recommend(Map(request.Rule), request.StudentMajorCode, rooms, request.Limit))
         {
             var item = new RoomRecommendation
             {

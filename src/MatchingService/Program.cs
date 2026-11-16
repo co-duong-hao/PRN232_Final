@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
 
-builder.Services.AddExeMetrics("matching-service", "Exe.MatchingService");
+builder.Services.AddExeMetrics("matching-service", MatchingMetrics.MeterName);
 builder.Services.AddSingleton<MatchingMetrics>();
 
 var app = builder.Build();
