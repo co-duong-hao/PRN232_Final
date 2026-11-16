@@ -1,8 +1,9 @@
 import { Button, Card, Col, Progress, Row, Space, Statistic, Typography } from "antd";
 import type { CourseStats, RoomStatus } from "@/api";
 import { EmptyState } from "@/components/EmptyState";
-import { roomStatusLabel } from "@/components/labels";
+import { getRoomStatusLabels } from "@/components/labels";
 import { RoomStatusTag } from "@/components/StatusTag";
+import { useI18n, type Language } from "@/i18n";
 
 const roomStatuses: RoomStatus[] = ["Open", "Locked", "Completed", "Cancelled"];
 
@@ -11,16 +12,19 @@ function downloadStatistics(
   stats: CourseStats,
   unassigned: number,
   visibleStatuses: RoomStatus[],
+  lang: Language,
 ) {
+  const labels = getRoomStatusLabels(lang);
+  const isEn = lang === "en";
   const rows = [
-    ["Chỉ số", "Giá trị"],
-    ["Tổng sinh viên", stats.totalStudents],
-    ["Chưa có phòng", unassigned],
-    ["Đã vào phòng", stats.studentsInRoom],
-    ["Đã có nhóm", stats.studentsInGroup],
-    ["Số nhóm chính thức", stats.groupCount],
+    [isEn ? "Metric" : "Chỉ số", isEn ? "Value" : "Giá trị"],
+    [isEn ? "Total Students" : "Tổng sinh viên", stats.totalStudents],
+    [isEn ? "Unassigned" : "Chưa có phòng", unassigned],
+    [isEn ? "In Room" : "Đã vào phòng", stats.studentsInRoom],
+    [isEn ? "In Group" : "Đã có nhóm", stats.studentsInGroup],
+    [isEn ? "Official Groups Count" : "Số nhóm chính thức", stats.groupCount],
     ...visibleStatuses.map((status) => [
-      `Phòng ${roomStatusLabel[status].text.toLowerCase()}`,
+      `${isEn ? "Room" : "Phòng"} ${labels[status].text.toLowerCase()}`,
       stats.roomsByStatus[status] ?? 0,
     ]),
   ];
@@ -29,7 +33,7 @@ function downloadStatistics(
     .join("\r\n");
   const link = document.createElement("a");
   link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(`\uFEFF${csv}\r\n`)}`;
-  link.download = `thong-ke-${courseCode.replace(/[^a-zA-Z0-9_-]/g, "-")}.csv`;
+  link.download = `${isEn ? "stats" : "thong-ke"}-${courseCode.replace(/[^a-zA-Z0-9_-]/g, "-")}.csv`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -52,6 +56,7 @@ export function CourseStatistics({
   onShowRooms: (status: RoomStatus) => void;
   onShowGroups: () => void;
 }) {
+  const { t, language } = useI18n();
   const unassigned = Math.max(0, stats.totalStudents - stats.studentsInRoom);
   const progress =
     stats.totalStudents > 0 ? Math.round((stats.studentsInGroup / stats.totalStudents) * 100) : 0;
@@ -62,24 +67,33 @@ export function CourseStatistics({
       <Row align="middle" justify="space-between" gutter={[12, 12]}>
         <Col>
           <Typography.Title level={3} style={{ margin: 0 }}>
-            Tiến độ ghép nhóm
+            {language === "en" ? "Matching Progress" : "Tiến độ ghép nhóm"}
           </Typography.Title>
         </Col>
         <Col>
           <Space wrap>
-            <Button onClick={() => downloadStatistics(courseCode, stats, unassigned, visibleStatuses)}>
-              Tải CSV
+            <Button
+              onClick={() => downloadStatistics(courseCode, stats, unassigned, visibleStatuses, language)}
+            >
+              {language === "en" ? "Export CSV" : "Tải CSV"}
             </Button>
-            <Button onClick={onRefresh}>Làm mới thống kê</Button>
+            <Button onClick={onRefresh}>
+              {language === "en" ? "Refresh Statistics" : "Làm mới thống kê"}
+            </Button>
           </Space>
         </Col>
       </Row>
       <Row gutter={[12, 12]}>
         {[
-          { label: "Tổng sinh viên", value: stats.totalStudents },
-          { label: "Chưa có phòng", value: unassigned, link: "Xem sinh viên", action: onShowUnassigned },
-          { label: "Đã vào phòng", value: stats.studentsInRoom },
-          { label: "Đã có nhóm", value: stats.studentsInGroup },
+          { label: t.courseStats.statTotalStudents, value: stats.totalStudents },
+          {
+            label: t.courseStats.statUnassigned,
+            value: unassigned,
+            link: language === "en" ? "View students" : "Xem sinh viên",
+            action: onShowUnassigned,
+          },
+          { label: t.courseStats.statInRoom, value: stats.studentsInRoom },
+          { label: t.courseStats.statInGroup, value: stats.studentsInGroup },
         ].map(({ label, value, link, action }) => (
           <Col xs={12} lg={6} key={label}>
             <Card size="small" className="workspace-metric-card">
@@ -93,27 +107,30 @@ export function CourseStatistics({
           </Col>
         ))}
       </Row>
-      <Card size="small" title="Tỷ lệ sinh viên đã có nhóm">
+      <Card size="small" title={language === "en" ? "Formed Team Ratio" : "Tỷ lệ sinh viên đã có nhóm"}>
         {stats.totalStudents > 0 ? (
           <>
             <Progress
               percent={progress}
               status="normal"
               strokeColor="#c2410c"
-              aria-label="Tỷ lệ sinh viên đã có nhóm"
+              aria-label={language === "en" ? "Formed team ratio" : "Tỷ lệ sinh viên đã có nhóm"}
             />
             <Typography.Text type="secondary">
-              {stats.studentsInGroup}/{stats.totalStudents} sinh viên đã có nhóm. Sinh viên đã có nhóm vẫn
-              được tính trong số đã vào phòng.
+              {language === "en"
+                ? `${stats.studentsInGroup}/${stats.totalStudents} students are in groups. Students in official groups are also counted in room enrollments.`
+                : `${stats.studentsInGroup}/${stats.totalStudents} sinh viên đã có nhóm. Sinh viên đã có nhóm vẫn được tính trong số đã vào phòng.`}
             </Typography.Text>
           </>
         ) : (
-          <EmptyState title="Học phần chưa có sinh viên" />
+          <EmptyState
+            title={language === "en" ? "No students enrolled in this course" : "Học phần chưa có sinh viên"}
+          />
         )}
       </Card>
       <Row gutter={[12, 12]}>
         <Col xs={24} md={15}>
-          <Card size="small" title="Phòng theo trạng thái">
+          <Card size="small" title={t.courseStats.roomsByStatusTitle}>
             <Row gutter={[8, 8]}>
               {visibleStatuses.map((status) => (
                 <Col xs={12} key={status}>
@@ -131,11 +148,15 @@ export function CourseStatistics({
           </Card>
         </Col>
         <Col xs={24} md={9}>
-          <Card size="small" title="Nhóm chính thức" style={{ height: "100%" }}>
+          <Card
+            size="small"
+            title={language === "en" ? "Official Groups" : "Nhóm chính thức"}
+            style={{ height: "100%" }}
+          >
             <Space wrap>
               <Statistic value={stats.groupCount} />
               <Button type="link" onClick={onShowGroups}>
-                Xem nhóm
+                {language === "en" ? "View groups" : "Xem nhóm"}
               </Button>
             </Space>
           </Card>

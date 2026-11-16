@@ -3,7 +3,7 @@ import "@/features/workspace.css";
 import { Button, Grid, Input, Select, Space, Table, Typography } from "antd";
 import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
-import { coursesApi, referenceApi, type Course, type CourseListParams } from "@/api";
+import { coursesApi, referenceApi, type Course, type CourseListParams, type CourseStatus } from "@/api";
 import { EmptyState } from "@/components/EmptyState";
 import { formatDateTime } from "@/components/format";
 import { courseStatusLabel } from "@/components/labels";
@@ -14,8 +14,10 @@ import { staffSortOrder } from "@/features/staff/staffTableSort";
 import { useStaffPageBounds } from "@/features/staff/useStaffPageBounds";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
+import { translations, useI18n } from "@/i18n";
 
 export function CoursesPage() {
+  const { t, language } = useI18n();
   const [params, setParams] = useState<CourseListParams>({ page: 1, pageSize: 20 });
   const [searchText, setSearchText] = useState("");
   const screens = Grid.useBreakpoint();
@@ -31,34 +33,37 @@ export function CoursesPage() {
     <div className="workspace-page staff-page">
       <header className="workspace-heading">
         <div>
-          <span className="workspace-heading__eyebrow">Giảng viên & Quản lý</span>
-          <Typography.Title level={1}>Quản lý học phần</Typography.Title>
-          <p>Theo dõi tiến độ ghép nhóm theo học kỳ, môn học và trạng thái mở phòng.</p>
+          <span className="workspace-heading__eyebrow">{t.staffCourses.eyebrow}</span>
+          <Typography.Title level={1}>{t.staffCourses.title}</Typography.Title>
+          <p>{t.staffCourses.subtitle}</p>
         </div>
         <CourseActions onChanged={load} />
       </header>
 
       <Space wrap className="workspace-toolbar staff-filters">
         <Input.Search
-          aria-label="Tìm học phần"
-          placeholder="Tìm mã học phần..."
+          aria-label={t.staffCourses.searchPlaceholder}
+          placeholder={t.staffCourses.searchPlaceholder}
           allowClear
           value={searchText}
           onChange={(event) => setSearchText(event.target.value)}
           onSearch={(value) => filter({ q: value.trim() || undefined })}
         />
         <Select
-          aria-label="Lọc theo trạng thái học phần"
-          placeholder="Tất cả trạng thái"
+          aria-label={t.staffCourses.allStatus}
+          placeholder={t.staffCourses.allStatus}
           allowClear
           style={{ width: 170 }}
-          options={Object.entries(courseStatusLabel).map(([value, v]) => ({ value, label: v.text }))}
+          options={Object.entries(courseStatusLabel).map(([value, v]) => ({
+            value,
+            label: translations[language].courseStatus[value as CourseStatus] ?? v.text,
+          }))}
           value={params.status}
           onChange={(status) => filter({ status })}
         />
         <Select
-          aria-label="Lọc theo học kỳ"
-          placeholder="Tất cả học kỳ"
+          aria-label={t.staffCourses.allSemesters}
+          placeholder={t.staffCourses.allSemesters}
           allowClear
           style={{ width: 160 }}
           loading={semesters.loading}
@@ -68,8 +73,8 @@ export function CoursesPage() {
           onChange={(semesterId) => filter({ semesterId })}
         />
         <Select
-          aria-label="Lọc theo môn học"
-          placeholder="Tất cả môn"
+          aria-label={t.staffCourses.allSubjects}
+          placeholder={t.staffCourses.allSubjects}
           allowClear
           style={{ width: 160 }}
           loading={subjects.loading}
@@ -85,40 +90,40 @@ export function CoursesPage() {
             filter({ q: undefined, status: undefined, semesterId: undefined, subjectId: undefined });
           }}
         >
-          Xóa bộ lọc
+          {language === "en" ? "Reset filters" : "Xóa bộ lọc"}
         </Button>
       </Space>
 
       {semesters.failure && (
         <StaffLoadError
-          title="Không tải được học kỳ"
+          title={t.staffCourses.errorLoadSemesters}
           error={semesters.failure.error}
           onRetry={semesters.reload}
         />
       )}
       {subjects.failure && (
         <StaffLoadError
-          title="Không tải được môn học"
+          title={t.staffCourses.errorLoadSubjects}
           error={subjects.failure.error}
           onRetry={subjects.reload}
         />
       )}
 
       {failure ? (
-        <StaffLoadError title="Không tải được danh sách học phần" error={failure.error} onRetry={load} />
+        <StaffLoadError title={t.staffCourses.errorLoadCourses} error={failure.error} onRetry={load} />
       ) : loading ? (
         <TableSkeleton
           scrollX={820}
           rows={5}
           pagination={{ current: params.page, pageSize: params.pageSize, total: data?.totalItems }}
           columns={[
-            { title: "Mã học phần", kind: "code" },
-            { title: "Trạng thái", kind: "tag" },
-            { title: "Loại nhóm", kind: "text" },
-            { title: "Sĩ số", kind: "number" },
-            { title: "Bắt đầu", kind: "date" },
-            { title: "Hạn ghép nhóm", kind: "date" },
-            { title: "Thao tác", kind: "actions", actionWidths: [112, 58, 56] },
+            { title: t.staffCourses.colCourseCode, kind: "code" },
+            { title: t.staffCourses.colStatus, kind: "tag" },
+            { title: t.staffCourses.colGroupType, kind: "text" },
+            { title: t.staffCourses.colEnrollment, kind: "number" },
+            { title: language === "en" ? "Start" : "Bắt đầu", kind: "date" },
+            { title: t.staffCourses.colDeadline, kind: "date" },
+            { title: t.common.actions, kind: "actions", actionWidths: [112, 58, 56] },
           ]}
         />
       ) : (
@@ -131,8 +136,8 @@ export function CoursesPage() {
           locale={{
             emptyText: (
               <EmptyState
-                title="Không có học phần nào"
-                description="Không tìm thấy học phần khớp với bộ lọc hiện tại."
+                title={t.staffCourses.emptyCoursesTitle}
+                description={t.staffCourses.emptyFilterDesc}
               />
             ),
           }}
@@ -158,29 +163,33 @@ export function CoursesPage() {
           }}
           columns={[
             {
-              title: "Mã học phần",
+              title: t.staffCourses.colCourseCode,
               dataIndex: "code",
               sorter: true,
               sortOrder: staffSortOrder(params, "code"),
               render: (v: string, r: Course) => <Link to={`/staff/courses/${r.id}`}>{v}</Link>,
             },
             {
-              title: "Trạng thái",
+              title: t.staffCourses.colStatus,
               dataIndex: "status",
               render: (v: Course["status"]) => <CourseStatusTag status={v} />,
             },
-            { title: "Loại nhóm", dataIndex: "groupTypeName" },
-            { title: "Sĩ số", dataIndex: "studentCount" },
-            { title: "Bắt đầu", dataIndex: "startTime", render: formatDateTime },
+            { title: t.staffCourses.colGroupType, dataIndex: "groupTypeName" },
+            { title: t.staffCourses.colEnrollment, dataIndex: "studentCount" },
             {
-              title: "Hạn ghép nhóm",
+              title: language === "en" ? "Start" : "Bắt đầu",
+              dataIndex: "startTime",
+              render: formatDateTime,
+            },
+            {
+              title: t.staffCourses.colDeadline,
               dataIndex: "deadline",
               sorter: true,
               sortOrder: staffSortOrder(params, "deadline"),
               render: formatDateTime,
             },
             {
-              title: "Thao tác",
+              title: t.common.actions,
               render: (_: unknown, r: Course) => <CourseActions course={r} onChanged={load} />,
             },
           ]}

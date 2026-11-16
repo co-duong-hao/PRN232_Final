@@ -4,6 +4,7 @@ import { useState } from "react";
 import { coursesApi, referenceApi, type Course } from "@/api";
 import { useAuth } from "@/auth/AuthContext";
 import { useApiAction } from "@/components/useApiAction";
+import { useI18n } from "@/i18n";
 import { StaffLoadError } from "./StaffLoadError";
 import { useStaffQuery } from "./useStaffQuery";
 
@@ -25,6 +26,7 @@ export function CourseActions({
   allowDelete?: boolean;
 }) {
   const { hasRole } = useAuth();
+  const { t, language } = useI18n();
   const [visible, setVisible] = useState(false);
   const [form] = Form.useForm<Values>();
   const canChangeGroupType = !course || course.status === "Planned";
@@ -32,9 +34,9 @@ export function CourseActions({
   const subjects = useStaffQuery(visible && !course ? referenceApi.subjects : null);
   const types = useStaffQuery(visible && canChangeGroupType ? referenceApi.groupTypes : null);
   const lookups = [
-    { label: "học kỳ", ...semesters },
-    { label: "môn học", ...subjects },
-    { label: "loại nhóm", ...types },
+    { label: language === "vi" ? "học kỳ" : "semester", ...semesters },
+    { label: language === "vi" ? "môn học" : "subject", ...subjects },
+    { label: language === "vi" ? "loại nhóm" : "group type", ...types },
   ];
   const lookupsUnavailable = lookups.some((lookup) => lookup.loading || lookup.failure);
   const typeOptions = types.data?.items.map(({ id, name }) => ({ value: id, label: name })) ?? [];
@@ -51,14 +53,14 @@ export function CourseActions({
     return course
       ? coursesApi.update(course.id, dates)
       : coursesApi.create({ ...dates, semesterId: v.semesterId, subjectId: v.subjectId });
-  }, "Đã lưu học phần");
+  }, t.courseActions.successSaved);
 
-  const [open, opening] = useApiAction(() => coursesApi.open(course!.id), "Đã mở ghép nhóm");
-  const [close, closing] = useApiAction(() => coursesApi.close(course!.id), "Đã đóng ghép nhóm");
+  const [open, opening] = useApiAction(() => coursesApi.open(course!.id), t.courseActions.successOpened);
+  const [close, closing] = useApiAction(() => coursesApi.close(course!.id), t.courseActions.successClosed);
   const [remove, removing] = useApiAction(async () => {
     await coursesApi.remove(course!.id);
     return true;
-  }, "Đã xóa học phần");
+  }, t.courseActions.successDeleted);
 
   const actionPending = saving || opening || closing || removing;
 
@@ -79,7 +81,7 @@ export function CourseActions({
       <Space wrap>
         {!course && hasRole("Admin") && (
           <Button type="primary" onClick={show} disabled={actionPending}>
-            Tạo học phần
+            {t.courseActions.btnCreateCourse}
           </Button>
         )}
         {course && hasRole("Admin", "HeadOfDepartment") && (
@@ -93,39 +95,39 @@ export function CourseActions({
                   if (await open()) onChanged();
                 }}
               >
-                Mở ghép nhóm
+                {t.courseActions.btnOpenMatching}
               </Button>
             )}
             {course.status === "Forming" && (
               <Popconfirm
-                title="Đóng ghép nhóm học phần này?"
+                title={t.courseActions.popconfirmCloseTitle}
                 disabled={actionPending}
-                okText="Đóng ghép nhóm"
-                cancelText="Hủy"
+                okText={t.courseActions.popconfirmCloseOk}
+                cancelText={t.common.cancel}
                 onConfirm={async () => {
                   if (await close()) onChanged();
                 }}
               >
                 <Button loading={closing} disabled={actionPending}>
-                  Đóng ghép nhóm
+                  {t.courseActions.btnCloseMatching}
                 </Button>
               </Popconfirm>
             )}
             <Button onClick={show} disabled={actionPending}>
-              Sửa
+              {t.courseActions.btnEdit}
             </Button>
             {allowDelete && course.status === "Planned" && hasRole("Admin") && (
               <Popconfirm
-                title="Xóa học phần này?"
+                title={t.courseActions.popconfirmDeleteTitle}
                 disabled={actionPending}
-                okText="Xóa"
-                cancelText="Hủy"
+                okText={t.courseActions.popconfirmDeleteOk}
+                cancelText={t.common.cancel}
                 onConfirm={async () => {
                   if (await remove()) onChanged();
                 }}
               >
                 <Button danger loading={removing} disabled={actionPending}>
-                  Xóa
+                  {t.courseActions.btnDelete}
                 </Button>
               </Popconfirm>
             )}
@@ -134,7 +136,7 @@ export function CourseActions({
       </Space>
 
       <Modal
-        title={course ? "Cập nhật học phần" : "Tạo học phần mới"}
+        title={course ? t.courseActions.modalEditTitle : t.courseActions.modalCreateTitle}
         open={visible}
         onCancel={() => {
           if (!saving) setVisible(false);
@@ -144,8 +146,8 @@ export function CourseActions({
         maskClosable={!saving}
         cancelButtonProps={{ disabled: saving }}
         confirmLoading={saving}
-        okText={course ? "Lưu thay đổi" : "Tạo học phần"}
-        cancelText="Hủy"
+        okText={course ? t.common.saveChanges : t.courseActions.btnCreateCourse}
+        cancelText={t.common.cancel}
         onOk={() => form.submit()}
         okButtonProps={{ disabled: lookupsUnavailable || actionPending }}
         destroyOnHidden
@@ -154,7 +156,7 @@ export function CourseActions({
           failure ? (
             <StaffLoadError
               key={label}
-              title={"Không tải được " + label}
+              title={(language === "vi" ? "Không tải được " : "Failed to load ") + label}
               error={failure.error}
               onRetry={reload}
             />
@@ -174,40 +176,43 @@ export function CourseActions({
             <>
               <Form.Item
                 name="semesterId"
-                label="Học kỳ"
-                rules={[{ required: true, message: "Vui lòng chọn học kỳ" }]}
+                label={t.courseActions.fieldSemester}
+                rules={[{ required: true, message: t.courseActions.fieldSemesterRequired }]}
               >
                 <Select
-                  placeholder="Chọn học kỳ"
+                  placeholder={t.courseActions.fieldSemesterPlaceholder}
                   loading={semesters.loading}
                   disabled={semesters.loading || !!semesters.failure}
                   options={semesters.data?.items.map((x) => ({
                     value: x.id,
-                    label: x.code + " - " + x.name,
+                    label: `${x.code} - ${x.name}`,
                   }))}
                 />
               </Form.Item>
               <Form.Item
                 name="subjectId"
-                label="Môn học"
-                rules={[{ required: true, message: "Vui lòng chọn môn học" }]}
+                label={t.courseActions.fieldSubject}
+                rules={[{ required: true, message: t.courseActions.fieldSubjectRequired }]}
               >
                 <Select
-                  placeholder="Chọn môn học"
+                  placeholder={t.courseActions.fieldSubjectPlaceholder}
                   loading={subjects.loading}
                   disabled={subjects.loading || !!subjects.failure}
-                  options={subjects.data?.items.map((x) => ({ value: x.id, label: x.code + " - " + x.name }))}
+                  options={subjects.data?.items.map((x) => ({
+                    value: x.id,
+                    label: `${x.code} - ${x.name}`,
+                  }))}
                 />
               </Form.Item>
             </>
           )}
           <Form.Item
             name="groupTypeId"
-            label="Loại nhóm"
-            rules={[{ required: true, message: "Vui lòng chọn loại nhóm" }]}
+            label={t.courseActions.fieldGroupType}
+            rules={[{ required: true, message: t.courseActions.fieldGroupTypeRequired }]}
           >
             <Select
-              placeholder="Chọn loại nhóm"
+              placeholder={t.courseActions.fieldGroupTypePlaceholder}
               loading={types.loading}
               disabled={!canChangeGroupType || types.loading || !!types.failure}
               options={typeOptions}
@@ -215,27 +220,33 @@ export function CourseActions({
           </Form.Item>
           <Form.Item
             name="startTime"
-            label="Thời gian bắt đầu"
-            rules={[{ required: true, message: "Vui lòng chọn thời gian bắt đầu" }]}
+            label={t.courseActions.fieldStartTime}
+            rules={[{ required: true, message: t.courseActions.fieldStartTimeRequired }]}
           >
             <DatePicker
               showTime={{ format: "HH:mm" }}
               format="DD/MM/YYYY HH:mm"
-              placeholder="Chọn ngày và giờ bắt đầu"
+              placeholder={language === "en" ? "Select start date & time" : "Chọn ngày và giờ bắt đầu"}
               style={{ width: "100%" }}
             />
           </Form.Item>
           <Form.Item
             name="deadline"
-            label="Hạn ghép nhóm"
+            label={t.courseActions.fieldDeadline}
             dependencies={["startTime"]}
             rules={[
-              { required: true, message: "Vui lòng chọn hạn ghép nhóm" },
+              { required: true, message: t.courseActions.fieldDeadlineRequired },
               ({ getFieldValue }) => ({
                 validator: (_, deadline?: Dayjs) => {
                   const start = getFieldValue("startTime") as Dayjs | undefined;
                   if (deadline && start && !deadline.isAfter(start)) {
-                    return Promise.reject(new Error("Hạn ghép nhóm phải sau thời gian bắt đầu"));
+                    return Promise.reject(
+                      new Error(
+                        language === "vi"
+                          ? "Hạn ghép nhóm phải sau thời gian bắt đầu"
+                          : "Matching deadline must be after start time",
+                      ),
+                    );
                   }
                   return Promise.resolve();
                 },
@@ -245,7 +256,7 @@ export function CourseActions({
             <DatePicker
               showTime={{ format: "HH:mm" }}
               format="DD/MM/YYYY HH:mm"
-              placeholder="Chọn ngày và giờ kết thúc"
+              placeholder={language === "en" ? "Select deadline date & time" : "Chọn ngày và giờ kết thúc"}
               style={{ width: "100%" }}
             />
           </Form.Item>

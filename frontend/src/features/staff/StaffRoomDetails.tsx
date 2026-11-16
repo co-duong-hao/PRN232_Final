@@ -3,6 +3,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { roomsApi, type GroupType, type Room, type RoomSummary } from "@/api";
 import { RoomCompositionSummary } from "@/features/student/RoomCompositionSummary";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
+import { useI18n } from "@/i18n";
 import { StaffLoadError } from "./StaffLoadError";
 import { useStaffQuery } from "./useStaffQuery";
 
@@ -15,6 +16,7 @@ export function StaffRoomDetails({
   groupType?: GroupType;
   renderMembers: (members: Room["members"]) => ReactNode;
 }) {
+  const { t, language } = useI18n();
   const [showComposition, setShowComposition] = useState(false);
   const loadDetails = useCallback(() => roomsApi.get(room.id), [room.id]);
   const loadComposition = useCallback(() => roomsApi.composition(room.id), [room.id]);
@@ -30,7 +32,7 @@ export function StaffRoomDetails({
     <>
       {details.failure ? (
         <StaffLoadError
-          title="Không tải được thành viên"
+          title={t.staffRoomDetails.errorLoadMembers}
           error={details.failure.error}
           onRetry={details.reload}
         />
@@ -40,10 +42,10 @@ export function StaffRoomDetails({
           size="small"
           rows={3}
           columns={[
-            { title: "Mã SV", kind: "code" },
-            { title: "Họ tên", kind: "text" },
-            { title: "Ngành", kind: "code" },
-            { title: "Vai trò", kind: "text" },
+            { title: t.staffRoomDetails.colStudentCode, kind: "code" },
+            { title: t.staffRoomDetails.colFullName, kind: "text" },
+            { title: t.staffRoomDetails.colMajor, kind: "code" },
+            { title: t.staffRoomDetails.colRole, kind: "text" },
           ]}
         />
       ) : details.data ? (
@@ -56,10 +58,10 @@ export function StaffRoomDetails({
         }}
         style={{ marginTop: 8 }}
       >
-        Kiểm tra cơ cấu phòng
+        {t.staffRoomDetails.btnCheckComposition}
       </Button>
       <Modal
-        title={`Kiểm tra cơ cấu: ${currentRoom.name || currentRoom.code}`}
+        title={t.staffRoomDetails.modalCompositionTitle(currentRoom.name || currentRoom.code)}
         open={showComposition}
         width={560}
         destroyOnHidden
@@ -67,18 +69,20 @@ export function StaffRoomDetails({
         footer={
           <Space wrap>
             <Button onClick={refreshComposition} disabled={composition.loading}>
-              Kiểm tra lại
+              {language === "en" ? "Recheck" : "Kiểm tra lại"}
             </Button>
             <Button type="primary" onClick={() => setShowComposition(false)}>
-              Đóng
+              {t.staffRoomDetails.modalClose}
             </Button>
           </Space>
         }
       >
-        {composition.loading && <Spin aria-label="Đang kiểm tra cơ cấu" />}
+        {composition.loading && (
+          <Spin aria-label={language === "en" ? "Checking composition" : "Đang kiểm tra cơ cấu"} />
+        )}
         {composition.failure && (
           <StaffLoadError
-            title="Không kiểm tra được cơ cấu"
+            title={t.staffRoomDetails.errorCheckComposition}
             error={composition.failure.error}
             onRetry={refreshComposition}
           />
