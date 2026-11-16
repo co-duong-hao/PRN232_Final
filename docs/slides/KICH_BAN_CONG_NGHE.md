@@ -219,7 +219,7 @@ thái thành "Đã đóng" và Mailpit có email đóng Course.
 
 > Mỗi lần push code, **GitHub Actions** tự chạy pipeline `ci-cd.yml` trên máy Ubuntu của GitHub:
 >
-> 1. **Backend**: build solution ở chế độ Release và chạy toàn bộ **93 unit test**.
+> 1. **Backend**: build solution ở chế độ Release và chạy toàn bộ **94 unit test**.
 > 2. **Frontend**: kiểm tra định dạng Prettier và build bản production.
 > 3. **Image**: khi hai bước trên đạt, build song song **6 image Docker**.
 > 4. **CD**: nếu là nhánh `main`, đẩy 6 image lên **GitHub Container Registry**, gắn tag `latest` và tag theo commit
@@ -268,11 +268,13 @@ thái thành "Đã đóng" và Mailpit có email đóng Course.
 
 **Nói**:
 
-> - **93 unit test** bằng xUnit, Moq, SQLite in-memory: Team 61, Noti 19, Matching 8, Auth 5. Test viết theo quy tắc
+> - **94 unit test** bằng xUnit, Moq, SQLite in-memory: Team 61, Noti 20, Matching 8, Auth 5. Test viết theo quy tắc
 >   nghiệp vụ: mỗi BR có test đúng và test vi phạm; thêm test cho Kafka thử lại và thư chết, cache khi Redis lỗi,
 >   job đóng Course, và số liệu metric.
-> - **Kiểm thử end-to-end** `tests/e2e/e2e_smoke.py` chạy **29 bước** trên hệ thống thật qua Gateway: đăng nhập,
->   phân quyền, QT01–QT06, các lỗi BR05, BR09, BR16, BR18, gọi gRPC và kiểm tra email trong Mailpit.
+> - **Kiểm thử end-to-end** `tests/e2e/e2e_smoke.py` chạy **84 bước** trên hệ thống thật qua Gateway:
+>   29 bước với EXE101 — đăng nhập, phân quyền, QT01–QT06, các lỗi BR05, BR09, BR16, BR18, gọi gRPC, email trong
+>   Mailpit; thêm 55 bước với EXE201 (`--workflows`) — rời và mở lại phòng, tìm nhóm theo GPA và vai trò, phân trang,
+>   từ chối và rút đơn, đóng Course. Ngoài ra `browser_smoke.py` thử giao diện trên Chromium.
 > - Unit test chạy tự động trên CI ở mỗi lần push.
 
 ---

@@ -179,7 +179,7 @@ python docs/demo/demo.py .env
 
 Sau đó mở http://localhost:8025 để xem email.
 
-### Kiểm thử end-to-end (29 bước)
+### Kiểm thử end-to-end (29 + 55 bước)
 
 Reset dữ liệu trước (nếu vừa chạy demo), rồi:
 
@@ -188,6 +188,13 @@ python tests/e2e/e2e_smoke.py .env
 ```
 
 Kết quả đúng: dòng cuối `29/29 checks passed`.
+
+Phần mở rộng với Course EXE201 (rời và mở lại phòng, tìm nhóm theo GPA và vai trò, từ chối và rút đơn, đóng Course).
+Chạy ngay sau lệnh trên, không cần reset lại; kết quả đúng là `55/55 workflow checks passed`:
+
+```powershell
+python tests/e2e/e2e_smoke.py .env --workflows
+```
 
 | Mã thoát | Ý nghĩa |
 |---|---|
@@ -201,7 +208,7 @@ Kết quả đúng: dòng cuối `29/29 checks passed`.
 dotnet test ExeTeamMatching.sln
 ```
 
-Kết quả đúng: 4 dòng `Passed!` (Auth, Matching, Noti, Team), tổng 83 test.
+Kết quả đúng: 4 dòng `Passed!` (Auth, Matching, Noti, Team), tổng 94 test.
 
 ---
 
