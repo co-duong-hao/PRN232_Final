@@ -1,3 +1,4 @@
+import "@/features/workspace.css";
 import { Input, Select, Space, Table, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -33,11 +34,22 @@ export function CoursesPage() {
   }, [showError]);
   const filter = (p: Partial<CourseListParams>) => setParams((x) => ({ ...x, ...p, page: 1 }));
   return (
-    <>
-      <Typography.Title level={2}>Course</Typography.Title>
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Input.Search placeholder="Tìm Course" allowClear onSearch={(q) => filter({ q })} />
+    <div className="workspace-page">
+      <header className="workspace-heading">
+        <div>
+          <Typography.Title level={1}>Quản lý Course</Typography.Title>
+          <p>Theo dõi Course theo học kỳ, môn học và trạng thái ghép nhóm.</p>
+        </div>
+      </header>
+      <Space wrap className="workspace-toolbar">
+        <Input.Search
+          aria-label="Tìm Course"
+          placeholder="Tìm Course"
+          allowClear
+          onSearch={(q) => filter({ q })}
+        />
         <Select
+          aria-label="Lọc theo trạng thái Course"
           placeholder="Trạng thái"
           allowClear
           style={{ width: 160 }}
@@ -45,6 +57,7 @@ export function CoursesPage() {
           onChange={(status) => filter({ status })}
         />
         <Select
+          aria-label="Lọc theo học kỳ"
           placeholder="Học kỳ"
           allowClear
           style={{ width: 160 }}
@@ -52,6 +65,7 @@ export function CoursesPage() {
           onChange={(semesterId) => filter({ semesterId })}
         />
         <Select
+          aria-label="Lọc theo môn"
           placeholder="Môn"
           allowClear
           style={{ width: 160 }}
@@ -62,6 +76,7 @@ export function CoursesPage() {
       </Space>
       <Table
         rowKey="id"
+        scroll={{ x: "max-content" }}
         loading={loading}
         dataSource={data?.items ?? []}
         pagination={{
@@ -102,6 +117,6 @@ export function CoursesPage() {
           },
         ]}
       />
-    </>
+    </div>
   );
 }

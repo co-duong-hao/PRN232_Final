@@ -3,30 +3,27 @@ import {
   BookOutlined,
   FileTextOutlined,
   LogoutOutlined,
+  MenuOutlined,
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Dropdown, Layout, Menu, Space, Tag, Typography } from "antd";
-import type { MenuProps } from "antd";
+import { Avatar, Button, Drawer, Dropdown, Layout, Menu, Tag, Typography } from "antd";
+import type { ReactNode } from "react";
 import { useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { roleLabel } from "./labels";
 
-const { Header, Sider, Content } = Layout;
-
-/** Below antd's "lg" breakpoint (992px). */
-const isNarrow = () => window.matchMedia("(max-width: 991.98px)").matches;
+const { Header, Sider, Content, Footer } = Layout;
 
 /** Shell for every signed-in page: sidebar menu by role, header with the user, routed content. */
 export function AppLayout() {
   const { user, student, hasRole, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  // Start collapsed on narrow screens; antd's breakpoint only fires on later resizes.
-  const [collapsed, setCollapsed] = useState(isNarrow);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
-  const items: MenuProps["items"] = [];
+  const items: { key: string; icon: ReactNode; label: string }[] = [];
   if (hasRole("Student")) {
     items.push(
       { key: "/student/courses", icon: <BookOutlined />, label: "Course của tôi" },
@@ -42,47 +39,68 @@ export function AppLayout() {
   }
 
   const selected = items
-    .map((i) => String(i?.key))
+    .map((item) => item.key)
     .filter((k) => location.pathname.startsWith(k))
     .sort((a, b) => b.length - a.length)[0];
 
+  const menu = (
+    <Menu
+      mode="inline"
+      items={items}
+      selectedKeys={selected ? [selected] : []}
+      onClick={({ key }) => {
+        navigate(key);
+        setMobileNavigationOpen(false);
+      }}
+    />
+  );
+
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout className="app-shell" hasSider>
+      <a className="app-shell__skip" href="#main-content">
+        Chuyển đến nội dung
+      </a>
       <Sider
+        className="app-shell__sidebar"
         breakpoint="lg"
         collapsedWidth={0}
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        onBreakpoint={setCollapsed}
+        trigger={null}
+        onBreakpoint={(narrow) => {
+          if (!narrow) setMobileNavigationOpen(false);
+        }}
         theme="light"
         width={230}
-        style={{ borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap" }}
       >
-        <div style={{ padding: "18px 20px", fontWeight: 700, fontSize: 16, overflow: "hidden" }}>
-          <TeamOutlined style={{ color: "#EA580C", marginRight: 8 }} />
+        <div className="app-shell__brand">
+          <TeamOutlined />
           EXE Team Matching
         </div>
-        <Menu
-          mode="inline"
-          items={items}
-          selectedKeys={selected ? [selected] : []}
-          onClick={(e) => {
-            navigate(e.key);
-            if (isNarrow()) setCollapsed(true);
-          }}
-        />
+        <nav aria-label="Điều hướng chính">{menu}</nav>
       </Sider>
-      <Layout>
-        <Header
-          style={{
-            background: "#fff",
-            padding: "0 24px",
-            display: "flex",
-            justifyContent: "flex-end",
-            borderBottom: "1px solid #f0f0f0",
-          }}
-        >
+      <Drawer
+        title="Điều hướng"
+        placement="left"
+        width="min(320px, 85vw)"
+        open={mobileNavigationOpen}
+        onClose={() => setMobileNavigationOpen(false)}
+        destroyOnHidden
+        styles={{ body: { padding: 0 } }}
+      >
+        <nav aria-label="Điều hướng chính">{menu}</nav>
+      </Drawer>
+      <Layout className="app-shell__main">
+        <Header className="app-shell__header">
+          <Button
+            className="app-shell__mobile-toggle"
+            type="text"
+            icon={<MenuOutlined />}
+            aria-label="Mở điều hướng"
+            aria-expanded={mobileNavigationOpen}
+            aria-haspopup="dialog"
+            onClick={() => setMobileNavigationOpen(true)}
+          />
           <Dropdown
+            trigger={["hover", "click"]}
             menu={{
               items: [{ key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất" }],
               onClick: () => {
@@ -91,27 +109,40 @@ export function AppLayout() {
               },
             }}
           >
-            <Button type="text" style={{ height: "auto" }}>
-              <Space>
+            <Button className="app-shell__account" type="text">
+              <span className="app-shell__account-content">
                 <Avatar size="small" icon={<UserOutlined />} />
-                <span>{user?.fullName}</span>
+                <span className="app-shell__account-name">{user?.fullName}</span>
                 {student && (
-                  <Typography.Text type="secondary">
+                  <Typography.Text className="app-shell__account-detail" type="secondary">
                     {student.studentCode} · {student.majorCode}
                   </Typography.Text>
                 )}
                 {user?.roles.map((r) => (
-                  <Tag key={r} color="blue">
+                  <Tag className="app-shell__account-detail" key={r} color="blue">
                     {roleLabel[r]}
                   </Tag>
                 ))}
-              </Space>
+              </span>
             </Button>
           </Dropdown>
         </Header>
-        <Content style={{ padding: 24 }}>
+        <Content className="app-shell__content" id="main-content" tabIndex={-1}>
           <Outlet />
         </Content>
+        <Footer className="app-footer">
+          <div>
+            <div className="app-footer__name">EXE Team Matching</div>
+            <div className="app-footer__credit">Đồ án PRN232 · Nhóm 6</div>
+          </div>
+          <nav className="app-footer__nav" aria-label="Điều hướng cuối trang">
+            {items.map(({ key, label }) => (
+              <NavLink key={key} to={key}>
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        </Footer>
       </Layout>
     </Layout>
   );

@@ -1,3 +1,4 @@
+import "@/features/workspace.css";
 import { useEffect, useState } from "react";
 import { Col, Form, Input, InputNumber, Modal, Row, Select } from "antd";
 import { useNavigate } from "react-router-dom";
@@ -42,6 +43,8 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
     <Modal
       title={room ? "Sửa thông tin tuyển" : "Tạo nhóm"}
       open={open}
+      className="workspace-room-form"
+      width={640}
       onCancel={onClose}
       okText={room ? "Lưu thay đổi" : "Lưu nhóm"}
       cancelText="Hủy"
@@ -70,7 +73,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
       <Form form={form} layout="vertical">
         {!room && (
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="semesterId" label="Kỳ" rules={[{ required: true }]}>
                 <Select
                   disabled={!!course}
@@ -82,7 +85,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="courseId" label="Course" rules={[{ required: true }]}>
                 <Select
                   disabled={!!course}
@@ -96,19 +99,19 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
           </Row>
         )}
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} sm={12}>
             <Form.Item name="name" label="Tên nhóm">
               <Input maxLength={100} placeholder="F-Spark Team" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} sm={12}>
             <Form.Item name="projectName" label="Tên dự án">
               <Input maxLength={200} placeholder="Không bắt buộc" />
             </Form.Item>
           </Col>
         </Row>
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} sm={12}>
             <Form.Item name="requiredGpa" label="GPA yêu cầu">
               <InputNumber
                 min={0}
@@ -120,7 +123,7 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
               />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} sm={12}>
             <Form.Item name="targetGrade" label="Điểm mục tiêu">
               <InputNumber
                 min={0}
@@ -137,7 +140,12 @@ export function CreateRoomModal({ open, onClose, course, room, onSaved }: Props)
           <Select mode="multiple" maxCount={5} options={roles.map((r) => ({ value: r.id, label: r.name }))} />
         </Form.Item>
         <Form.Item name="ideaDescription" label="Mô tả ý tưởng">
-          <Input.TextArea maxLength={1000} placeholder="Mô tả ngắn ý tưởng dự án" />
+          <Input.TextArea
+            maxLength={1000}
+            showCount
+            autoSize={{ minRows: 3, maxRows: 6 }}
+            placeholder="Mô tả ngắn ý tưởng dự án"
+          />
         </Form.Item>
       </Form>
     </Modal>

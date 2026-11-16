@@ -10,3 +10,159 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
+
+.app-footer.ant-layout-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px 24px;
+  border-top: 1px solid #dbe1ea;
+  background: #fff;
+}
+
+.app-footer__name {
+  color: #162033;
+  font-weight: 600;
+}
+
+.app-footer__credit {
+  margin-top: 2px;
+  color: #475569;
+  font-size: 0.8125rem;
+}
+
+.app-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.app-footer__nav a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border-radius: 4px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.app-footer__nav a:hover,
+.app-footer__nav a[aria-current="page"] {
+  color: #9a3412;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-footer__nav a:focus-visible {
+  outline: 2px solid #9a3412;
+  outline-offset: 3px;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell__skip {
+  position: fixed;
+  z-index: 100;
+  top: 8px;
+  left: 8px;
+  transform: translateY(-150%);
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: #fff;
+  color: #9a3412;
+  font-weight: 600;
+}
+
+.app-shell__skip:focus {
+  transform: none;
+}
+
+.app-shell__sidebar {
+  border-right: 1px solid #dbe1ea;
+}
+
+.app-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 20px;
+  color: #162033;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-shell__brand .anticon {
+  color: #ea580c;
+}
+
+.app-shell__main,
+.app-shell__account-content {
+  min-width: 0;
+}
+
+.app-shell__header.ant-layout-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  border-bottom: 1px solid #dbe1ea;
+  padding: 0 24px;
+  background: #fff;
+}
+
+.app-shell__mobile-toggle.ant-btn {
+  display: none;
+}
+
+.app-shell__account.ant-btn {
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 44px;
+}
+
+.app-shell__account-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell__account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell__content {
+  min-width: 0;
+  padding: 24px;
+}
+
+@media (max-width: 991.98px) {
+  .app-shell__sidebar.ant-layout-sider,
+  .app-shell__account-detail {
+    display: none;
+  }
+
+  .app-shell__header.ant-layout-header {
+    justify-content: space-between;
+    padding-inline: 16px;
+  }
+
+  .app-shell__mobile-toggle.ant-btn {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .app-shell__content,
+  .app-footer.ant-layout-footer {
+    padding-inline: 16px;
+  }
+}

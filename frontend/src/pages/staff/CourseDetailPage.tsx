@@ -1,3 +1,4 @@
+import "@/features/workspace.css";
 import {
   App,
   Button,
@@ -17,7 +18,7 @@ import {
   Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   ApiError,
   coursesApi,
@@ -134,6 +135,7 @@ export function CourseDetailPage() {
     }[],
   ) => (
     <Table
+      scroll={{ x: 480 }}
       size="small"
       rowKey="studentId"
       pagination={false}
@@ -152,15 +154,20 @@ export function CourseDetailPage() {
   );
   if (!course) return <Spin />;
   return (
-    <>
-      <Typography.Title level={2}>
-        {course.code} <CourseStatusTag status={course.status} />
-      </Typography.Title>
-      <CourseActions course={course} onChanged={refresh} allowDelete={false} />
+    <div className="workspace-page">
+      <header className="workspace-heading">
+        <div>
+          <Link to="/staff/courses">← Quản lý Course</Link>
+          <Typography.Title level={1}>{course.code}</Typography.Title>
+          <CourseStatusTag status={course.status} />
+        </div>
+        <CourseActions course={course} onChanged={refresh} allowDelete={false} />
+      </header>
       <Descriptions
         bordered
         size="small"
-        style={{ marginTop: 16 }}
+        className="workspace-course-description"
+        column={{ xs: 1, sm: 2, lg: 2, xl: 2, xxl: 2 }}
         items={[
           { key: "type", label: "Loại nhóm", children: course.groupTypeName },
           {
@@ -175,14 +182,14 @@ export function CourseDetailPage() {
         ]}
       />
       {stats && (
-        <Card style={{ marginTop: 16 }}>
-          <Space wrap size="large">
+        <Card title="Tiến độ ghép nhóm" className="workspace-section">
+          <div className="workspace-metrics">
             <Statistic title="Tổng sinh viên" value={stats.totalStudents} />
             <Statistic title="Đã vào phòng" value={stats.studentsInRoom} />
             <Statistic title="Đã có nhóm" value={stats.studentsInGroup} />
             <Statistic title="Số nhóm" value={stats.groupCount} />
-          </Space>
-          <div>
+          </div>
+          <div className="workspace-section">
             Tỉ lệ đã có nhóm{" "}
             <Progress
               percent={
@@ -192,14 +199,15 @@ export function CourseDetailPage() {
           </div>
           <Space wrap>
             {Object.entries(roomStatusLabel).map(([k, v]) => (
-              <span key={k}>
+              <Tag key={k} color={v.color}>
                 {v.text}: {stats.roomsByStatus[k] ?? 0}
-              </span>
+              </Tag>
             ))}
           </Space>
         </Card>
       )}
       <Tabs
+        className="workspace-section"
         activeKey={tab}
         onChange={setTab}
         items={[
@@ -208,13 +216,15 @@ export function CourseDetailPage() {
             label: "Sinh viên",
             children: (
               <>
-                <Space wrap style={{ marginBottom: 16 }}>
+                <Space wrap className="workspace-toolbar">
                   <Input.Search
+                    aria-label="Tìm sinh viên"
                     placeholder="Tìm sinh viên"
                     allowClear
                     onSearch={(q) => setSp((x) => ({ ...x, q, page: 1 }))}
                   />
                   <Select
+                    aria-label="Lọc theo ngành"
                     placeholder="Ngành"
                     allowClear
                     style={{ width: 150 }}
@@ -222,6 +232,7 @@ export function CourseDetailPage() {
                     onChange={(majorId) => setSp((x) => ({ ...x, majorId, page: 1 }))}
                   />
                   <Select
+                    aria-label="Lọc theo tình trạng vào phòng"
                     placeholder="Phòng"
                     allowClear
                     style={{ width: 160 }}
@@ -245,6 +256,7 @@ export function CourseDetailPage() {
                   )}
                 </Space>
                 <Table
+                  scroll={{ x: 840 }}
                   rowKey="id"
                   loading={loading}
                   dataSource={students?.items ?? []}
@@ -304,13 +316,15 @@ export function CourseDetailPage() {
             label: "Phòng",
             children: (
               <>
-                <Space wrap style={{ marginBottom: 16 }}>
+                <Space wrap className="workspace-toolbar">
                   <Input.Search
+                    aria-label="Tìm mã phòng"
                     placeholder="Tìm mã phòng"
                     allowClear
                     onSearch={(q) => setRp((x) => ({ ...x, q, page: 1 }))}
                   />
                   <Select
+                    aria-label="Lọc theo trạng thái phòng"
                     placeholder="Trạng thái"
                     allowClear
                     style={{ width: 170 }}
@@ -321,6 +335,7 @@ export function CourseDetailPage() {
                   />
                 </Space>
                 <Table
+                  scroll={{ x: 820 }}
                   rowKey="id"
                   loading={loading}
                   dataSource={rooms?.items ?? []}
@@ -381,12 +396,14 @@ export function CourseDetailPage() {
             children: (
               <>
                 <Input.Search
+                  aria-label="Tìm mã nhóm"
                   placeholder="Tìm mã nhóm"
                   allowClear
                   style={{ maxWidth: 300, marginBottom: 16 }}
                   onSearch={(q) => setGp((x) => ({ ...x, q, page: 1 }))}
                 />
                 <Table
+                  scroll={{ x: 580 }}
                   rowKey="id"
                   loading={loading}
                   dataSource={groups?.items ?? []}
@@ -432,6 +449,7 @@ export function CourseDetailPage() {
           showSearch
           filterOption={false}
           style={{ width: "100%" }}
+          aria-label="Tìm sinh viên"
           placeholder="Tìm sinh viên"
           value={selected}
           onChange={setSelected}
@@ -450,6 +468,6 @@ export function CourseDetailPage() {
           <p key={i}>{v}</p>
         ))}
       </Modal>
-    </>
+    </div>
   );
 }

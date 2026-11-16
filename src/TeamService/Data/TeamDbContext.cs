@@ -37,7 +37,13 @@ public class TeamDbContext(DbContextOptions<TeamDbContext> options) : DbContext(
         b.Entity<StudentInCourse>().HasKey(x => new { x.CourseId, x.StudentId });
         b.Entity<Room>(e => { e.Property(x => x.Name).HasMaxLength(100); e.Property(x => x.ProjectName).HasMaxLength(200); e.Property(x => x.IdeaDescription).HasMaxLength(1000); e.Property(x => x.RequiredGpa).HasPrecision(3, 2); e.Property(x => x.TargetGrade).HasPrecision(4, 2); e.Property(x => x.Code).HasMaxLength(60); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20); e.Property(x => x.Version).IsConcurrencyToken(); e.HasIndex(x => x.Code).IsUnique(); });
         b.Entity<StudentInRoom>(e => { e.HasKey(x => new { x.RoomId, x.StudentId }); e.HasIndex(x => new { x.CourseId, x.StudentId }).IsUnique(); });
-        b.Entity<RoomApply>(e => { e.Property(x => x.Message).HasMaxLength(500); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20); e.HasIndex(x => new { x.RoomId, x.StudentId }).IsUnique().HasFilter("[Status] = 'Pending'"); e.HasOne(x => x.Decider).WithMany().HasForeignKey(x => x.DecidedBy); });
+        b.Entity<RoomApply>(e =>
+        {
+            e.Property(x => x.Message).HasMaxLength(500);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsConcurrencyToken();
+            e.HasIndex(x => new { x.RoomId, x.StudentId }).IsUnique().HasFilter("[Status] = 'Pending'");
+            e.HasOne(x => x.Decider).WithMany().HasForeignKey(x => x.DecidedBy);
+        });
         b.Entity<Group>(e => { e.Property(x => x.Code).HasMaxLength(60); e.Property(x => x.Name).HasMaxLength(200); e.HasIndex(x => x.Code).IsUnique(); e.HasIndex(x => x.RoomId).IsUnique(); });
         b.Entity<StudentInGroup>().HasKey(x => new { x.GroupId, x.StudentId });
         foreach (var fk in b.Model.GetEntityTypes().SelectMany(x => x.GetForeignKeys())) fk.DeleteBehavior = DeleteBehavior.Restrict;
