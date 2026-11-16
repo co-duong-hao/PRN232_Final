@@ -1,0 +1,16 @@
+# Overlay for the disposable recruitment test stack. Only the Gateway and Mailpit bind host ports.
+services:
+  sqlserver:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  kafka:
+    ports: !reset []
+  auth-service:
+    ports: !reset []
+  team-service:
+    ports: !reset []
+  gateway:
+    ports: !override ["127.0.0.1:18080:8080"]
+  mailpit:
+    ports: !override ["127.0.0.1:18025:8025"]
