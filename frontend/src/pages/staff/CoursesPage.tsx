@@ -62,6 +62,7 @@ export function CoursesPage() {
       </Space>
       <Table
         rowKey="id"
+        scroll={{ x: "max-content" }}
         loading={loading}
         dataSource={data?.items ?? []}
         pagination={{
