@@ -50,6 +50,7 @@ flowchart LR
 | 13 | [Danh mục và loại nhóm](13-reference-data.md) |
 | 14 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
 | 15 | [Đơn xin vào phòng](15-room-applies.md) |
+| 16 | [Tìm phòng và tra cứu nhóm](16-rooms-read.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
