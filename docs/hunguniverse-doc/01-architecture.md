@@ -42,6 +42,7 @@ flowchart LR
 | 05 | [Vận hành bản chạy local](05-operations.md) |
 | 06 | [Quy ước HTTP dùng chung](06-api-basics.md) |
 | 07 | [Đăng nhập và JWT](07-auth-login.md) |
+| 08 | [Quản trị tài khoản](08-auth-admin.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
