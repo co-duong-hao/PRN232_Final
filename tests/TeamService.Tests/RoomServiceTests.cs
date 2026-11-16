@@ -99,6 +99,41 @@ public sealed class RoomServiceTests : IAsyncLifetime
         Assert.Equal(1, listener.Count("exe.cache.requests", "result", "hit"));
     }
 
+    [Fact]
+    public async Task Metrics_WhenCourseStatsReadTwice_RecordsMissThenHit()
+    {
+        using var listener = new MetricCapture(metrics);
+        var controller = new Exe.TeamService.Controllers.CoursesController(
+            new CourseService(db, rooms, publisher.Object, cache), cache, new ConfigurationBuilder().Build(), metrics)
+        {
+            ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() }
+        };
+        await controller.Stats(courseId, default);
+        Assert.Equal("MISS", controller.Response.Headers["X-Cache"].ToString());
+        Assert.Equal(1, listener.Count("exe.cache.requests", "result", "miss"));
+        await controller.Stats(courseId, default);
+        Assert.Equal("HIT", controller.Response.Headers["X-Cache"].ToString());
+        Assert.Equal(1, listener.Count("exe.cache.requests", "result", "hit"));
+        Assert.Equal(2, listener.Count("exe.cache.requests", "cache", "course-stats"));
+    }
+
+    [Fact]
+    public async Task Metrics_WhenApplicationRejected_RecordsRejectionWithoutJoin()
+    {
+        var room = await rooms.CreateAsync(courseId, default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id);
+        entity.Status = RoomStatus.Locked;
+        await db.SaveChangesAsync();
+        SelectStudent(6);
+        var application = await applies.CreateAsync(room.Id, "", default);
+        SelectStudent(1);
+        using var listener = new MetricCapture(metrics);
+        var result = await applies.DecideAsync(application.Id, false, default);
+        Assert.Equal("Rejected", result.Status);
+        Assert.Equal(1, listener.Count("exe.room.applications", "result", "rejected"));
+        Assert.Equal(0, listener.Count("exe.room.joins"));
+    }
+
     private static CompositionAnalysis Analysis(bool satisfied) => new(satisfied, 4, 0, 3, 0, [], [], satisfied ? [] : ["Thiếu ngành."]);
 
     [Fact]
