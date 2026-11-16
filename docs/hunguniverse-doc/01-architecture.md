@@ -62,6 +62,7 @@ flowchart LR
 | 25 | [Giao diện chi tiết phòng](25-frontend-room.md) |
 | 26 | [Học phần trên web](26-frontend-courses.md) |
 | 27 | [Bảng quản lý staff và admin](27-frontend-staff.md) |
+| 28 | [HTTP client và kiểu dữ liệu web](28-frontend-api.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
