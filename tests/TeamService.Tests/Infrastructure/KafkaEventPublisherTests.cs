@@ -17,7 +17,7 @@ public class KafkaEventPublisherTests
         producer.Setup(x => x.ProduceAsync(KafkaTopics.Events, It.IsAny<Message<string, string>>(), It.IsAny<CancellationToken>()))
             .Callback<string, Message<string, string>, CancellationToken>((_, message, _) => sent = message)
             .ReturnsAsync(new DeliveryResult<string, string>());
-        var publisher = new KafkaEventPublisher(producer.Object, new ConfigurationBuilder().Build(), NullLogger<KafkaEventPublisher>.Instance);
+        var publisher = new KafkaEventPublisher(producer.Object, new ConfigurationBuilder().Build(), NullLogger<KafkaEventPublisher>.Instance, TestMetrics.Create());
         var envelope = new EventEnvelope { Type = EventTypes.RoomCreated, Data = new Dictionary<string, string> { [EventDataKeys.RoomCode] = "ROOM-1" } };
         await publisher.PublishAsync(envelope);
         Assert.NotNull(sent);
@@ -31,7 +31,7 @@ public class KafkaEventPublisherTests
     {
         var producer = new Mock<IProducer<string, string>>();
         producer.Setup(x => x.ProduceAsync(It.IsAny<string>(), It.IsAny<Message<string, string>>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException());
-        var publisher = new KafkaEventPublisher(producer.Object, new ConfigurationBuilder().Build(), NullLogger<KafkaEventPublisher>.Instance);
+        var publisher = new KafkaEventPublisher(producer.Object, new ConfigurationBuilder().Build(), NullLogger<KafkaEventPublisher>.Instance, TestMetrics.Create());
         await publisher.PublishAsync(new EventEnvelope { Type = EventTypes.RoomCreated });
     }
 }

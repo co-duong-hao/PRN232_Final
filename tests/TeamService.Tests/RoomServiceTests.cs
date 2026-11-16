@@ -24,6 +24,7 @@ public sealed class RoomServiceTests : IAsyncLifetime
     private readonly List<EventEnvelope> events = [];
     private ITeamCache cache = null!;
     private TeamDbContext db = null!;
+    private readonly Exe.TeamService.Infrastructure.TeamMetrics metrics = TestMetrics.Create();
     private RoomService rooms = null!;
     private RoomApplyService applies = null!;
     private Guid courseId;
@@ -40,8 +41,8 @@ public sealed class RoomServiceTests : IAsyncLifetime
         publisher.Setup(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()))
             .Callback<EventEnvelope, CancellationToken>((e, _) => events.Add(e)).Returns(Task.CompletedTask);
         cache = TestCache.Create();
-        rooms = new RoomService(db, user.Object, matching.Object, publisher.Object, Options.Create(new RoomOptions()), cache, new ReferenceService(db, cache), new ConfigurationBuilder().Build());
-        applies = new RoomApplyService(db, rooms, publisher.Object, Options.Create(new RoomOptions()));
+        rooms = new RoomService(db, user.Object, matching.Object, publisher.Object, Options.Create(new RoomOptions()), cache, new ReferenceService(db, cache), new ConfigurationBuilder().Build(), metrics);
+        applies = new RoomApplyService(db, rooms, publisher.Object, Options.Create(new RoomOptions()), metrics);
         SelectStudent(1);
     }
 
@@ -54,6 +55,48 @@ public sealed class RoomServiceTests : IAsyncLifetime
     private void SelectStudent(int number)
     {
         userId = Guid.Parse($"10000000-0000-0000-0000-{number:000000000000}");
+    }
+
+    [Fact]
+    public async Task Metrics_WhenRoomCreatedAndRuleRejected_RecordsOnlySuccess()
+    {
+        using var listener = new MetricCapture(metrics);
+        await rooms.CreateAsync(courseId, default);
+        await Assert.ThrowsAsync<BusinessRuleException>(() => rooms.CreateAsync(courseId, default));
+        Assert.Equal(1, listener.Count("exe.rooms.created", "course", "FA26-EXE101"));
+    }
+
+    [Fact]
+    public async Task Metrics_WhenJoiningApprovingAndCompleting_RecordsOutcomes()
+    {
+        using var listener = new MetricCapture(metrics);
+        var room = await rooms.CreateAsync(courseId, default);
+        SelectStudent(6); await rooms.JoinAsync(room.Id, default);
+        var entity = await db.Rooms.SingleAsync(x => x.Id == room.Id);
+        entity.Status = RoomStatus.Locked; await db.SaveChangesAsync();
+        SelectStudent(8); var apply = await applies.CreateAsync(room.Id, "", default);
+        SelectStudent(1); await applies.DecideAsync(apply.Id, true, default);
+        matching.Setup(x => x.AnalyzeCompositionAsync(It.IsAny<GroupTypeRule>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(Analysis(true));
+        await rooms.CompleteAsync(room.Id, default);
+        Assert.Equal(1, listener.Count("exe.room.joins", "mode", "direct"));
+        Assert.Equal(1, listener.Count("exe.room.joins", "mode", "approved"));
+        Assert.Equal(1, listener.Count("exe.room.applications", "result", "approved"));
+        Assert.Equal(1, listener.Count("exe.groups.formed", "course", "FA26-EXE101"));
+    }
+
+    [Fact]
+    public async Task Metrics_WhenGroupTypeReadTwice_RecordsMissThenHit()
+    {
+        using var listener = new MetricCapture(metrics);
+        var controller = new Exe.TeamService.Controllers.GroupTypesController(new ReferenceService(db, cache), cache, new ConfigurationBuilder().Build(), metrics)
+        {
+            ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() }
+        };
+        var id = await db.GroupTypes.Select(x => x.Id).FirstAsync();
+        await controller.Get(id, default);
+        await controller.Get(id, default);
+        Assert.Equal(1, listener.Count("exe.cache.requests", "result", "miss"));
+        Assert.Equal(1, listener.Count("exe.cache.requests", "result", "hit"));
     }
 
     private static CompositionAnalysis Analysis(bool satisfied) => new(satisfied, 4, 0, 3, 0, [], [], satisfied ? [] : ["Thiếu ngành."]);

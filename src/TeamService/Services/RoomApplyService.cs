@@ -1,3 +1,4 @@
+using Exe.TeamService.Infrastructure;
 using Exe.Contracts.Events;
 using Exe.Shared.Web.Errors;
 using Exe.TeamService.Abstractions;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Exe.TeamService.Services;
 
-public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEventPublisher publisher, IOptions<RoomOptions> options) : IRoomApplyService
+public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEventPublisher publisher, IOptions<RoomOptions> options, TeamMetrics metrics) : IRoomApplyService
 {
     private static ApplyDto Map(RoomApply apply)
     {
@@ -61,6 +62,7 @@ public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEvent
         {
             throw new BusinessRuleException("APPLY_ALREADY_PENDING", "Sinh viên đã có đơn chờ vào phòng này.");
         }
+        metrics.Application("submitted");
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomApplyCreated, room, [room.Leader],
             (EventDataKeys.ActorName, student.FullName), (EventDataKeys.Message, message)), ct);
         return Map(apply);
@@ -97,6 +99,8 @@ public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEvent
         apply.DecidedBy = leader.Id;
         apply.DecidedAt = DateTime.UtcNow;
         await rooms.SaveMembershipAsync(ct);
+        metrics.Application(approve ? "approved" : "rejected");
+        if (approve) metrics.RoomJoined("approved");
         if (approve) await rooms.InvalidateStatsAsync(room.CourseId, ct);
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomApplyDecided, room, [apply.Student],
             (EventDataKeys.ActorName, leader.FullName), (EventDataKeys.Decision, apply.Status.ToString())), ct);
@@ -127,6 +131,7 @@ public sealed class RoomApplyService(TeamDbContext db, RoomService rooms, IEvent
         CheckPending(apply);
         apply.Status = ApplyStatus.Cancelled;
         await db.SaveChangesAsync(ct);
+        metrics.Application("cancelled");
         return Map(apply);
     }
 }
