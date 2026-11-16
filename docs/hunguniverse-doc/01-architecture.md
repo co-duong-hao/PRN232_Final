@@ -37,6 +37,7 @@ flowchart LR
 |---:|---|
 | 01 | [Kiến trúc hệ thống](01-architecture.md) |
 | 02 | [Docker Compose](02-compose.md) |
+| 03 | [Build và image Docker](03-build-images.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
