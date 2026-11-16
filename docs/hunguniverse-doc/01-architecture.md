@@ -44,6 +44,7 @@ flowchart LR
 | 07 | [Đăng nhập và JWT](07-auth-login.md) |
 | 08 | [Quản trị tài khoản](08-auth-admin.md) |
 | 09 | [Dữ liệu mẫu v0.4](09-seed-data.md) |
+| 10 | [Schema quan hệ ban đầu](10-migrations-base.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
