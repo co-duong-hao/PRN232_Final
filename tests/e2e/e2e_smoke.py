@@ -97,7 +97,8 @@ def preflight(course_id, course_code):
         print(f"   Không tìm thấy dữ liệu mẫu cho {course_code}.")
         raise ScriptError()
     if body.get("status") != "Forming":
-        print(f"   {course_code} đang ở trạng thái {body.get('status')}. Script cần dữ liệu mẫu ban đầu.")
+        print(f"   {course_code} đang ở trạng thái {body.get('status')}. Script cần dữ liệu mẫu ban đầu. "
+              "Reset môi trường thử nghiệm trước khi chạy lại.")
         return False
     status, body = call("GET", f"/api/courses/{course_id}/rooms?pageSize=1", token)
     require_status("kiểm tra dữ liệu mẫu", status, 200, body)
@@ -118,9 +119,8 @@ def mailpit_messages():
     return inbox["messages"] or []
 
 
-def wait_for_room_completed_mail(group_code, prior_message_ids):
-    expected = {f"student{number:02d}@exe.local" for number in (1, 2, 6, 8)}
-    subject = f"[EXE] Nhóm {group_code} đã được thành lập"
+def wait_for_notification(subject, student_numbers, prior_message_ids):
+    expected = {f"student{number:02d}@exe.local" for number in student_numbers}
     deadline = time.monotonic() + 20
     recipients = set()
     while time.monotonic() < deadline:
@@ -133,7 +133,7 @@ def wait_for_room_completed_mail(group_code, prior_message_ids):
             return messages
         time.sleep(0.5)
     missing = ", ".join(sorted(expected - recipients))
-    print(f"   Mailpit chưa nhận đủ email RoomCompleted cho nhóm {group_code}. Thiếu: {missing}")
+    print(f"   Mailpit chưa nhận đủ email '{subject}'. Thiếu: {missing}")
     raise ScriptError()
 
 
@@ -235,7 +235,7 @@ def main():
                   and item.get("status") == "Completed" for item in items))
 
     # Notifications reach Mailpit through Kafka
-    wait_for_room_completed_mail(grp["code"], prior_message_ids)
+    wait_for_notification(f"[EXE] Nhóm {grp['code']} đã được thành lập", (1, 2, 6, 8), prior_message_ids)
     results.append(True)
     print(f"[OK ] RoomCompleted email delivered for {grp['code']}")
 
@@ -312,11 +312,45 @@ def application_workflow(rooms_path, tokens):
     return room_path
 
 
+def course_close_workflow(course_path, room_path, tokens):
+    lecturer = login("lecturer@exe.local")
+    head = login("hod@exe.local")
+    close_path = course_path + "/close"
+    status, body = call("POST", close_path, lecturer)
+    check("lecturer cannot close a course", status, 403, body)
+    status, body = call("POST", close_path, tokens[1])
+    check("student cannot close a course", status, 403, body)
+
+    prior_message_ids = {message["ID"] for message in mailpit_messages()}
+    status, body = call("POST", close_path, head)
+    check("head of department closes EXE201", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Closed")
+    status, body = call("GET", course_path, lecturer)
+    check("closed state is persisted and visible to staff", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Closed")
+    status, body = call("POST", close_path, head)
+    check("closing a closed course is rejected", status, 409, body, "INVALID_COURSE_STATE")
+
+    status, body = call("POST", course_path + "/rooms", tokens[8])
+    check("students cannot create a room after closure", status, 409, body, "COURSE_NOT_FORMING")
+    status, body = call("POST", room_path + "/leave", tokens[2])
+    check("students cannot leave a room after closure", status, 409, body, "COURSE_NOT_FORMING")
+    status, body = call("GET", f"/api/courses/{COURSE}", lecturer)
+    check("closing EXE201 leaves EXE101 forming", status, 200, body,
+          matches=isinstance(body, dict) and body.get("status") == "Forming")
+
+    wait_for_notification("[EXE] FA26-EXE201 đã đóng ghép nhóm", (1, 2, 6), prior_message_ids)
+    results.append(True)
+    print("[OK ] CourseClosed email delivered to members of the unfinished room")
+
+
 def workflows():
-    rooms_path = f"/api/courses/{WORKFLOW_COURSE}/rooms"
+    course_path = f"/api/courses/{WORKFLOW_COURSE}"
+    rooms_path = course_path + "/rooms"
     tokens = {number: login(f"student{number:02d}@exe.local") for number in (1, 2, 6, 8, 9)}
     room_leave_workflow(rooms_path, tokens)
-    application_workflow(rooms_path, tokens)
+    room_path = application_workflow(rooms_path, tokens)
+    course_close_workflow(course_path, room_path, tokens)
     print(f"\n{sum(results)}/{len(results)} workflow checks passed")
     return 0
 
