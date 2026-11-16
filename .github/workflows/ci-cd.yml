@@ -1,12 +1,12 @@
-# CI: every push and pull request builds the .NET solution, runs the unit tests, checks and builds the web app,
-#     and builds the six Docker images.
+# CI: the backend job runs tests and collects coverage. Main, integration, and feature branch builds check the web app
+#     and build the six Docker images.
 # CD: on a push to main (and on manual runs from main) the images are also pushed to GitHub Container Registry:
 #     ghcr.io/<owner>/prn232-<service>:latest and :sha-<short commit>. `docker compose pull` then fetches them.
 name: CI/CD
 
 on:
   push:
-    branches: [main, integration, "feat/**"]
+    branches: [main, integration, "feat/**", "test/hunguniverse"]
   pull_request:
     branches: [main, integration]
   workflow_dispatch:
@@ -24,7 +24,7 @@ env:
 
 jobs:
   backend:
-    name: Backend build and unit tests
+    name: Backend tests and coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,14 +42,20 @@ jobs:
       - name: Test
         run: >
           dotnet test ExeTeamMatching.sln -c Release --no-build
-          --logger "trx;LogFilePrefix=results" --results-directory TestResults
+          --logger trx --results-directory TestResults
+          --collect 'Code Coverage' --settings tests/coverage.runsettings
+
+      - name: Test recruitment scenario helpers
+        run: python3 -m unittest discover -s tests/e2e -p test_recruitment_notifications.py
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/**/*.cobertura.xml
           if-no-files-found: warn
 
   frontend:
