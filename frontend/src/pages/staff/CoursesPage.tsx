@@ -10,6 +10,7 @@ import { courseStatusLabel } from "@/components/labels";
 import { CourseStatusTag } from "@/components/StatusTag";
 import { CourseActions } from "@/features/staff/CourseActions";
 import { StaffLoadError } from "@/features/staff/StaffLoadError";
+import { staffSortOrder } from "@/features/staff/staffTableSort";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
@@ -126,14 +127,16 @@ export function CoursesPage() {
             responsive: true,
             showLessItems: !screens.sm,
           }}
-          onChange={(p, _, s) => {
+          onChange={(p, _, s, { action }) => {
             const sort = Array.isArray(s) ? s[0] : s;
             setParams((x) => ({
               ...x,
-              page: p.current,
+              page: action === "sort" ? 1 : p.current,
               pageSize: p.pageSize,
-              sortBy: sort?.order ? String(sort.field) : undefined,
-              sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
+              ...(action === "sort" && {
+                sortBy: sort?.order ? String(sort.field) : undefined,
+                sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
+              }),
             }));
           }}
           columns={[
@@ -141,6 +144,7 @@ export function CoursesPage() {
               title: "Mã học phần",
               dataIndex: "code",
               sorter: true,
+              sortOrder: staffSortOrder(params, "code"),
               render: (v: string, r: Course) => <Link to={`/staff/courses/${r.id}`}>{v}</Link>,
             },
             {
@@ -151,7 +155,13 @@ export function CoursesPage() {
             { title: "Loại nhóm", dataIndex: "groupTypeName" },
             { title: "Sĩ số", dataIndex: "studentCount" },
             { title: "Bắt đầu", dataIndex: "startTime", render: formatDateTime },
-            { title: "Hạn ghép nhóm", dataIndex: "deadline", sorter: true, render: formatDateTime },
+            {
+              title: "Hạn ghép nhóm",
+              dataIndex: "deadline",
+              sorter: true,
+              sortOrder: staffSortOrder(params, "deadline"),
+              render: formatDateTime,
+            },
             {
               title: "Thao tác",
               render: (_: unknown, r: Course) => <CourseActions course={r} onChanged={load} />,

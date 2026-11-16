@@ -8,6 +8,7 @@ import { formatDateTime } from "@/components/format";
 import { roleLabel } from "@/components/labels";
 import { useApiAction } from "@/components/useApiAction";
 import { StaffLoadError } from "@/features/staff/StaffLoadError";
+import { staffSortOrder } from "@/features/staff/staffTableSort";
 import { useStaffQuery } from "@/features/staff/useStaffQuery";
 import { TableSkeleton } from "@/features/WorkspaceSkeletons";
 
@@ -134,19 +135,26 @@ export function UsersPage() {
             responsive: true,
             showLessItems: !screens.sm,
           }}
-          onChange={(p, _, s) => {
+          onChange={(p, _, s, { action }) => {
             const sort = Array.isArray(s) ? s[0] : s;
             setParams((x) => ({
               ...x,
-              page: p.current,
+              page: action === "sort" ? 1 : p.current,
               pageSize: p.pageSize,
-              sortBy: sort?.order ? String(sort.field) : undefined,
-              sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
+              ...(action === "sort" && {
+                sortBy: sort?.order ? String(sort.field) : undefined,
+                sortDir: sort?.order === "ascend" ? "asc" : sort?.order ? "desc" : undefined,
+              }),
             }));
           }}
           columns={[
-            { title: "Email", dataIndex: "email", sorter: true },
-            { title: "Họ tên", dataIndex: "fullName", sorter: true },
+            { title: "Email", dataIndex: "email", sorter: true, sortOrder: staffSortOrder(params, "email") },
+            {
+              title: "Họ tên",
+              dataIndex: "fullName",
+              sorter: true,
+              sortOrder: staffSortOrder(params, "fullName"),
+            },
             {
               title: "Vai trò",
               dataIndex: "roles",
@@ -158,7 +166,13 @@ export function UsersPage() {
               render: (s: UserStatus) =>
                 s === "Active" ? <Tag color="green">Hoạt động</Tag> : <Tag>Vô hiệu hóa</Tag>,
             },
-            { title: "Ngày tạo", dataIndex: "createdAt", sorter: true, render: formatDateTime },
+            {
+              title: "Ngày tạo",
+              dataIndex: "createdAt",
+              sorter: true,
+              sortOrder: staffSortOrder(params, "createdAt"),
+              render: formatDateTime,
+            },
             {
               title: "Thao tác",
               render: (_: unknown, u: User) => (
