@@ -227,7 +227,7 @@ def main():
         print(f"   - {m['studentCode']} {m['fullName']} ({m['majorCode']}){'  ★ trưởng nhóm' if m['isLeader'] else ''}")
 
     show_course_stats(lecturer)
-    print("   Trên web: đăng nhập giảng viên, mở Quản lý Course / FA26-EXE101 / Thống kê.")
+    print("   Trên web: đăng nhập giảng viên, mở Quản lý học phần / FA26-EXE101 / Thống kê.")
     print("   Chọn Xem sinh viên để lọc người chưa có phòng hoặc chọn Đã thành nhóm để xem phòng hoàn tất.")
     print("   Thu hẹp cửa sổ để xem các chỉ số xếp lại và cuộn ngang trong bảng.")
     print("   Có thể chặn riêng yêu cầu GET */stats trong DevTools, tải lại trang để xem lỗi, "

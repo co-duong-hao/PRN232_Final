@@ -12,8 +12,8 @@ Bạn là một worker: chỉ làm đúng task được giao.
    `Directory.*.props`, `docker-compose.yml`, các `Dockerfile`, `deploy/**` (trừ file task cho phép), `docs/design/**`, và trong frontend:
    `package.json`, `package-lock.json`, các file cấu hình, `src/api/**`, `src/auth/**`,
    `src/components/**`, `src/App.tsx`, `src/main.tsx`.
-4. Không `git push`, không merge, không đổi nhánh, không sửa cấu hình sandbox hay rules. Không cần commit.
-   Không cài thêm package.
+4. Được phép `git push` (và commit khi cần push). Không merge, không đổi nhánh, không sửa cấu hình sandbox hay rules.
+   Không cần commit nếu không được yêu cầu. Không cài thêm package.
 5. Trước khi báo xong:
    - backend: `dotnet build ExeTeamMatching.sln` không lỗi, test của phần mình xanh;
    - frontend: `npm run format` rồi `npm run build` trong `frontend/`, build không lỗi.

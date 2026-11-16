@@ -181,7 +181,7 @@ python docs/demo/demo.py .env
 ```
 
 Sau đó mở http://localhost:8025 để xem email. Trên web, đăng nhập bằng `lecturer@exe.local` và mở
-**Quản lý Course → FA26-EXE101 → Thống kê**. Chọn **Xem sinh viên** để xem danh sách chưa có phòng.
+**Quản lý học phần → FA26-EXE101 → Thống kê**. Chọn **Xem sinh viên** để xem danh sách chưa có phòng.
 
 ### Kiểm thử end-to-end (34 + 55 kiểm tra)
 
@@ -213,7 +213,7 @@ python tests/e2e/e2e_smoke.py .env --workflows
 dotnet test ExeTeamMatching.sln
 ```
 
-Kết quả đúng: 4 dòng `Passed!` (Auth, Matching, Noti, Team), tổng 94 test.
+Kết quả đúng: 5 dòng `Passed!` (Auth, Gateway, Matching, Noti, Team), tổng 436 test.
 
 ---
 

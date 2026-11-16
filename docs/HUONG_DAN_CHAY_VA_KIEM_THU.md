@@ -289,7 +289,7 @@ dotnet test ExeTeamMatching.sln
 End-to-end trên hệ thống thật, ngay sau khi reset (A4):
 
 ```powershell
-python tests/e2e/e2e_smoke.py .env               # 29/29 checks passed — EXE101: QT01–QT06, BR05/09/16/18, gRPC, email
+python tests/e2e/e2e_smoke.py .env               # 34/34 checks passed — EXE101: QT01–QT06, BR05/09/16/18, gRPC, email
 python tests/e2e/e2e_smoke.py .env --workflows   # 55/55 workflow checks passed — EXE201: rời phòng, tìm theo GPA/vai trò, đơn, đóng Course
 ```
 
@@ -357,6 +357,6 @@ docker compose start redis     # khoảng 40 giây sau có email "[RESOLVED] ...
 | Redis | B6: header `X-Cache` | MISS rồi HIT; Redis tắt vẫn 200 | TeamCacheTests |
 | Background job | B7: hạn về quá khứ | `Closed` trong 60 giây | CourseCloseJobTests, CourseCloseProcessorTests |
 | Docker Compose | B8: `docker compose ps` | 13 container Up | — |
-| End-to-end | B9: `e2e_smoke.py` (+ `--workflows`) | 29/29 và 55/55 | — |
+| End-to-end | B9: `e2e_smoke.py` (+ `--workflows`) | 34/34 và 55/55 | — |
 | CI/CD | B10: tab Actions | Mọi job xanh, image trên GHCR | — |
 | Giám sát | B11: dừng Redis | Ô đỏ, email FIRING rồi RESOLVED | — |
