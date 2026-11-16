@@ -1,117 +1,85 @@
+import { CourseDetailSkeleton, CourseStatsSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
 import "@/features/workspace.css";
 import {
   App,
   Button,
-  Card,
   Descriptions,
-  Empty,
   Input,
+  Empty,
+  Grid,
   Modal,
   Popconfirm,
-  Progress,
   Select,
   Space,
-  Statistic,
   Table,
   Tag,
   Tabs,
   Typography,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ApiError,
   coursesApi,
   referenceApi,
-  roomsApi,
-  type CompositionAnalysis,
-  type Course,
-  type CourseStats,
   type CourseStudent,
   type CourseStudentParams,
   type Group,
-  type GroupType,
-  type Lookup,
   type PageParams,
-  type Paged,
-  type Room,
   type RoomListParams,
   type RoomSummary,
-  type Student,
 } from "@/api";
 import { useAuth } from "@/auth/AuthContext";
 import { formatDateTime } from "@/components/format";
 import { roomStatusLabel } from "@/components/labels";
 import { CourseStatusTag, MajorCounts, RoomStatusTag } from "@/components/StatusTag";
-import { useApiAction, useShowError } from "@/components/useApiAction";
+import { useApiAction } from "@/components/useApiAction";
 import { CourseActions } from "@/features/staff/CourseActions";
-import { CourseDetailSkeleton, CourseStatsSkeleton, TableSkeleton } from "@/features/WorkspaceSkeletons";
+import { CourseStatistics } from "@/features/staff/CourseStatistics";
+import { StaffLoadError } from "@/features/staff/StaffLoadError";
+import { StaffRoomDetails } from "@/features/staff/StaffRoomDetails";
+import { useStaffQuery } from "@/features/staff/useStaffQuery";
+import "@/features/staff/staffPages.css";
 export function CourseDetailPage() {
   const { courseId = "" } = useParams();
+  return <CourseDetail key={courseId} courseId={courseId} />;
+}
+
+function CourseDetail({ courseId }: { courseId: string }) {
   const { hasRole } = useAuth();
+  const screens = Grid.useBreakpoint();
   const { message } = App.useApp();
-  const showError = useShowError();
-  const [course, setCourse] = useState<Course>();
-  const [stats, setStats] = useState<CourseStats>();
-  const [types, setTypes] = useState<GroupType[]>([]);
-  const [majors, setMajors] = useState<Lookup[]>([]);
-  const [tab, setTab] = useState("students");
-  const [headerLoading, setHeaderLoading] = useState(true);
-  const [filtersLoading, setFiltersLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("stats");
   const [sp, setSp] = useState<CourseStudentParams>({ page: 1, pageSize: 20 });
   const [rp, setRp] = useState<RoomListParams>({ page: 1, pageSize: 20 });
   const [gp, setGp] = useState<PageParams>({ page: 1, pageSize: 20 });
-  const [students, setStudents] = useState<Paged<CourseStudent>>();
-  const [rooms, setRooms] = useState<Paged<RoomSummary>>();
-  const [groups, setGroups] = useState<Paged<Group>>();
-  const [details, setDetails] = useState<Record<string, Room>>({});
-  const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({});
-  const [analysis, setAnalysis] = useState<CompositionAnalysis>();
-  const [checking, setChecking] = useState(false);
   const [enrollOpen, setEnrollOpen] = useState(false);
-  const [choices, setChoices] = useState<Student[]>([]);
-  const [searchingStudents, setSearchingStudents] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const loadHeader = useCallback(() => {
-    setHeaderLoading(true);
-    Promise.all([coursesApi.get(courseId), coursesApi.stats(courseId)])
-      .then(([c, s]) => {
-        setCourse(c);
-        setStats(s);
-      })
-      .catch(showError)
-      .finally(() => setHeaderLoading(false));
-  }, [courseId, showError]);
-  const loadTab = useCallback(() => {
-    setLoading(true);
-    const request =
-      tab === "students"
-        ? coursesApi.students(courseId, sp).then(setStudents)
-        : tab === "rooms"
-          ? coursesApi.rooms(courseId, rp).then(setRooms)
-          : coursesApi.groups(courseId, gp).then(setGroups);
-    request.catch(showError).finally(() => setLoading(false));
-  }, [courseId, tab, sp, rp, gp, showError]);
-  useEffect(() => {
-    setCourse(undefined);
-    setStats(undefined);
-    loadHeader();
-  }, [loadHeader]);
-  useEffect(loadTab, [loadTab]);
-  useEffect(() => {
-    setFiltersLoading(true);
-    Promise.all([referenceApi.majors(), referenceApi.groupTypes()])
-      .then(([m, t]) => {
-        setMajors(m.items);
-        setTypes(t.items);
-      })
-      .catch(showError)
-      .finally(() => setFiltersLoading(false));
-  }, [showError]);
+  const loadCourse = useCallback(() => coursesApi.get(courseId), [courseId]);
+  const courseQuery = useStaffQuery(loadCourse);
+  const course = courseQuery.data;
+  const loadStats = useCallback(() => coursesApi.stats(courseId), [courseId]);
+  const stats = useStaffQuery(course ? loadStats : null);
+
+  const loadStudents = useCallback(() => coursesApi.students(courseId, sp), [courseId, sp]);
+  const loadRooms = useCallback(() => coursesApi.rooms(courseId, rp), [courseId, rp]);
+  const loadGroups = useCallback(() => coursesApi.groups(courseId, gp), [courseId, gp]);
+  const students = useStaffQuery(course && tab === "students" ? loadStudents : null);
+  const rooms = useStaffQuery(course && tab === "rooms" ? loadRooms : null);
+  const groups = useStaffQuery(course && tab === "groups" ? loadGroups : null);
+  const majors = useStaffQuery(course && tab === "students" ? referenceApi.majors : null);
+  const groupTypes = useStaffQuery(course ? referenceApi.groupTypes : null);
+  const searchStudents = useCallback(
+    () => referenceApi.students({ q: studentSearch, page: 1, pageSize: 100 }),
+    [studentSearch],
+  );
+  const choices = useStaffQuery(enrollOpen ? searchStudents : null);
   const refresh = () => {
-    loadHeader();
-    loadTab();
+    courseQuery.reload();
+    stats.reload();
+    students.reload();
+    rooms.reload();
+    groups.reload();
   };
   const [enroll, enrolling] = useApiAction(
     (ids: string[]) => coursesApi.enroll(courseId, ids),
@@ -121,26 +89,7 @@ export function CourseDetailPage() {
     await coursesApi.removeStudent(courseId, id);
     return true;
   }, "Đã gỡ sinh viên");
-  const searchStudents = (q: string) => {
-    setSearchingStudents(true);
-    return referenceApi
-      .students({ q, page: 1, pageSize: 100 })
-      .then((x) => setChoices(x.items))
-      .catch(showError)
-      .finally(() => setSearchingStudents(false));
-  };
-  const check = async (id: string) => {
-    setChecking(true);
-    try {
-      setAnalysis(await roomsApi.composition(id));
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 503) message.error("Dịch vụ ghép nhóm không phản hồi");
-      else showError(e);
-    } finally {
-      setChecking(false);
-    }
-  };
-  const type = types.find((t) => t.id === course?.groupTypeId);
+  const type = groupTypes.data?.items.find((t) => t.id === course?.groupTypeId);
   const memberList = (
     members: {
       studentId: string;
@@ -151,8 +100,8 @@ export function CourseDetailPage() {
     }[],
   ) => (
     <Table
-      scroll={{ x: 480 }}
       size="small"
+      scroll={{ x: "max-content" }}
       rowKey="studentId"
       pagination={false}
       dataSource={members}
@@ -168,78 +117,76 @@ export function CourseDetailPage() {
       ]}
     />
   );
-  if (headerLoading && !course) {
+  if (courseQuery.loading) {
     return (
       <CourseDetailSkeleton canManage={hasRole("Admin", "HeadOfDepartment")} isAdmin={hasRole("Admin")} />
     );
   }
   if (!course) {
     return (
-      <div className="workspace-page">
-        <header className="workspace-heading">
-          <div>
-            <Link to="/staff/courses">← Quản lý Course</Link>
-            <Typography.Title level={1}>Không tìm thấy Course</Typography.Title>
-          </div>
-        </header>
-        <Empty description="Không tìm thấy Course" />
+      <div className="workspace-page staff-page">
+        <Link to="/staff/courses">Danh sách Course</Link>
+        <Typography.Title level={2}>Chi tiết Course</Typography.Title>
+        {courseQuery.failure && (
+          <StaffLoadError
+            title="Không tải được Course"
+            error={courseQuery.failure.error}
+            onRetry={courseQuery.reload}
+          />
+        )}
       </div>
     );
   }
   return (
-    <div className="workspace-page">
+    <div className="workspace-page staff-page">
       <header className="workspace-heading">
         <div>
           <Link to="/staff/courses">← Quản lý Course</Link>
-          <Typography.Title level={1}>{course.code}</Typography.Title>
-          <CourseStatusTag status={course.status} />
+          <Typography.Title level={1}>
+            {course.code} <CourseStatusTag status={course.status} />
+          </Typography.Title>
         </div>
-        <CourseActions course={course} onChanged={refresh} allowDelete={false} />
+        {hasRole("Admin", "HeadOfDepartment") && (
+          <CourseActions course={course} onChanged={refresh} allowDelete={false} />
+        )}
       </header>
       <Descriptions
         bordered
+        column={{ xs: 1, sm: 2, md: 2, lg: 2, xl: 2, xxl: 2 }}
         size="small"
         className="workspace-course-description"
-        column={{ xs: 1, sm: 2, lg: 2, xl: 2, xxl: 2 }}
         items={[
           { key: "type", label: "Loại nhóm", children: course.groupTypeName },
           {
             key: "rule",
             label: "Quy định",
-            children: type
-              ? `${type.minMemberCount}–${type.maxMemberCount} thành viên, ít nhất ${type.minMajorCount} ngành; ${type.majors.map((m) => `${m.majorCode}: ${m.minQuantity}–${m.maxQuantity}`).join(", ")}`
-              : "—",
+            children: type ? (
+              <>
+                <div>
+                  {type.minMemberCount}–{type.maxMemberCount} thành viên, ít nhất {type.minMajorCount} ngành
+                </div>
+                {type.majors.length > 0 && (
+                  <div>
+                    {type.majors.map((m) => `${m.majorCode} ${m.minQuantity}–${m.maxQuantity}`).join(", ")}
+                  </div>
+                )}
+              </>
+            ) : groupTypes.loading ? (
+              "Đang tải quy định…"
+            ) : (
+              "Không có thông tin quy định"
+            ),
           },
           { key: "start", label: "Bắt đầu", children: formatDateTime(course.startTime) },
           { key: "end", label: "Hạn", children: formatDateTime(course.deadline) },
         ]}
       />
-      {stats ? (
-        <Card title="Tiến độ ghép nhóm" className="workspace-section">
-          <div className="workspace-metrics">
-            <Statistic title="Tổng sinh viên" value={stats.totalStudents} />
-            <Statistic title="Đã vào phòng" value={stats.studentsInRoom} />
-            <Statistic title="Đã có nhóm" value={stats.studentsInGroup} />
-            <Statistic title="Số nhóm" value={stats.groupCount} />
-          </div>
-          <div className="workspace-section">
-            Tỉ lệ đã có nhóm{" "}
-            <Progress
-              percent={
-                stats.totalStudents ? Math.round((stats.studentsInGroup / stats.totalStudents) * 100) : 0
-              }
-            />
-          </div>
-          <Space wrap>
-            {Object.entries(roomStatusLabel).map(([k, v]) => (
-              <Tag key={k} color={v.color}>
-                {v.text}: {stats.roomsByStatus[k] ?? 0}
-              </Tag>
-            ))}
-          </Space>
-        </Card>
-      ) : (
-        headerLoading && <CourseStatsSkeleton />
+      {groupTypes.failure && (
+        <StaffLoadError
+          title="Không tải được quy định loại nhóm"
+          error={groupTypes.failure.error}
+          onRetry={groupTypes.reload}
+        />
       )}
       <Tabs
         className="workspace-section"
@@ -247,29 +194,65 @@ export function CourseDetailPage() {
         onChange={setTab}
         items={[
           {
+            key: "stats",
+            label: "Thống kê",
+            children: stats.failure ? (
+              <StaffLoadError
+                title="Không tải được thống kê"
+                error={stats.failure.error}
+                onRetry={stats.reload}
+              />
+            ) : stats.data ? (
+              <CourseStatistics
+                stats={stats.data}
+                canSeeCancelled={hasRole("Admin")}
+                onRefresh={stats.reload}
+                onShowUnassigned={() => {
+                  setSp({ page: 1, pageSize: sp.pageSize, hasRoom: false });
+                  setTab("students");
+                }}
+                onShowRooms={(status) => {
+                  setRp({ page: 1, pageSize: rp.pageSize, status });
+                  setTab("rooms");
+                }}
+                onShowGroups={() => {
+                  setGp({ page: 1, pageSize: gp.pageSize });
+                  setTab("groups");
+                }}
+              />
+            ) : (
+              <CourseStatsSkeleton />
+            ),
+          },
+          {
             key: "students",
             label: "Sinh viên",
             children: (
               <>
-                <Space wrap className="workspace-toolbar">
+                <Space wrap className="workspace-toolbar staff-filters">
                   <Input.Search
                     aria-label="Tìm sinh viên"
                     placeholder="Tìm sinh viên"
+                    key={sp.q ?? ""}
+                    defaultValue={sp.q}
                     allowClear
                     onSearch={(q) => setSp((x) => ({ ...x, q, page: 1 }))}
                   />
                   <Select
                     aria-label="Lọc theo ngành"
                     placeholder="Ngành"
+                    value={sp.majorId}
+                    loading={majors.loading}
+                    disabled={!!majors.failure}
                     allowClear
-                    loading={filtersLoading}
                     style={{ width: 150 }}
-                    options={majors.map((m) => ({ value: m.id, label: m.code }))}
+                    options={majors.data?.items.map((m) => ({ value: m.id, label: m.code }))}
                     onChange={(majorId) => setSp((x) => ({ ...x, majorId, page: 1 }))}
                   />
                   <Select
                     aria-label="Lọc theo tình trạng vào phòng"
                     placeholder="Phòng"
+                    value={sp.hasRoom}
                     allowClear
                     style={{ width: 160 }}
                     options={[
@@ -284,21 +267,33 @@ export function CourseDetailPage() {
                       onClick={() => {
                         setSelected([]);
                         setEnrollOpen(true);
-                        void searchStudents("");
+                        setStudentSearch("");
                       }}
                     >
                       Thêm sinh viên
                     </Button>
                   )}
                 </Space>
-                {loading ? (
+                {majors.failure && (
+                  <StaffLoadError
+                    title="Không tải được bộ lọc ngành"
+                    error={majors.failure.error}
+                    onRetry={majors.reload}
+                  />
+                )}
+                {students.failure ? (
+                  <StaffLoadError
+                    title="Không tải được danh sách sinh viên"
+                    error={students.failure.error}
+                    onRetry={students.reload}
+                  />
+                ) : students.loading ? (
                   <TableSkeleton
                     scrollX={840}
                     rows={5}
                     pagination={{
                       current: sp.page,
                       pageSize: sp.pageSize,
-                      total: students?.totalItems,
                     }}
                     columns={[
                       { title: "Mã SV", kind: "code" },
@@ -315,15 +310,27 @@ export function CourseDetailPage() {
                   />
                 ) : (
                   <Table
-                    scroll={{ x: 840 }}
                     rowKey="id"
-                    dataSource={students?.items ?? []}
+                    className="staff-table"
+                    scroll={{ x: "max-content" }}
+                    size={screens.sm ? "middle" : "small"}
+                    dataSource={students.data?.items ?? []}
                     pagination={{
                       current: sp.page,
                       pageSize: sp.pageSize,
-                      total: students?.totalItems,
-                      showSizeChanger: true,
+                      total: students.data?.totalItems,
+                      showSizeChanger: !!screens.sm,
+                      responsive: true,
+                      showLessItems: !screens.sm,
                       onChange: (page, pageSize) => setSp((x) => ({ ...x, page, pageSize })),
+                    }}
+                    locale={{
+                      emptyText: (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="Không có sinh viên phù hợp"
+                        />
+                      ),
                     }}
                     columns={[
                       { title: "Mã SV", dataIndex: "studentCode" },
@@ -375,16 +382,19 @@ export function CourseDetailPage() {
             label: "Phòng",
             children: (
               <>
-                <Space wrap className="workspace-toolbar">
+                <Space wrap className="workspace-toolbar staff-filters">
                   <Input.Search
                     aria-label="Tìm mã phòng"
                     placeholder="Tìm mã phòng"
+                    key={rp.q ?? ""}
+                    defaultValue={rp.q}
                     allowClear
                     onSearch={(q) => setRp((x) => ({ ...x, q, page: 1 }))}
                   />
                   <Select
                     aria-label="Lọc theo trạng thái phòng"
                     placeholder="Trạng thái"
+                    value={rp.status}
                     allowClear
                     style={{ width: 170 }}
                     options={Object.entries(roomStatusLabel)
@@ -393,12 +403,18 @@ export function CourseDetailPage() {
                     onChange={(status) => setRp((x) => ({ ...x, status, page: 1 }))}
                   />
                 </Space>
-                {loading ? (
+                {rooms.failure ? (
+                  <StaffLoadError
+                    title="Không tải được danh sách phòng"
+                    error={rooms.failure.error}
+                    onRetry={rooms.reload}
+                  />
+                ) : rooms.loading ? (
                   <TableSkeleton
                     scrollX={820}
                     rows={5}
                     showExpandColumn
-                    pagination={{ current: rp.page, pageSize: rp.pageSize, total: rooms?.totalItems }}
+                    pagination={{ current: rp.page, pageSize: rp.pageSize }}
                     columns={[
                       { title: "Mã", kind: "code" },
                       { title: "Tên nhóm", kind: "text" },
@@ -413,50 +429,27 @@ export function CourseDetailPage() {
                   />
                 ) : (
                   <Table
-                    scroll={{ x: 820 }}
                     rowKey="id"
-                    dataSource={rooms?.items ?? []}
+                    className="staff-table"
+                    scroll={{ x: "max-content" }}
+                    size={screens.sm ? "middle" : "small"}
+                    dataSource={rooms.data?.items ?? []}
                     pagination={{
                       current: rp.page,
                       pageSize: rp.pageSize,
-                      total: rooms?.totalItems,
-                      showSizeChanger: true,
+                      total: rooms.data?.totalItems,
+                      showSizeChanger: !!screens.sm,
+                      responsive: true,
+                      showLessItems: !screens.sm,
                       onChange: (page, pageSize) => setRp((x) => ({ ...x, page, pageSize })),
                     }}
                     expandable={{
-                      onExpand: (expanded, r) => {
-                        if (expanded && !details[r.id]) {
-                          setLoadingDetails((x) => ({ ...x, [r.id]: true }));
-                          roomsApi
-                            .get(r.id)
-                            .then((d) => setDetails((x) => ({ ...x, [r.id]: d })))
-                            .catch(showError)
-                            .finally(() => setLoadingDetails((x) => ({ ...x, [r.id]: false })));
-                        }
-                      },
-                      expandedRowRender: (r) => (
-                        <>
-                          {details[r.id] ? (
-                            memberList(details[r.id].members)
-                          ) : loadingDetails[r.id] ? (
-                            <TableSkeleton
-                              scrollX={480}
-                              size="small"
-                              rows={3}
-                              columns={[
-                                { title: "Mã SV", kind: "code" },
-                                { title: "Họ tên", kind: "text" },
-                                { title: "Ngành", kind: "code" },
-                                { title: "Vai trò", kind: "text" },
-                              ]}
-                            />
-                          ) : (
-                            <Empty description="Không tải được thành viên" />
-                          )}
-                          <Button loading={checking} onClick={() => check(r.id)}>
-                            Kiểm tra cơ cấu
-                          </Button>
-                        </>
+                      expandedRowRender: (r, _index, _indent, expanded) =>
+                        expanded ? <StaffRoomDetails roomId={r.id} renderMembers={memberList} /> : null,
+                    }}
+                    locale={{
+                      emptyText: (
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có phòng phù hợp" />
                       ),
                     }}
                     columns={[
@@ -495,16 +488,24 @@ export function CourseDetailPage() {
                 <Input.Search
                   aria-label="Tìm mã nhóm"
                   placeholder="Tìm mã nhóm"
+                  key={gp.q ?? ""}
+                  defaultValue={gp.q}
                   allowClear
                   style={{ maxWidth: 300, marginBottom: 16 }}
                   onSearch={(q) => setGp((x) => ({ ...x, q, page: 1 }))}
                 />
-                {loading ? (
+                {groups.failure ? (
+                  <StaffLoadError
+                    title="Không tải được danh sách nhóm"
+                    error={groups.failure.error}
+                    onRetry={groups.reload}
+                  />
+                ) : groups.loading ? (
                   <TableSkeleton
                     scrollX={580}
                     rows={5}
                     showExpandColumn
-                    pagination={{ current: gp.page, pageSize: gp.pageSize, total: groups?.totalItems }}
+                    pagination={{ current: gp.page, pageSize: gp.pageSize }}
                     columns={[
                       { title: "Mã", kind: "code" },
                       { title: "Số thành viên", kind: "number" },
@@ -514,17 +515,26 @@ export function CourseDetailPage() {
                   />
                 ) : (
                   <Table
-                    scroll={{ x: 580 }}
                     rowKey="id"
-                    dataSource={groups?.items ?? []}
+                    className="staff-table"
+                    scroll={{ x: "max-content" }}
+                    size={screens.sm ? "middle" : "small"}
+                    dataSource={groups.data?.items ?? []}
                     pagination={{
                       current: gp.page,
                       pageSize: gp.pageSize,
-                      total: groups?.totalItems,
-                      showSizeChanger: true,
+                      total: groups.data?.totalItems,
+                      showSizeChanger: !!screens.sm,
+                      responsive: true,
+                      showLessItems: !screens.sm,
                       onChange: (page, pageSize) => setGp((x) => ({ ...x, page, pageSize })),
                     }}
                     expandable={{ expandedRowRender: (g) => memberList(g.members) }}
+                    locale={{
+                      emptyText: (
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có nhóm phù hợp" />
+                      ),
+                    }}
                     columns={[
                       { title: "Mã", dataIndex: "code" },
                       { title: "Số thành viên", render: (_: unknown, g: Group) => g.members.length },
@@ -546,6 +556,7 @@ export function CourseDetailPage() {
         open={enrollOpen}
         onCancel={() => setEnrollOpen(false)}
         confirmLoading={enrolling}
+        okButtonProps={{ disabled: selected.length === 0 }}
         onOk={async () => {
           const result = await enroll(selected);
           if (result) {
@@ -558,27 +569,26 @@ export function CourseDetailPage() {
         <Select
           mode="multiple"
           showSearch
-          loading={searchingStudents}
           filterOption={false}
           style={{ width: "100%" }}
           aria-label="Tìm sinh viên"
           placeholder="Tìm sinh viên"
           value={selected}
           onChange={setSelected}
-          onSearch={searchStudents}
-          options={choices.map((s) => ({ value: s.id, label: `${s.studentCode} - ${s.fullName}` }))}
+          onSearch={setStudentSearch}
+          loading={choices.loading}
+          options={choices.data?.items.map((s) => ({
+            value: s.id,
+            label: `${s.studentCode} - ${s.fullName}`,
+          }))}
         />
-      </Modal>
-      <Modal
-        title="Kiểm tra cơ cấu"
-        open={!!analysis}
-        onCancel={() => setAnalysis(undefined)}
-        footer={<Button onClick={() => setAnalysis(undefined)}>Đóng</Button>}
-      >
-        <p>{analysis?.satisfied ? "Cơ cấu đạt yêu cầu" : "Cơ cấu chưa đạt yêu cầu"}</p>
-        {analysis?.violations.map((v, i) => (
-          <p key={i}>{v}</p>
-        ))}
+        {choices.failure && (
+          <StaffLoadError
+            title="Không tìm được sinh viên"
+            error={choices.failure.error}
+            onRetry={choices.reload}
+          />
+        )}
       </Modal>
     </div>
   );

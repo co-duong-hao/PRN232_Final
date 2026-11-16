@@ -177,9 +177,10 @@ Chờ 30–60 giây trước khi chạy script.
 python docs/demo/demo.py .env
 ```
 
-Sau đó mở http://localhost:8025 để xem email.
+Sau đó mở http://localhost:8025 để xem email. Trên web, đăng nhập bằng `lecturer@exe.local` và mở
+**Quản lý Course → FA26-EXE101 → Thống kê**. Chọn **Xem sinh viên** để xem danh sách chưa có phòng.
 
-### Kiểm thử end-to-end (29 + 55 bước)
+### Kiểm thử end-to-end (34 + 55 kiểm tra)
 
 Reset dữ liệu trước (nếu vừa chạy demo), rồi:
 
@@ -187,7 +188,8 @@ Reset dữ liệu trước (nếu vừa chạy demo), rồi:
 python tests/e2e/e2e_smoke.py .env
 ```
 
-Kết quả đúng: dòng cuối `29/29 checks passed`.
+Kết quả đúng: dòng cuối `34/34 checks passed`. Kịch bản đối chiếu số liệu trước khi tạo phòng, sau khi
+phòng khóa và sau khi nhóm được thành lập. Kịch bản cũng kiểm tra sinh viên bị từ chối truy cập thống kê.
 
 Phần mở rộng với Course EXE201 (rời và mở lại phòng, tìm nhóm theo GPA và vai trò, từ chối và rút đơn, đóng Course).
 Chạy ngay sau lệnh trên, không cần reset lại; kết quả đúng là `55/55 workflow checks passed`:
