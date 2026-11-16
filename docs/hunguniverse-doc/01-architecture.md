@@ -49,6 +49,7 @@ flowchart LR
 | 12 | [Quản lý Course](12-courses.md) |
 | 13 | [Danh mục và loại nhóm](13-reference-data.md) |
 | 14 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
+| 15 | [Đơn xin vào phòng](15-room-applies.md) |
 
 ## Đối chiếu nhanh theo tình huống
 
@@ -56,6 +57,7 @@ flowchart LR
 |---|---|
 | Không đăng nhập được | [Đăng nhập và JWT](07-auth-login.md) |
 | Mã lỗi BR05 hoặc BR19 | [Tạo phòng và quản lý thành viên](14-rooms-write.md) |
+| Trạng thái đơn chưa cập nhật | [Đơn xin vào phòng](15-room-applies.md) |
 
 ## Đối chiếu mã nguồn
 
