@@ -1,5 +1,7 @@
 # Hệ thống Quản lý Ghép nhóm EXE
 
+[![CI/CD](https://github.com/co-duong-hao/PRN232_Final/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/co-duong-hao/PRN232_Final/actions/workflows/ci-cd.yml)
+
 Đồ án cuối kỳ môn **PRN232** — Nhóm 6, lớp SE1920, giảng viên hướng dẫn PhuongLHK.
 
 ## Giới thiệu
@@ -73,6 +75,7 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 | Cache | **Redis**: cache loại nhóm và thống kê Course trong Team Service, tự xóa khi dữ liệu đổi; header `X-Cache: HIT/MISS` để quan sát |
 | gRPC | Matching Service, được Team Service gọi khi kiểm tra cơ cấu, hoàn tất phòng và gợi ý phòng |
 | Deployment | Docker Desktop + Docker Compose (một trong hai cách đề cho phép): mỗi service một Dockerfile, một lệnh `docker compose up` dựng toàn bộ 10 container — xem mục [Cài đặt và triển khai](#cài-đặt-và-triển-khai) |
+| CI/CD | **GitHub Actions**: mỗi lần push hoặc mở PR thì build, chạy unit test, kiểm tra và build frontend, build 6 image Docker; push lên `main` thì đẩy image lên **GitHub Container Registry** — xem mục [CI/CD](#cicd) |
 | Tài liệu API | Swagger/OpenAPI cho Auth Service và Team Service |
 | Database scripts / migrations | EF Core migrations trong `src/AuthService/Data/Migrations` và `src/TeamService/Data/Migrations`, tự áp dụng khi khởi động |
 | Làm thêm | Web app React cho 4 vai trò (giao diện theo F-Spark); hồ sơ GPA và vai trò, tìm nhóm theo GPA/vai trò; Matching Service gợi ý phòng; dead-letter stream; kiểm thử end-to-end |
@@ -91,6 +94,7 @@ Mỗi service có database riêng (database-per-service); Auth và Team chỉ th
 - **React 18**, TypeScript, Vite, **Ant Design 5**, React Router; Nginx phục vụ bản build
 - **xUnit**, Moq, SQLite in-memory cho test
 - **Docker**, Docker Compose
+- **GitHub Actions** (CI/CD), **GitHub Container Registry** (lưu image)
 
 ## Cấu trúc thư mục
 
@@ -107,6 +111,7 @@ frontend/             Web app React (Vite, Ant Design)
 tests/                Unit test cho từng service; tests/e2e: kiểm thử end-to-end
 docs/                 Đề bài, mô tả đề tài, tài liệu thiết kế
 docker-compose.yml
+.github/workflows/    CI/CD (GitHub Actions)
 ```
 
 ## Cài đặt và triển khai
@@ -200,6 +205,28 @@ BR16, BR18, lời gọi gRPC và email trong Mailpit:
 ```bash
 python tests/e2e/e2e_smoke.py .env
 ```
+
+### CI/CD
+
+Workflow [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) chạy trên GitHub Actions:
+
+| Job | Chạy khi | Làm gì |
+|---|---|---|
+| `backend` | Mọi push (`main`, `integration`, `feat/**`) và PR vào `main`, `integration` | `dotnet build` (Release), `dotnet test`; kết quả test tải về được ở mục *Artifacts* |
+| `frontend` | Như trên | `npm ci`, `npm run format:check` (Prettier), `npm run build` |
+| `images` | Sau khi hai job trên đạt | Build 6 image (5 service .NET và web), dùng cache của GitHub Actions |
+| — đẩy image (CD) | Chỉ khi push lên `main` hoặc chạy tay trên `main` | Đẩy lên `ghcr.io/co-duong-hao/prn232-<service>` với tag `latest` và `sha-<commit>` |
+
+Chạy hệ thống bằng image CI đã build sẵn, không cần build trên máy (repo private nên phải đăng nhập GHCR bằng
+Personal Access Token có quyền `read:packages`):
+
+```bash
+docker login ghcr.io -u <tên-GitHub>
+docker compose pull
+docker compose up -d --no-build
+```
+
+Muốn chạy đúng một bản build cũ: đặt `IMAGE_TAG=sha-<7 ký tự commit>` trong `.env`.
 
 ### Database và migration
 

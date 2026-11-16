@@ -9,6 +9,10 @@
 #   http://localhost:9090   Prometheus: scrapes GET /metrics of every service every 5 s
 #
 # Infrastructure only: `docker compose up -d sqlserver redis kafka mailpit`.
+#
+# Images built by CI/CD (.github/workflows/ci-cd.yml) live on GHCR under the names below. Instead of building
+# locally: `docker login ghcr.io`, then `docker compose pull` and `docker compose up -d --no-build`.
+# IMAGE_TAG=sha-<commit> in .env pins a specific build; the default is latest (= newest main).
 
 name: exe-team-matching
 
@@ -85,6 +89,7 @@ services:
       - "1025:1025"
 
   auth-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-auth-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: src/AuthService/Dockerfile
@@ -102,6 +107,7 @@ services:
     restart: on-failure
 
   matching-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-matching-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: src/MatchingService/Dockerfile
@@ -114,6 +120,7 @@ services:
     restart: on-failure
 
   team-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-team-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: src/TeamService/Dockerfile
@@ -139,6 +146,7 @@ services:
     restart: on-failure
 
   noti-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-noti-service:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: src/NotiService/Dockerfile
@@ -156,6 +164,7 @@ services:
     restart: on-failure
 
   gateway:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-gateway:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: src/Gateway/Dockerfile
@@ -173,6 +182,7 @@ services:
     restart: on-failure
 
   web:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-web:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
     ports:
