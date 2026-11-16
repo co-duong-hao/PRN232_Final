@@ -1,0 +1,225 @@
+# Docker Compose
+
+Tài liệu tham chiếu cho PRN232 Final v0.4 tại commit 2e3789f.
+
+[Mục lục bộ tài liệu](01-architecture.md)
+
+## Cách hoạt động
+
+Compose quản lý 10 container trong bản demo. Các ứng dụng tìm hạ tầng qua tên dịch vụ như `sqlserver`, `redis` và `kafka`.
+
+Cú pháp `5102:8080` ánh xạ cổng máy chủ vào cổng container. Bên trong cùng mạng Docker, các dịch vụ dùng địa chỉ nội bộ.
+
+Compose cấu hình điều kiện sẵn sàng cho hạ tầng và lưu dữ liệu vào volume. Biến `__` biểu diễn thư mục con của cấu hình .NET.
+
+## Cách kiểm tra
+
+1. Dùng `docker compose config --services` và `docker compose ps` để kiểm tra tên và trạng thái.
+2. Kiểm tra web ở cổng 3000, API Gateway ở 8080 và Mailpit ở 8025.
+
+## Đối chiếu mã nguồn
+
+Các trích đoạn dưới đây hỗ trợ tra cứu. Đường dẫn mở phần tương ứng trong repo.
+
+### docker-compose.yml
+
+Hạ tầng, dịch vụ ứng dụng, biến môi trường, cổng và volume nằm trong cấu hình này. Các giá trị nhạy cảm được tham chiếu gián tiếp qua biến.
+
+[docker-compose.yml dòng 1–194](../../docker-compose.yml#L1-L194)
+
+~~~yaml
+# Whole system: `cp .env.example .env`, fill in MSSQL_ACCEPT_EULA, then `docker compose up --build`.
+#
+#   http://localhost:3000   Web app (React), calls the API through the gateway
+#   http://localhost:8080   API Gateway (the only API entry point)
+#   http://localhost:5101/swagger   Auth Service Swagger (exposed for the demo)
+#   http://localhost:5102/swagger   Team Service Swagger (exposed for the demo)
+#   http://localhost:8025   Mailpit: inbox for every email the system sends
+#
+# Infrastructure only: `docker compose up -d sqlserver redis kafka mailpit`.
+#
+# Images built by CI/CD (.github/workflows/ci-cd.yml) live on GHCR under the names below. Instead of building
+# locally: `docker login ghcr.io`, then `docker compose pull` and `docker compose up -d --no-build`.
+# IMAGE_TAG=sha-<commit> in .env pins a specific build; the default is latest (= newest main).
+
+name: exe-team-matching
+
+x-dotnet-env: &dotnet-env
+  ASPNETCORE_ENVIRONMENT: Production
+  DOTNET_ENVIRONMENT: Production
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: ${MSSQL_ACCEPT_EULA:?Set MSSQL_ACCEPT_EULA=Y in .env to accept the SQL Server licence}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # Cache for Team Service (not a message broker any more).
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Message broker: single-node Kafka in KRaft mode (no ZooKeeper).
+  # Containers use kafka:9092; tools on the host use localhost:9094.
+  kafka:
+    image: apache/kafka:3.9.1
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  auth-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-auth-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: src/AuthService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=AuthDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Seed__DefaultPassword: ${SEED_DEFAULT_PASSWORD:?Set SEED_DEFAULT_PASSWORD in .env}
+    ports:
+      - "5101:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: on-failure
+
+  matching-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-matching-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: src/MatchingService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      # Endpoints come from Kestrel config below; clear the image's default port binding.
+      ASPNETCORE_HTTP_PORTS: ""
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:8080"
+      Kestrel__Endpoints__Health__Url: "http://0.0.0.0:8081"
+    restart: on-failure
+
+  team-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-team-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: src/TeamService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=TeamDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      Jwt__Key: ${JWT_KEY}
+      Redis__ConnectionString: "redis:6379"
+      Kafka__BootstrapServers: "kafka:9092"
+      Matching__Address: "http://matching-service:8080"
+    ports:
+      - "5102:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      matching-service:
+        condition: service_started
+    restart: on-failure
+
+  noti-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-noti-service:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: src/NotiService/Dockerfile
+    environment:
+      <<: *dotnet-env
+      Kafka__BootstrapServers: "kafka:9092"
+      Smtp__Host: "mailpit"
+      Smtp__Port: "1025"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    restart: on-failure
+
+  gateway:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-gateway:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: src/Gateway/Dockerfile
+    environment:
+      <<: *dotnet-env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Jwt__Key: ${JWT_KEY}
+      ReverseProxy__Clusters__auth__Destinations__d1__Address: "http://auth-service:8080/"
+      ReverseProxy__Clusters__team__Destinations__d1__Address: "http://team-service:8080/"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - team-service
+    restart: on-failure
+
+  web:
+    image: ${IMAGE_PREFIX:-ghcr.io/co-duong-hao/prn232}-web:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
+    restart: on-failure
+
+volumes:
+  sqlserver-data:
+  redis-data:
+  kafka-data:
+~~~
