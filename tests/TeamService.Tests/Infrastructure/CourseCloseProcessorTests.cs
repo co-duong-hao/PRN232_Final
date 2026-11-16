@@ -16,6 +16,7 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
     private readonly List<EventEnvelope> events = [];
     private TeamDbContext db = null!;
     private CourseCloseProcessor processor = null!;
+    private readonly Exe.TeamService.Infrastructure.TeamMetrics metrics = TestMetrics.Create();
     private readonly DateTime now = new(2026, 12, 15, 0, 0, 0, DateTimeKind.Utc);
 
     public async Task InitializeAsync()
@@ -30,7 +31,7 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
         publisher.Setup(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()))
             .Callback<EventEnvelope, CancellationToken>((item, _) => events.Add(item))
             .Returns(Task.CompletedTask);
-        processor = new CourseCloseProcessor(new CourseCloseRepository(db), publisher.Object, TestCache.Create());
+        processor = new CourseCloseProcessor(new CourseCloseRepository(db), publisher.Object, TestCache.Create(), metrics);
     }
 
     public async Task DisposeAsync()
@@ -63,7 +64,9 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
                 events.Add(item);
             }).Returns(Task.CompletedTask);
 
+        using var listener = new MetricCapture(metrics);
         var count = await processor.RunOnceAsync(now);
+        Assert.Equal(1, listener.Count("exe.courses.closed"));
 
         Assert.Equal(1, count);
         var published = Assert.Single(events);
@@ -116,7 +119,7 @@ public sealed class CourseCloseProcessorTests : IAsyncLifetime
     public async Task RunOnce_WhenSaveFails_DoesNotPublish()
     {
         var repository = new FailingSaveRepository();
-        var failingProcessor = new CourseCloseProcessor(repository, publisher.Object, TestCache.Create());
+        var failingProcessor = new CourseCloseProcessor(repository, publisher.Object, TestCache.Create(), TestMetrics.Create());
         await Assert.ThrowsAsync<InvalidOperationException>(() => failingProcessor.RunOnceAsync(now));
         Assert.Empty(events);
         publisher.Verify(x => x.PublishAsync(It.IsAny<EventEnvelope>(), It.IsAny<CancellationToken>()), Times.Never);

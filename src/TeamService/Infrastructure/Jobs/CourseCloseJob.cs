@@ -4,7 +4,8 @@ public sealed class CourseCloseJob(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     IHostEnvironment environment,
-    ILogger<CourseCloseJob> logger) : BackgroundService
+    ILogger<CourseCloseJob> logger,
+    TeamMetrics metrics) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -28,6 +29,7 @@ public sealed class CourseCloseJob(
                     using var scope = scopeFactory.CreateScope();
                     var processor = scope.ServiceProvider.GetRequiredService<CourseCloseProcessor>();
                     await processor.RunOnceAsync(DateTime.UtcNow, stoppingToken);
+                    metrics.CourseCloseJobRun("ok");
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -35,6 +37,7 @@ public sealed class CourseCloseJob(
                 }
                 catch (Exception ex)
                 {
+                    metrics.CourseCloseJobRun("failed");
                     logger.LogError(ex, "Course close job failed for this interval");
                 }
             }

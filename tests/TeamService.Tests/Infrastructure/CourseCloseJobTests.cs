@@ -14,6 +14,8 @@ public sealed class CourseCloseJobTests
     [Fact]
     public async Task Execute_WhenOneTickFails_ContinuesWithNewScope()
     {
+        var metrics = TestMetrics.Create();
+        using var listener = new MetricCapture(metrics);
         var scopeCount = 0;
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var repository = new FlakyRepository(completed);
@@ -24,7 +26,7 @@ public sealed class CourseCloseJobTests
             return repository;
         });
         services.AddSingleton(Mock.Of<IEventPublisher>());
-        services.AddScoped(sp => new CourseCloseProcessor(sp.GetRequiredService<ICourseCloseRepository>(), sp.GetRequiredService<IEventPublisher>(), TestCache.Create()));
+        services.AddScoped(sp => new CourseCloseProcessor(sp.GetRequiredService<ICourseCloseRepository>(), sp.GetRequiredService<IEventPublisher>(), TestCache.Create(), TestMetrics.Create()));
         await using var provider = services.BuildServiceProvider();
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -33,7 +35,7 @@ public sealed class CourseCloseJobTests
         var environment = new Mock<IHostEnvironment>();
         environment.SetupGet(x => x.EnvironmentName).Returns("Production");
         var logger = new Mock<ILogger<CourseCloseJob>>();
-        using var job = new CourseCloseJob(provider.GetRequiredService<IServiceScopeFactory>(), config, environment.Object, logger.Object);
+        using var job = new CourseCloseJob(provider.GetRequiredService<IServiceScopeFactory>(), config, environment.Object, logger.Object, metrics);
         await job.StartAsync(CancellationToken.None);
         try
         {
@@ -44,6 +46,8 @@ public sealed class CourseCloseJobTests
             await job.StopAsync(CancellationToken.None);
         }
         Assert.True(scopeCount >= 2);
+        Assert.Equal(1, listener.Count("exe.course.close.job.runs", "result", "failed"));
+        Assert.True(listener.Count("exe.course.close.job.runs", "result", "ok") >= 1);
         logger.Verify(x => x.Log(LogLevel.Error, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(),
             It.IsAny<Exception>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
     }
@@ -55,7 +59,7 @@ public sealed class CourseCloseJobTests
         var environment = new Mock<IHostEnvironment>();
         environment.SetupGet(x => x.EnvironmentName).Returns("Testing");
         using var job = new CourseCloseJob(scopeFactory.Object, new ConfigurationBuilder().Build(), environment.Object,
-            Mock.Of<ILogger<CourseCloseJob>>());
+            Mock.Of<ILogger<CourseCloseJob>>(), TestMetrics.Create());
         await job.StartAsync(CancellationToken.None);
         await job.StopAsync(CancellationToken.None);
         scopeFactory.Verify(x => x.CreateScope(), Times.Never);

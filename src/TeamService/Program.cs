@@ -1,3 +1,4 @@
+using Exe.Shared.Web.Observability;
 using Exe.Shared.Web.Json;
 using Exe.Shared.Web.Auth;
 using Exe.Shared.Web.Errors;
@@ -17,6 +18,7 @@ builder.Services.AddExeJson();
 builder.Services.AddExeJwtAuth(builder.Configuration);
 builder.Services.AddExeCurrentUser();
 builder.Services.AddHealthChecks();
+builder.Services.AddExeMetrics("team-service", TeamMetrics.MeterName);
 
 builder.Services.AddTeamInfrastructure(builder.Configuration);
 
@@ -41,6 +43,7 @@ app.UseSwaggerUI();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapExeMetrics();
 app.MapControllers();
 app.MapHealthChecks("/health");
 

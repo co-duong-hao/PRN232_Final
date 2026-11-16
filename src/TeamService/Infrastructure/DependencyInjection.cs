@@ -12,6 +12,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddTeamInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddMetrics();
+        services.AddSingleton<TeamMetrics>();
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = configuration["Redis:ConnectionString"] ?? "localhost:6379";
@@ -31,7 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IMatchingClient, GrpcMatchingClient>();
         services.AddScoped<ICourseCloseRepository, CourseCloseRepository>();
         services.AddScoped<CourseCloseProcessor>(sp => new CourseCloseProcessor(
-            sp.GetRequiredService<ICourseCloseRepository>(), sp.GetRequiredService<IEventPublisher>(), sp.GetRequiredService<ITeamCache>()));
+            sp.GetRequiredService<ICourseCloseRepository>(), sp.GetRequiredService<IEventPublisher>(), sp.GetRequiredService<ITeamCache>(), sp.GetRequiredService<TeamMetrics>()));
         services.AddHostedService<CourseCloseJob>();
         return services;
     }

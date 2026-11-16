@@ -1,3 +1,4 @@
+using Exe.TeamService.Infrastructure;
 using Exe.TeamService.Infrastructure.Caching;
 using Exe.Contracts;
 using Exe.Contracts.Events;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Exe.TeamService.Services;
 
-public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingClient matching, IEventPublisher publisher, IOptions<RoomOptions> options, ITeamCache cache, IReferenceService references, IConfiguration configuration) : IRoomService
+public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingClient matching, IEventPublisher publisher, IOptions<RoomOptions> options, ITeamCache cache, IReferenceService references, IConfiguration configuration, TeamMetrics metrics) : IRoomService
 {
     private int Threshold => options.Value.LockThreshold;
 
@@ -194,6 +195,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
                 student = await CurrentStudentAsync(ct);
                 continue;
             }
+            metrics.RoomCreated(course.Code);
             await InvalidateStatsAsync(courseId, ct);
             await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomCreated, room, [student]), ct);
             return Map(room);
@@ -225,6 +227,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
         }
         await CancelPendingAsync(room.CourseId, student.Id, null, ct);
         await SaveMembershipAsync(ct);
+        metrics.RoomJoined("direct");
         await InvalidateStatsAsync(room.CourseId, ct);
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomMemberJoined, room, previous,
             (EventDataKeys.ActorName, student.FullName), (EventDataKeys.MemberCount, room.MemberCount.ToString())), ct);
@@ -269,6 +272,8 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
             room.Status = RoomStatus.Open;
         }
         await db.SaveChangesAsync(ct);
+        metrics.RoomLeft();
+        if (room.Status == RoomStatus.Cancelled) metrics.RoomCancelled();
         await InvalidateStatsAsync(room.CourseId, ct);
     }
 
@@ -359,6 +364,7 @@ public sealed class RoomService(TeamDbContext db, ICurrentUser user, IMatchingCl
             apply.Status = ApplyStatus.Cancelled;
         }
         await db.SaveChangesAsync(ct);
+        metrics.GroupFormed(room.Course.Code);
         await InvalidateStatsAsync(room.CourseId, ct);
         await publisher.PublishAsync(RoomEventFactory.Create(EventTypes.RoomCompleted, room, room.Members.Select(x => x.Student),
             (EventDataKeys.GroupCode, groupCode)), ct);
